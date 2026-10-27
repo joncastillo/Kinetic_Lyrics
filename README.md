@@ -1,11 +1,13 @@
 # Kinetic_Lyrics
 
-Generate a music video directly from audio files like MP3 through AI capabilities.
+Generate a music video directly from audio files (like MP3) through AI capabilities.
 
 Kinetic Lyrics aligns supplied lyrics to a song, plans typography and scene art with a
 local LLM, generates illustrations with a local image model, reviews them with a local
 vision model, and renders a kinetic-typography video with particle transitions.
-Everything runs on your own machine; nothing is sent to a hosted API.
+Everything runs locally, but requires a capable GPU. The goal of this project is to 
+achieve visually rich kinetic typography comparable to those manually done using graphic
+design tools such as Adobe After Effects.
 
 ## Requirements
 
