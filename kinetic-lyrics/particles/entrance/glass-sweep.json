@@ -1,0 +1,11 @@
+{
+  "name": "Glass sweep",
+  "family": "glass",
+  "trajectory": "fan",
+  "spread": 2.7,
+  "gravity": 0.85,
+  "spin": 1.8875,
+  "twist": 0.0,
+  "stagger": 0.22,
+  "density": 0.65
+}

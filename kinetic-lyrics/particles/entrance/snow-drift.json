@@ -1,0 +1,11 @@
+{
+  "name": "Snow drift",
+  "family": "snow",
+  "trajectory": "fan",
+  "spread": 2.7,
+  "gravity": 0.55,
+  "spin": 2.265,
+  "twist": 0.0,
+  "stagger": 0.22,
+  "density": 0.65
+}

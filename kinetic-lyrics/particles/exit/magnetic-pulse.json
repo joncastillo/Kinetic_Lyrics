@@ -1,0 +1,11 @@
+{
+  "name": "Magnetic pulse",
+  "family": "magnetic",
+  "trajectory": "fan",
+  "spread": 2.7,
+  "gravity": 0.0,
+  "spin": 0.15100000000000002,
+  "twist": 0.0,
+  "stagger": 0.22,
+  "density": 0.65
+}

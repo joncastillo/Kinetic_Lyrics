@@ -1,0 +1,11 @@
+{
+  "name": "Vortex helix",
+  "family": "vortex",
+  "trajectory": "fan",
+  "spread": 2.7,
+  "gravity": 0.0,
+  "spin": 1.359,
+  "twist": 0.0,
+  "stagger": 0.22,
+  "density": 0.65
+}

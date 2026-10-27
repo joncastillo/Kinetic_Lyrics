@@ -1,0 +1,10 @@
+{
+  "name": "Liquid chrome assembly",
+  "family": "cinematic",
+  "trajectory": "wave",
+  "density": 1.35,
+  "spread": 1.4,
+  "stagger": 0.22,
+  "spin": 1.0,
+  "gravity": 0.0
+}
