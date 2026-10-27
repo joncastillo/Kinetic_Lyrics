@@ -1,0 +1,757 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kinetic Lyrics</title>
+<style>
+:root{color-scheme:dark;--bg:#10120f;--panel:#191c17;--line:#30362c;--muted:#a3ad9a;--ink:#f1f3e9;--lime:#d5f59b;--warn:#ffd189;--error:#ff9994}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 "Segoe UI",sans-serif}button,input,textarea,select{font:inherit}button{cursor:pointer;border:1px solid var(--line);background:#282e23;color:var(--ink);border-radius:9px;padding:9px 13px;transition:background .2s}button:hover{background:#3a4330}button:disabled{opacity:.4;cursor:not-allowed}button.primary{background:var(--lime);color:#17200c;font-weight:700;border-color:var(--lime)}button.danger{color:var(--error)}input,textarea,select{width:100%;border:1px solid var(--line);border-radius:9px;background:#11150f;color:var(--ink);padding:10px;outline:none}input:focus,textarea:focus,select:focus{border-color:var(--lime)}textarea{resize:vertical;min-height:84px}input[type=checkbox]{width:auto;accent-color:var(--lime)}input[type=file]{font-size:12px}label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}h1,h2,h3,p{margin:0}h1{font-size:21px;letter-spacing:-.6px}h2{font-size:17px;font-weight:600}h3{font-size:14px}small,.muted{color:var(--muted)}header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding:22px 30px;gap:20px}.brand{display:flex;align-items:center;gap:13px}.mark{background:var(--lime);color:#1d2810;border-radius:10px;font-size:25px;width:43px;text-align:center}.eyebrow{font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--muted)}.local{font-size:12px;color:var(--lime)}.local:before{content:'●';margin-right:8px}main{max-width:1700px;margin:auto;display:grid;grid-template-columns:350px minmax(0,1fr);gap:24px;padding:25px 30px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}.panel-head{padding:18px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px}.form-body{padding:20px;display:grid;gap:18px}.row{display:flex;align-items:center;gap:10px}.row>*{min-width:0}.split{display:grid;grid-template-columns:1fr 1fr;gap:12px}.help{font-size:11px;color:var(--muted);margin-top:5px}.ref-list{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}.ref{position:relative}.ref img{width:62px;height:66px;object-fit:cover;border-radius:6px}.ref button{position:absolute;right:0;top:0;padding:0 4px;font-size:12px;background:#000b}.workspace{display:grid;gap:20px;align-content:start}.status-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:20px}.progress-content{padding:20px}.percent{font-size:54px;letter-spacing:-3px;line-height:1.1;font-weight:600}.percent span{font-size:25px;color:var(--muted);letter-spacing:0}.badge{font-size:10px;letter-spacing:1px;text-transform:uppercase;border:1px solid var(--line);padding:4px 8px;border-radius:20px;color:var(--lime)}.bar{height:7px;background:#30372a;border-radius:8px;overflow:hidden;margin:17px 0 12px}.bar>div{height:100%;width:0;background:var(--lime);transition:width .35s}.message{min-height:42px;color:#ced6c4;font-size:13px}.stage-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}.stage{font-size:10px;color:#87907e;background:#22271e;border-radius:5px;padding:4px 7px}.stage.active{background:#39482b;color:var(--lime)}.stage.done{color:#ced9c0}.chart-box{padding:14px 18px 8px}.chart-box svg{width:100%;height:145px}.chart-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--muted)}.stat-row{display:flex;justify-content:space-between;padding:14px 20px;border-top:1px solid var(--line);font-size:12px}.review-banner{display:none;background:#29351e;border:1px solid #566e3d;border-radius:12px;padding:16px 20px;align-items:center;justify-content:space-between;gap:15px}.gallery{padding:18px;display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:16px}.empty{padding:55px 25px;text-align:center;color:var(--muted);grid-column:1/-1}.empty-symbol{font-size:35px;margin-bottom:12px;color:#728260}.image-card{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#131710}.image-stage{height:230px;display:flex;align-items:center;justify-content:center;background-color:#e6e2d8;background-image:linear-gradient(45deg,#d4d0c6 25%,transparent 25%),linear-gradient(-45deg,#d4d0c6 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#d4d0c6 75%),linear-gradient(-45deg,transparent 75%,#d4d0c6 75%);background-size:20px 20px;background-position:0 0,0 10px,10px -10px,-10px 0}.image-stage img{max-width:100%;max-height:100%;object-fit:contain;cursor:zoom-in}.card-body{padding:13px}.card-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.lyrics{font-size:12px;color:#c3ccba;min-height:36px}.subject{font-size:11px;color:var(--muted);margin:9px 0;max-height:48px;overflow:auto}.variants{display:flex;gap:5px;overflow-x:auto;padding:7px 0}.variant{padding:2px;border-radius:5px;flex-shrink:0}.variant.selected{border-color:var(--lime)}.variant img{width:39px;height:43px;object-fit:contain;background:#dedbd3;display:block}.card-actions{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}.card-actions button{font-size:11px;padding:6px 8px}.review-result{font-size:11px;padding:8px;border:1px solid #4a563c;border-radius:6px;margin-top:9px;max-height:120px;overflow:auto;white-space:pre-wrap}.review-result.flagged{border-color:#a68149;color:var(--warn)}.dirty{color:var(--warn);font-size:10px}.log-toolbar{display:flex;gap:10px;align-items:center;font-size:12px}.log-toolbar select{width:auto;padding:4px}.logs{height:225px;overflow:auto;padding:12px 16px;font:11px/1.7 Consolas,monospace;background:#11140f;white-space:pre-wrap;overflow-wrap:anywhere}.log-line{display:grid;grid-template-columns:60px 1fr;gap:8px;border-bottom:1px solid #ffffff05}.log-line time{color:#6f7c64}.log-line.warning{color:var(--warn)}.log-line.error{color:var(--error)}details>summary{cursor:pointer;color:var(--muted);font-size:12px}.advanced{display:grid;gap:14px;padding-top:14px}.toast{display:none;position:fixed;bottom:24px;right:25px;max-width:500px;background:#422923;border:1px solid #9b6558;padding:14px 20px;border-radius:10px;z-index:5}.video-panel{display:none}.video-panel video{width:100%;max-height:520px;background:#000}.download{color:var(--lime);font-size:12px}.vision-row{padding:12px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;flex-wrap:wrap}.vision-row select{width:225px;font-size:12px;padding:7px}.vision-row small{font-size:11px;flex:1}.modal{border:1px solid var(--line);border-radius:14px;background:#151a12;color:var(--ink);max-width:90vw;padding:18px}.modal::backdrop{background:#000c}.modal img{display:block;max-width:85vw;max-height:78vh;background:#dedbd3;margin-top:12px}.job-picker{max-width:250px;font-size:12px}#actionProgress{font-size:12px;color:var(--lime);min-height:20px}.upload-progress{font-size:12px;color:var(--lime);display:none}@media(max-width:1050px){main{grid-template-columns:300px minmax(0,1fr);padding:18px;gap:18px}.status-grid{grid-template-columns:1fr}.gallery{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}}@media(max-width:740px){header{padding:16px}.job-picker{max-width:150px}main{grid-template-columns:1fr;padding:14px}.status-grid{grid-template-columns:1fr;gap:10px}.percent{font-size:43px}.panel-head{padding:13px}.progress-content{padding:14px}.chart-box{padding:8px}.chart-box svg{height:130px}.gallery{padding:12px}.review-banner{flex-direction:column;align-items:stretch}}
+@media(max-width:740px){body.has-job main{display:flex;flex-direction:column}body.has-job .workspace{order:0}body.has-job main>aside{order:1}}
+
+.mark{background:transparent;border:0;box-shadow:none;width:44px;height:44px;line-height:1}.mark svg{display:block;width:100%;height:100%}</style>
+<style>
+:root{--bg:#0b101a;--panel:#121a27;--line:#293448;--muted:#9caac0;--ink:#eef2f9;--lime:#b9c9ff;--warn:#f3ca86;--error:#ffaaa5;color-scheme:dark}
+body{background:radial-gradient(ellipse at 65% 0,#19233a 0,transparent 45%),var(--bg);font-family:Inter,"Segoe UI",sans-serif;line-height:1.6}
+header{padding:22px max(28px,calc((100vw - 1640px)/2));background:#0d1420dd;border-color:#ffffff0d}.mark{background:linear-gradient(145deg,#d6dfff,#8ea9fa);color:#20325b;border-radius:14px;height:44px;line-height:44px}.eyebrow{font-size:10px;letter-spacing:2px}.local{white-space:nowrap;color:#9dd8c2}h1{font-size:20px}h2{letter-spacing:-.35px}
+main{grid-template-columns:360px minmax(0,1fr);max-width:1700px;gap:28px;padding:30px}aside.panel{align-self:start} .panel{border-color:#ffffff12;border-radius:18px;box-shadow:0 10px 35px #00000014}.panel-head{padding:20px 22px;border-color:#ffffff0c}.panel-head small{display:block;max-width:620px;margin-top:5px;line-height:1.6}.form-body{gap:22px;padding:22px}.form-body label{font-size:12px;font-weight:550;color:#c2cde0}
+button{background:#202c40;border-color:#34425b;border-radius:9px;padding:10px 14px;line-height:1.35}button:hover{background:#30415f;border-color:#6f85b3}button:disabled{opacity:.42}button.primary{background:#bccbff;border-color:#bccbff;color:#172747}button.primary:hover{background:#d3ddff}button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid #b9c9ff;outline-offset:4px}input,textarea,select{background:#0c1422;border-color:#2a354a;border-radius:9px;padding:11px;color:var(--ink)}input:focus,textarea:focus,select:focus{box-shadow:0 0 0 3px #b9c9ff15}input[type=range]{padding:0;accent-color:#b9c9ff}input[type=file]::file-selector-button{background:#26344b;color:#e3eaff;border:0;padding:7px 10px;border-radius:5px;margin-right:10px}.help{line-height:1.7;font-size:11px}.badge{color:#bccbff;border-color:#3a4861;background:#b9c9ff07;font-size:9px;white-space:nowrap}
+.workspace-intro{display:flex;justify-content:space-between;gap:20px;align-items:center;padding:6px 2px 10px}.workspace-intro h2{font-size:30px;letter-spacing:-1px;font-weight:600;margin:7px 0}.workspace-intro p{font-size:13px;color:var(--muted)}.workspace{gap:24px}.status-grid{gap:20px}.percent{font-size:48px;font-variant-numeric:tabular-nums}.bar{background:#25314a;height:5px}.bar>div{background:linear-gradient(90deg,#819de9,#c6d7ff)}.stage{background:#1e2a3d;color:#93a4bf}.stage.active{background:#344768;color:#dce6ff}.stage.done{color:#c1cde1}.message,.lyrics{color:#c1cde1}.stat-row{border-color:#ffffff0b}.review-banner{background:#1b2c32;border-color:#385c60}.review-result{border-color:#3c526e}.logs{background:#0b1320;color:#b4c0d5}.log-line time{color:#7c8ca7}.modal{background:#131e30}.download{color:#b9c9ff}.toast{background:#23334c;border-color:#627da6;box-shadow:0 8px 40px #0008}
+.gallery{padding:22px;gap:22px;grid-template-columns:repeat(auto-fill,minmax(265px,1fr))}.image-card{background:#0f1725;border-color:#ffffff15;border-radius:14px}.image-stage{height:300px;background-color:#e8e9ed;background-image:linear-gradient(45deg,#dcdfe5 25%,transparent 25%),linear-gradient(-45deg,#dcdfe5 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#dcdfe5 75%),linear-gradient(-45deg,transparent 75%,#dcdfe5 75%);background-size:24px 24px;background-position:0 0,0 12px,12px -12px,-12px 0;padding:12px}.card-body{padding:17px}.card-title{margin-bottom:12px}.card-actions{gap:7px}.card-actions button{padding:8px 10px}.variant.selected{border-color:#b9c9ff;box-shadow:0 0 0 1px #b9c9ff}.subject{max-height:60px;line-height:1.7}.variants{padding:10px 0}.variant img{width:45px;height:48px}.empty{padding:70px 24px}.empty-symbol{color:#8b9fc7}.vision-row{border-color:#ffffff0b;padding:16px 22px}
+.profile-box{padding:16px;background:#172238;border:1px solid #31415d;border-radius:12px;display:grid;gap:9px}.profile-box label{margin:0}.profile-actions{display:flex;gap:6px}.profile-actions button{font-size:11px;flex:1;padding:8px}.profile-box .row input{flex:1}.profile-box .row button{flex-shrink:0}.rebuild-panel{position:sticky;top:12px;z-index:3;border:1px solid #566f9f;background:#1a2a44f5;backdrop-filter:blur(14px);border-radius:14px;padding:20px 22px;box-shadow:0 8px 30px #0005}.rebuild-panel[hidden]{display:none}.rebuild-panel h3{font-size:16px}.rebuild-panel p{font-size:12px;color:#c2cfe4;margin:4px 0 14px}.rebuild-actions{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px}.rebuild-panel small{font-size:11px}output{float:right;color:#b9c9ff}details{border-top:1px solid #ffffff0c;padding-top:14px}summary{font-weight:500}
+@media(min-width:1300px){body.has-job main{grid-template-columns:340px minmax(0,1fr)}}
+@media(max-width:1050px){main,body.has-job main{grid-template-columns:310px minmax(0,1fr);padding:20px;gap:20px}.status-grid{grid-template-columns:1fr}.workspace-intro .badge{display:none}.gallery{grid-template-columns:1fr}}
+@media(max-width:760px){header{padding:18px;flex-wrap:wrap}main,body.has-job main{grid-template-columns:1fr;padding:16px}.workspace-intro h2{font-size:26px}.gallery{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}.rebuild-panel{position:static}.job-picker{max-width:200px}.status-grid{grid-template-columns:1fr}.vision-row select{width:100%}.image-stage{height:300px}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+
+@media(max-width:760px){.panel-head{flex-wrap:wrap}.log-toolbar{flex-wrap:wrap;gap:8px}.vision-row small{flex-basis:100%}.toast{left:16px;right:16px;bottom:16px}}
+
+:root{--bg:#080d19;--panel:rgba(22,30,53,.58);--line:rgba(204,220,255,.16);--muted:#afbbd1;--ink:#f2f5ff;--lime:#c5baff}
+body{background:#080d19;isolation:isolate}
+body::before{content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;background:radial-gradient(ellipse at 8% 15%,#385e8c66,transparent 48%),radial-gradient(ellipse at 84% 5%,#7352a566,transparent 45%),radial-gradient(ellipse at 80% 85%,#176b7760,transparent 48%),linear-gradient(135deg,#0b1426,#121326 48%,#0b1826)}
+body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background-image:linear-gradient(#ffffff025 1px,transparent 1px);background-image:linear-gradient(#ffffff03 1px,transparent 1px),linear-gradient(90deg,#ffffff03 1px,transparent 1px);background-size:70px 70px;mask-image:linear-gradient(#0008,transparent 80%)}
+header{position:sticky;top:16px;z-index:10;max-width:1640px;margin:16px auto 0;padding:18px 24px;width:calc(100% - 48px);border:1px solid #ffffff20;border-radius:20px;background:linear-gradient(115deg,#ffffff0e,#ffffff03),#111b2e85;backdrop-filter:blur(28px) saturate(150%);-webkit-backdrop-filter:blur(28px) saturate(150%);box-shadow:inset 0 1px #ffffff18,0 12px 40px #03071530}
+.mark{background:linear-gradient(140deg,#e2ddff,#9abaf9 60%,#8edcd6);box-shadow:inset 0 1px 1px #fff9,0 6px 22px #9c9bff20;border:1px solid #ffffff50}.local{padding:7px 12px;border:1px solid #9de7d025;border-radius:999px;background:#8ad8c408;font-size:11px}.local:before{font-size:8px;text-shadow:0 0 12px #9de7d0}
+main{padding-top:26px}.panel{background:linear-gradient(130deg,#ffffff09,#ffffff02 45%),var(--panel);border:1px solid #d8e5ff20;border-top-color:#ffffff30;border-radius:22px;backdrop-filter:blur(24px) saturate(130%);-webkit-backdrop-filter:blur(24px) saturate(130%);box-shadow:inset 0 1px 0 #ffffff0a,0 14px 40px #03081525}.panel-head{background:linear-gradient(90deg,#ffffff04,transparent);border-bottom-color:#ffffff0e}.panel-head h2{font-weight:550}.panel-head .badge{font-size:9px;letter-spacing:.8px}
+aside.panel{position:sticky;top:111px;max-height:calc(100vh - 137px);overflow:auto;scrollbar-width:thin;scrollbar-color:#bacbff30 transparent}.form-body{gap:20px}.form-body>div>label,.form-body>.split label{color:#d5ddef}.help{color:#aab7d0}.profile-box{background:linear-gradient(135deg,#b5a4ff13,#97e7e005);border-color:#c9c3ff25;box-shadow:inset 0 1px #ffffff09;border-radius:14px;padding:15px}.profile-box .eyebrow{color:#d2c9ff}
+button{background:linear-gradient(#ffffff09,#ffffff02),#9fb6e510;border:1px solid #d7e4ff25;box-shadow:inset 0 1px #ffffff0a;color:#e8edff;transition:background .18s,border-color .18s,box-shadow .18s,transform .18s}button:hover:not(:disabled){background:#b9c9ff1c;border-color:#c3d0ff55;box-shadow:0 4px 18px #0002;transform:translateY(-1px)}button:active:not(:disabled){transform:translateY(0)}button.primary{background:linear-gradient(115deg,#d5c9ff,#a7c7fb 65%,#9edbd7);border-color:#e3dfff8c;box-shadow:inset 0 1px #fff8,0 5px 24px #ad9dff20;color:#182443}button.primary:hover:not(:disabled){background:linear-gradient(115deg,#e5dcff,#b6d5ff 65%,#b3e8e3);box-shadow:0 6px 26px #b4acff30}button:disabled{opacity:.4;box-shadow:none}input,textarea,select{background:#070f205e;border-color:#d5e3ff1f;box-shadow:inset 0 1px 3px #03071525;border-radius:10px}select option,select optgroup{background:#17233b;color:#eef2ff}input::placeholder,textarea::placeholder{color:#8293b1}input:focus,textarea:focus,select:focus{border-color:#bdb4fb9c;box-shadow:0 0 0 3px #bdb4fb12;background:#0a142985}input[type=file]::file-selector-button{background:#c6d2ff12;border:1px solid #c6d2ff1c}input[type=range]{box-shadow:none;background:transparent}#generate{padding:14px;font-size:13px}
+.workspace-intro{position:relative;overflow:hidden;min-height:190px;padding:28px 32px;border:1px solid #ffffff22;border-radius:24px;background:linear-gradient(115deg,#c0b8ff16,#8adfe70a 60%,#ffffff04);box-shadow:inset 0 1px #ffffff18,0 14px 40px #0308151a;backdrop-filter:blur(20px)}.workspace-intro>div{position:relative;z-index:1}.workspace-intro .eyebrow{color:#c3c0e6}.workspace-intro h2{font-size:clamp(30px,3vw,46px);line-height:1.15;letter-spacing:-1.8px;font-weight:600;margin:12px 0}.workspace-intro h2 span{background:linear-gradient(95deg,#ddd4ff,#a5e2e5);background-clip:text;-webkit-background-clip:text;color:transparent}.workspace-intro p{max-width:440px;color:#c1cce0}.workspace-intro>.badge{align-self:flex-start;position:relative;z-index:1;background:#0c142843;backdrop-filter:blur(10px)}.workspace-intro::before{content:"";position:absolute;width:240px;height:240px;border-radius:50%;right:30px;top:22px;background:radial-gradient(circle at 30% 28%,#e3d5ff20,#a2c3ff06 45%,#89e4d51a 70%,transparent 72%);border:1px solid #dce6ff28;box-shadow:inset 5px 8px 24px #ffffff08,0 0 65px #a9a0ff0b;transform:rotate(-25deg) scaleX(1.45)}.workspace-intro::after{content:"";position:absolute;width:300px;height:110px;right:-15px;top:60px;border:1px solid #dce6ff20;border-radius:50%;transform:rotate(-32deg);box-shadow:0 0 0 16px #c6d6ff03,0 0 0 34px #c6d6ff03}
+.percent{font-size:55px;letter-spacing:-2.5px;font-weight:500}.bar{height:6px;background:#090f255c;border:1px solid #ffffff09}.bar>div{background:linear-gradient(90deg,#baacfb,#91d7e6);box-shadow:0 0 14px #acb7ff60}.badge{background:#bdc7f708;border-color:#c5d2fa25;color:#cfc7f7}.stage{background:#a5b7ef0b;border:1px solid #a5b7ef0b;color:#aab8d2}.stage.active{background:#c4b3ff1e;border-color:#c4b3ff40;color:#e2dcff}.chart-box svg{opacity:.9}.chart-labels{color:#a4b3cc}.stat-row{background:#0b14201c;border-color:#ffffff0c}.message,.lyrics{color:#d0d9eb}.vision-row{background:#07102418;border-color:#ffffff0c}
+.image-card{background:linear-gradient(130deg,#ffffff09,#ffffff02),#101a2e65;border-color:#ffffff21;box-shadow:0 8px 28px #0002;border-radius:17px}.image-card:hover{border-color:#c4d3ff3a}.image-stage{background-color:#dce2ec;background-image:linear-gradient(45deg,#d3dae5 25%,transparent 25%),linear-gradient(-45deg,#d3dae5 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#d3dae5 75%),linear-gradient(-45deg,transparent 75%,#d3dae5 75%)}.empty{padding:65px 24px;min-height:280px;display:grid;align-content:center;justify-items:center;background:radial-gradient(ellipse at center,#b9b3ff08,transparent 65%)}.empty-symbol{display:grid;place-items:center;border-radius:22px;width:72px;height:72px;border:1px solid #c7d7ff25;background:linear-gradient(135deg,#b6adfa20,#9fdfe00b);box-shadow:inset 0 1px #fff2,0 8px 28px #0002;color:#c1c4f1;margin-bottom:18px}.empty h3{font-size:17px;color:#dce3f4;font-weight:500}.empty p{font-size:12px;max-width:420px;line-height:1.8}
+.logs{background:#070f2055;color:#bbc9e0;scrollbar-color:#bacbff30 transparent}.log-line time{color:#8c9bb7}.review-banner{background:#173c3c90;border-color:#96e0ce40;backdrop-filter:blur(22px)}.rebuild-panel{background:linear-gradient(110deg,#bcb0ff14,#9ee7df08),#17213dd9;border-color:#b8b4f755;box-shadow:inset 0 1px #ffffff15,0 12px 35px #0004}.modal{background:linear-gradient(130deg,#ffffff0c,#ffffff02),#111b30eb;border-color:#d5dcff30;backdrop-filter:blur(32px);box-shadow:0 24px 90px #0008}.modal::backdrop{background:#050b1b9c;backdrop-filter:blur(8px)}.toast{background:#28324bdc;border-color:#d2d4ff38;backdrop-filter:blur(24px);box-shadow:0 12px 38px #0005}.download{color:#c6c1ff;text-underline-offset:3px}.compatibility-note{backdrop-filter:blur(20px)}
+@supports not (backdrop-filter:blur(1px)){.panel,header,.modal{background:#172238}.workspace-intro{background:#202c46}}
+@media(max-width:1050px){header{width:calc(100% - 32px)}aside.panel{top:111px}.workspace-intro{padding:24px}.workspace-intro::before{right:-90px;opacity:.5}.workspace-intro::after{right:-120px;opacity:.5}.workspace-intro h2{font-size:33px}}
+@media(max-width:760px){header{position:relative;top:0;margin-top:12px;width:calc(100% - 24px);padding:16px;border-radius:17px}.local{padding:5px 9px}.brand{gap:10px}main,body.has-job main{padding:16px 12px}.panel{border-radius:18px}aside.panel{position:static;max-height:none;overflow:hidden}.workspace-intro{padding:24px 22px;min-height:175px;border-radius:19px}.workspace-intro h2{font-size:34px;letter-spacing:-1.3px}.workspace-intro p{max-width:260px}.form-body{padding:18px}.panel-head{padding:18px}.gallery{padding:16px}.rebuild-panel{position:static}.empty{padding:48px 18px}}
+@media(prefers-reduced-transparency:reduce){.panel,header,.modal,.profile-box,.rebuild-panel,.toast{background:#172238;backdrop-filter:none}.workspace-intro{background:#202c46}}
+
+.compatibility-note{padding:15px 20px;border:1px solid #6b5940;border-radius:12px;color:#f3ca86;background:#30271b;font-size:12px}
+.mark{background:transparent;border:0;box-shadow:none;width:44px;height:44px;line-height:1}.mark svg{display:block;width:100%;height:100%}</style>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2048%2048%22%20fill%3D%22none%22%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2246%22%20height%3D%2246%22%20rx%3D%2214%22%20fill%3D%22%2320252d%22%20fill-opacity%3D%22.7%22%20stroke%3D%22%23ffffff%22%20stroke-opacity%3D%22.28%22%2F%3E%3Cpath%20d%3D%22M14%2012v24m18-24L15%2027m9-8%2010%2017%22%20stroke%3D%22%23f1f4f8%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3Cpath%20d%3D%22m32%2020%205-4m-2%2011%205-1%22%20stroke%3D%22%23b9d6db%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20opacity%3D%22.8%22%2F%3E%3C%2Fsvg%3E">
+<style>
+:root{--panel:rgba(255,255,255,.035);--line:rgba(255,255,255,.18)}
+body{background:#101216}
+body::before{background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%221800%22%20height%3D%221200%22%20viewBox%3D%220%200%201800%201200%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22a%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23080c14%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23131322%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22b%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22.8%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23789eae%22%20stop-opacity%3D%22.06%22%2F%3E%3Cstop%20offset%3D%22.5%22%20stop-color%3D%22%238dbfc8%22%20stop-opacity%3D%22.5%22%2F%3E%3Cstop%20offset%3D%22.64%22%20stop-color%3D%22%23375776%22%20stop-opacity%3D%22.2%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%230c1425%22%20stop-opacity%3D%220%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22c%22%20x1%3D%220%22%20y1%3D%221%22%20x2%3D%221%22%20y2%3D%220%22%3E%3Cstop%20stop-color%3D%22%23302e4b%22%20stop-opacity%3D%220%22%2F%3E%3Cstop%20offset%3D%22.55%22%20stop-color%3D%22%239388b8%22%20stop-opacity%3D%22.42%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23b9a4bb%22%20stop-opacity%3D%22.06%22%2F%3E%3C%2FlinearGradient%3E%3Cfilter%20id%3D%22soft%22%3E%3CfeGaussianBlur%20stdDeviation%3D%2222%22%2F%3E%3C%2Ffilter%3E%3C%2Fdefs%3E%3Cpath%20fill%3D%22url%28%23a%29%22%20d%3D%22M0%200h1800v1200H0z%22%2F%3E%3Cg%20filter%3D%22url%28%23soft%29%22%3E%3Cpath%20fill%3D%22url%28%23b%29%22%20d%3D%22M-300-100C900%200%20200%20650%201100%20850S1800%20850%202050%201500H1650C1500%20950%20650%201250%20480%20760S-100%20350-300%20400Z%22%2F%3E%3Cpath%20fill%3D%22url%28%23c%29%22%20d%3D%22M700-200C1800%20100%20900%20600%201900%20980L2100%201300C900%201050%201350%20400%20600%20180Z%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E");background-size:cover;background-position:center;background-repeat:no-repeat}
+body::after{background:radial-gradient(ellipse at 48% 38%,transparent 20%,#05070d60 100%);mask-image:none;opacity:1}
+header,.panel,.profile-box,.rebuild-panel,.review-banner,.modal,.toast,.image-card,.workspace-intro{background:linear-gradient(130deg,#ffffff0b,#ffffff02 65%),#ffffff03;border-color:#ffffff25;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:inset 0 1px #ffffff16,0 16px 45px #0002}
+.panel-head,.logs,.review-result,.vision-row,.card-body{background:transparent;border-color:#ffffff17}
+.workspace-intro{min-height:0;padding:16px 22px}.workspace-intro::before,.workspace-intro::after{display:none}
+input,textarea,select{background:#00000026;border-color:#ffffff22}
+.song-picker{position:relative;width:min(280px,42vw);border:0;padding:0}.song-picker>summary{list-style:none;display:flex;justify-content:space-between;gap:12px;padding:10px 13px;border:1px solid #ffffff26;border-radius:10px;background:#ffffff08;color:var(--ink);cursor:pointer}.song-picker>summary::-webkit-details-marker{display:none}.song-picker>summary::after{content:'⌄'}.song-picker-label{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.song-menu{position:absolute;right:0;top:calc(100% + 8px);width:min(380px,85vw);max-height:360px;overflow:auto;padding:6px;background:#181818e8;border:1px solid #ffffff30;border-radius:12px;box-shadow:0 18px 50px #0006;backdrop-filter:blur(24px)}
+.image-pending{background:repeating-linear-gradient(135deg,#ffffff05 0 12px,#ffffff09 12px 24px);color:var(--muted);font-size:13px}.song-row{display:flex;align-items:center;border-radius:7px}.song-row:hover,.song-row:focus-within{background:#ffffff12}.song-row[aria-current=true]{background:#ffffff0b}.song-choice{flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.song-row button{border:0;background:transparent;box-shadow:none;transform:none!important}.song-remove{opacity:0;padding:8px 12px;font-size:20px;line-height:1}.song-row:hover .song-remove,.song-row:focus-within .song-remove{opacity:1}.song-remove:hover{background:#ffffff18!important}@media(hover:none){.song-remove{opacity:1}}
+@media(prefers-reduced-transparency:reduce){header,.panel,.profile-box,.rebuild-panel,.review-banner,.modal,.toast,.image-card,.song-menu{background:#222;backdrop-filter:none}}
+</style>
+<script src="/studio-models.js"></script>
+<script src="/studio-particles.js"></script>
+<style>
+.gpu-monitor,.model-downloads{min-width:0;border:1px solid #ffffff22;border-radius:10px;padding:12px;background:#ffffff04}.gpu-monitor strong,.model-downloads strong{font-size:12px}.gpu-memory-name{font-size:11px;margin-top:10px;overflow-wrap:anywhere}.gpu-memory-summary{font-size:12px;margin:4px 0 10px;font-variant-numeric:tabular-nums}.vram-blocks{display:flex;width:100%;height:30px;border:1px solid #ffffff26;border-radius:6px;overflow:hidden;background:#ffffff05;gap:2px}.vram-block{min-width:1px;height:100%;transition:width .4s}.vram-image{background:#a6c9dd}.vram-ollama{background:#c2b4dd}.vram-other{background:repeating-linear-gradient(135deg,#807d87 0 4px,#696773 4px 8px)}.vram-free{background:#83bd9e44;box-shadow:inset 0 0 0 1px #acd8b850}.vram-legend{display:grid;gap:6px;margin-top:10px}.vram-key{display:flex;align-items:center;gap:7px;font-size:10px;min-width:0}.vram-swatch{width:8px;height:8px;border-radius:2px;flex-shrink:0}.vram-label{flex:1;overflow-wrap:anywhere}.vram-value{white-space:nowrap;font-variant-numeric:tabular-nums}.download-card{border-top:1px solid #ffffff16;padding-top:10px;margin-top:10px}.download-model{font-size:11px;overflow-wrap:anywhere}.download-message{font-size:10px;color:var(--muted);overflow-wrap:anywhere;margin:4px 0}.download-progress{width:100%;height:6px;accent-color:#c1d8c9}.download-error .download-message{color:var(--warn)}
+</style>
+<link rel="stylesheet" href="/studio.css?v=studio-header-4">
+</head>
+<body>
+<header id="studioHeader"><div class="brand"><div class="mark" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none"><rect x="1" y="1" width="46" height="46" rx="14" fill="#20252d" fill-opacity=".7" stroke="#ffffff" stroke-opacity=".28"/><path d="M14 12v24m18-24L15 27m9-8 10 17" stroke="#f1f4f8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="m32 20 5-4m-2 11 5-1" stroke="#b9d6db" stroke-width="2" stroke-linecap="round" opacity=".8"/></svg></div><div><h1>Kinetic Lyrics</h1></div></div><div class="row"><select id="jobs" class="job-picker" aria-label="Previous jobs"><option value="">New session</option></select><span class="local">Local GPU</span></div><section id="headerProduction" aria-label="Production status">
+<div class="header-status-row"><strong>Production</strong><span id="status" class="badge">Ready</span><div class="percent"><b id="percent">0</b><span>%</span></div><div id="message" class="message" role="status">Ready to generate.</div><button id="cancel" class="danger" disabled>Cancel</button></div>
+<div class="bar" role="progressbar" aria-label="Estimated overall production progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressBar"><div id="bar"></div></div>
+<div class="header-status-detail"><div id="actionProgress"></div><div class="header-stages" aria-label="Production stages"><div class="stage-list" id="stages" role="list" tabindex="0" aria-label="Production stages"></div></div></div></section><div id="rebuildDock" class="header-video-tools" hidden><button type="button" id="showRebuild">Video tools</button></div>
+<section id="rebuildPanel" class="rebuild-panel header-rebuild" hidden><div class="rebuild-heading"><div><h3 id="rebuildTitle">Video tools</h3><p id="rebuildMessage">Apply selected images or animation settings to a new export.</p></div><div><button type="button" id="minimizeRebuild" aria-label="Minimize video tools">Minimize</button><button type="button" id="closeRebuild" aria-label="Close video tools">Close</button></div></div><div class="rebuild-actions"><button type="button" id="rebuildImages" class="primary" disabled>Rebuild changed images</button><button type="button" id="rebuildEffects" disabled>Apply animation &amp; rebuild video</button></div><small>Previous exports stay available in video history.</small></section></header>
+<main>
+<aside class="panel" aria-label="Video settings">
+<form id="jobForm" class="form-body">
+<section class="profile-box"><div class="eyebrow">Your presets</div><div class="row" style="justify-content:space-between"><label for="profileList" style="margin:0">Saved profiles</label><button type="button" id="newProfile" style="font-size:10px;padding:5px 8px">New profile</button></div><select id="profileList"><option value="">Choose a profile</option></select><div class="profile-actions"><button type="button" id="loadProfile">Load</button><button type="button" id="deleteProfile">Delete</button><button type="button" id="exportProfile">Export</button><button type="button" id="importProfile">Import</button></div><div class="row"><input id="profileName" placeholder="Profile name" aria-label="Profile name" maxlength="80"><button type="button" id="saveProfile">Save</button></div><input id="profileFile" type="file" accept=".json,application/json" hidden><div class="help">Profiles are saved in this browser. Export to back them up or share them.</div></section>
+<section id="projectPipelineCard" class="profile-box project-pipeline-card" style="border-color:#ffffff25;background:#ffffff04">
+<div class="eyebrow" style="color:var(--lime)">Project Pipeline</div>
+<input type="hidden" id="projectId" name="project_id" value="">
+<div id="projectStatusRow" style="font-size:12px;color:var(--ink);display:flex;justify-content:space-between;align-items:center">
+<span id="projectNameLabel">No project linked</span>
+<span id="projectStepBadge" class="badge" style="font-size:9px">New</span>
+</div>
+<div class="pipeline-steps" id="pipelineSteps" style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:8px 0">
+<div class="pipe-step" data-step="1" style="text-align:center;padding:6px 2px;background:#ffffff06;border:1px solid #ffffff22;border-radius:6px;font-size:10px;color:var(--muted)">
+<div class="step-num" style="font-weight:600;font-size:11px">1</div>
+<div class="step-name" style="font-size:9px">Timing</div>
+<div class="step-icon" style="font-size:12px;margin-top:2px">○</div>
+</div>
+<div class="pipe-step" data-step="2" style="text-align:center;padding:6px 2px;background:#ffffff06;border:1px solid #ffffff22;border-radius:6px;font-size:10px;color:var(--muted)">
+<div class="step-num" style="font-weight:600;font-size:11px">2</div>
+<div class="step-name" style="font-size:9px">Prompts</div>
+<div class="step-icon" style="font-size:12px;margin-top:2px">○</div>
+</div>
+<div class="pipe-step" data-step="3" style="text-align:center;padding:6px 2px;background:#ffffff06;border:1px solid #ffffff22;border-radius:6px;font-size:10px;color:var(--muted)">
+<div class="step-num" style="font-weight:600;font-size:11px">3</div>
+<div class="step-name" style="font-size:9px">Images</div>
+<div class="step-icon" style="font-size:12px;margin-top:2px">○</div>
+</div>
+<div class="pipe-step" data-step="4" style="text-align:center;padding:6px 2px;background:#ffffff06;border:1px solid #ffffff22;border-radius:6px;font-size:10px;color:var(--muted)">
+<div class="step-num" style="font-weight:600;font-size:11px">4</div>
+<div class="step-name" style="font-size:9px">Review</div>
+<div class="step-icon" style="font-size:12px;margin-top:2px">○</div>
+</div>
+<div class="pipe-step" data-step="5" style="text-align:center;padding:6px 2px;background:#ffffff06;border:1px solid #ffffff22;border-radius:6px;font-size:10px;color:var(--muted)">
+<div class="step-num" style="font-weight:600;font-size:11px">5</div>
+<div class="step-name" style="font-size:9px">Video</div>
+<div class="step-icon" style="font-size:12px;margin-top:2px">○</div>
+</div>
+</div>
+<div>
+<label for="startStep" style="margin-bottom:4px">Run Option</label>
+<select id="startStep" name="start_step">
+<option value="beginning">Start from beginning (New / clean run)</option>
+<option value="timing" disabled>Restart at Step 1: Timing (Re-align speech)</option>
+<option value="prompts" disabled>Restart at Step 2: Prompts (Reuse timing)</option>
+<option value="images" disabled>Restart at Step 3: Images (Reuse prompts &amp; timing)</option>
+<option value="review" disabled>Restart at Step 4: Review (Reuse images &amp; timing)</option>
+<option value="render" disabled>Restart at Step 5: Video (Reuse approved artwork)</option>
+</select>
+<div id="stepHelp" class="help">Choose where to begin execution. Reusing data skips completed stages.</div>
+</div>
+</section>
+<fieldset class="model-group" style="border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;gap:14px;background:#ffffff04">
+<legend style="font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:var(--lime);font-weight:600;padding:0 6px">Image Pipeline Models</legend>
+<div>
+<div><label class="row"><input id="autoVerify" name="auto_verify" type="checkbox" checked> Validate generated images</label><div class="help">Choose this before pressing Best. Turn it off to use the largest image model that fits without downloading or loading a validation model.</div></div>
+<section class="gpu-monitor" aria-label="GPU memory"><div class="row" style="justify-content:space-between"><strong>GPU memory</strong><span class="muted" style="font-size:10px">LIVE</span></div><div id="gpuMemoryCards"><div class="help">Reading GPU memory…</div></div><div class="help">Other apps / unknown includes desktop, driver overhead and allocations that cannot be attributed to a model.</div></section>
+<section class="model-downloads" aria-label="Model downloads"><div class="row" style="justify-content:space-between"><strong>Model downloads</strong><button type="button" id="retryModelDownloads" hidden style="font-size:10px;padding:4px 8px">Retry</button><button type="button" id="cancelModelDownloads" hidden style="font-size:10px;padding:4px 8px">Cancel</button></div><div id="modelDownloadList"><div class="help">Missing weights download automatically before generation.</div></div></section>
+<div><label for="gpuPreset">GPU memory preset</label><div class="row"><select id="gpuPreset" aria-label="GPU memory preset"><option value="">Custom</option><option value="8">8 GB</option><option value="16">16 GB</option><option value="24">24 GB</option><option value="32">32 GB</option></select><button type="button" id="bestModels" title="Detect the GPU and select models that fit available VRAM">Best</button></div><div id="modelPlan" class="help" role="status" style="overflow-wrap:anywhere">Prompting runs first. Images and validation run in full batches with GPU-only inference.</div></div>
+<label for="aiModel">1. Prompting and Revisions (Text Model)</label>
+<select id="aiModel" name="ai_model"><option value="auto">Auto · GPU-fit text model</option></select>
+<div class="help">Interprets lyrics into visual scenes, layouts, and subject prompts.</div>
+</div>
+<div>
+<label for="imageModel">2. Image Generation Model</label>
+<select id="imageModel" name="image_model"></select>
+<div id="modelHelp" class="help"></div>
+<a id="modelLink" class="download" target="_blank" rel="noopener">Model details &amp; access</a>
+</div>
+<div>
+<div class="row" style="justify-content:space-between;margin-bottom:6px">
+<label for="visionModel" style="margin:0">3. Image Quality Scoring (VL Model)</label>
+<button type="button" id="refreshModels" style="font-size:11px;padding:3px 8px">Find models</button>
+</div>
+<select id="visionModel" name="vision_model"><option value="">Choose a vision model</option></select>
+<div class="help">Validates generated hands, finger counts, anatomy, lettering and relevance.</div>
+</div>
+</fieldset>
+<div><label for="asrModel">Audio transcription model</label><select id="asrModel" name="asr_model"></select><div id="speechHelp" class="help"></div><a id="speechLink" class="download" target="_blank" rel="noopener">Audio model details</a></div>
+<div><label for="alignmentModel">Word timing model</label><select id="alignmentModel" name="alignment_model"><option value="auto">Auto · Qwen / native / Whisper</option><option value="qwen3-aligner">Qwen3 Forced Aligner · 11 languages</option><option value="whisper-large-v3">Whisper Large v3 · broad coverage</option><option value="whisper-turbo">Whisper Turbo · faster timing</option></select><div class="help">Timing places each word in the video. Auto uses Qwen for supported explicit languages and songs up to five minutes; otherwise Whisper.</div></div>
+<div><label for="audio">Audio track</label><input id="audio" name="audio" type="file" accept="audio/*,.webm,.mp4" required><div id="profileAudioStatus" class="help" role="status" style="overflow-wrap:anywhere"></div><audio id="audioPreview" controls hidden style="width:100%;height:32px;margin-top:10px"></audio></div>
+<div><div class="row" style="justify-content:space-between;margin-bottom:6px"><label for="lyrics" style="margin:0">Lyrics (optional)</label><button type="button" id="loadLyrics" style="font-size:11px;padding:3px 8px">Load .txt</button><input id="lyricsFile" type="file" accept=".txt" hidden></div><textarea id="lyrics" name="lyrics" rows="7" placeholder="Paste lyrics, or leave blank for transcription with your selected audio model"></textarea><div class="help" id="lineCount">0 lyric lines · one image per 2 lines</div></div>
+<div><label for="references">Art style reference images</label><input id="references" type="file" accept="image/png,image/jpeg,image/webp" multiple><div class="ref-list" id="refList"></div><div class="help">Add multiple images. Lyrics determine image content.</div></div>
+<div><label for="referencePrompt">Reference image prompt</label><textarea id="referencePrompt" name="reference_prompt" rows="3" placeholder="Describe the brushwork, linework, palette and shading to borrow…"></textarea></div>
+<div><label for="style">Visual style &amp; mood</label><textarea id="style" name="style" rows="2">Bright, uplifting mood; flowing fabric, long flowing hair, graceful movement and luminous color.</textarea></div>
+<section class="typography-settings" aria-label="Typography effects">
+<div class="eyebrow">Typography</div><div class="effect-setting"><label for="textAnimation">Word animation</label><select id="textAnimation" name="text_animation"><option value="ai">AI typography &amp; animation from checked sets</option><option value="mixed">Mixed selected word animations</option><option value="directed">Scene-directed motion</option><option value="highlight">Word highlighting</option><option value="karaoke">Timed left-to-right highlighting</option><option value="slide">Sliding words</option><option value="fade">Fading words</option><option value="none">Clean text</option></select><button type="button" id="browseText" class="browse-effects">Choose &amp; preview word animations</button></div>
+<p class="help">AI typography can group words freely and vary size, color and angle. Check the animation styles it can use. Each word follows its sung timing.</p>
+<input id="textPool" name="text_pool" type="hidden" value="">
+<div class="typography-controls"><div><label for="fontFamily">Font</label><select id="fontFamily" name="font_family"><option value="auto">From scene</option><option value="arial">Arial</option><option value="segoe">Segoe UI</option><option value="georgia">Georgia</option></select></div><div><label for="fontStyle">Font style</label><select id="fontStyle" name="font_style"><option value="auto">From scene</option><option value="regular">Regular</option><option value="bold">Bold</option><option value="italic">Italic</option></select></div></div>
+<div><label for="fontScale">Font size <output id="fontScaleValue">125%</output></label><input id="fontScale" name="font_scale" type="range" min="0.6" max="2" step="0.05" value="1.25"><div class="help">Larger letters by default. Long lines fit the available space. Samples use these font settings.</div></div>
+<div class="effect-setting"><label for="entranceEffect">Entrance effect</label><select id="entranceEffect" name="entrance_effect"><option value="legacy">From saved profile</option><option value="mixed">Mixed entrances</option><option value="none">None</option></select>
+<button type="button" id="browseEntrance" class="browse-effects">Browse entrances <span id="entrancePoolCount"></span></button></div>
+<div class="effect-setting"><label for="exitEffect">Exit effect</label><select id="exitEffect" name="exit_effect"><option value="legacy">From saved profile</option><option value="mixed">Mixed exits</option><option value="none">None</option></select>
+<button type="button" id="browseExit" class="browse-effects">Browse exits <span id="exitPoolCount"></span></button></div>
+<input type="hidden" name="entrance_pool" id="entrancePool"><input type="hidden" name="exit_pool" id="exitPool">
+<div class="help">Preview effects side by side with the list. Choose one effect or check a set for mixed mode.</div>
+</section>
+<div class="help">Upcoming lyrics are barely visible. Words activate on their sung cues. Glass exits crack, pause briefly, then shatter into tumbling shards.</div>
+<select id="typeEffect" name="type_effect" hidden><option value="mixed">Mixed letter effects</option><option value="sparks">Sparks from letters</option><option value="dust">Letters dissolve into dust</option><option value="trails">Letter trails</option><option value="fragments">Shattered letter fragments</option><option value="orbits">Orbiting letter pieces</option><option value="confetti">Confetti letter pieces</option><option value="none">Clean typography</option><optgroup label="Letter deformation"><option value="shatter">Shattering letters</option><option value="melt">Melting words</option><option value="slime">Slime</option><option value="liquid">Liquid</option></optgroup></select><div><label for="language">Vocal language</label><select id="language" name="language"><option value="auto">Auto-detect</option><option value="tl">Tagalog</option><option value="en">English</option></select><div id="languageHelp" class="help"></div></div>
+<div><label for="particleIntensity">Letter effect intensity <output id="densityValue">1.0×</output></label><input id="particleIntensity" name="particle_intensity" type="range" min="0" max="2" step="0.1" value="1"><div class="help">Effects come from the letters: shards, dust, melting and liquid motion. Words remain intact for a readable hold.</div></div>
+<div><label for="particleSpeed">Particle speed <output id="speedValue">1.0×</output></label><input id="particleSpeed" name="particle_speed" type="range" min="0.2" max="3" step="0.1" value="1"><div class="help">Word entrances fit the sung word; slower settings use more of its duration. Exits scale with speed. Samples update immediately; rebuild an existing video to apply changes.</div></div>
+
+<div class="review-settings"><label class="row"><input id="autoRepair" name="auto_repair" type="checkbox" checked> Automatically regenerate rejected images</label><label for="reviewThreshold">Reject scores below (%)</label><input id="reviewThreshold" name="review_threshold" type="number" min="0" max="100" step="1" value="50"><div class="help">Up to 2 repair attempts. A replacement is selected only after it meets this score. Applies when you run Verify or Review all.</div></div>
+<label for="artworkMode">Artwork layout</label><select id="artworkMode" name="artwork_mode"><option value="cutout">Illustrations on styled backgrounds</option><option value="fullscreen">Full-screen artwork + kinetic lyrics</option><option value="verse">Verse-inspired painted backgrounds</option></select><div class="help">Verse backgrounds turn the meaning of each lyric group into a recognizable painted scene or connected visual metaphor. Full-screen artwork and verse backgrounds reserve calm space for the letters and blend between scenes. Changing layout requires new artwork.</div><label class="row"><input name="cinematic" type="checkbox" checked> Cinematic illustration mode</label>
+<div class="split"><div><label for="resolution">Video format</label><select id="resolution" name="resolution"><option value="720p">Landscape · 720p</option><option value="1080p">Landscape · 1080p</option><option value="portrait">Portrait · 720 × 1280</option></select></div><div><label for="lines">Lines per image</label><input id="lines" name="lines" type="number" min="1" max="50" value="2"></div></div>
+<details><summary>Model &amp; performance settings</summary><div class="advanced"><small>GPU inference only. Complete each image batch before switching to validation; unload models between phases when needed.</small><div class="split"><div><label for="steps">Inference steps</label><input id="steps" name="steps" type="number" min="1" max="150" value="4"></div><div><label for="encoder">Video encoder</label><select id="encoder" name="encoder"><option value="h264_nvenc">NVIDIA GPU</option><option value="libx264">CPU</option></select></div></div><div><label for="cache">Model download folder</label><input id="cache" name="cache" value="" placeholder="Automatic model cache"><div class="help">Missing weights download here automatically on first generation. Existing downloads are reused.</div></div></div></details>
+<div class="auto-accept-setting"><label class="row"><input id="autoAccept" name="auto_accept" type="checkbox"> Auto-accept generated artwork</label><div class="help" id="reviewModeHelp">Pause for manual artwork approval before rendering. Automatic validation is configured separately.</div></div>
+<button class="primary" id="generate" type="submit">Generate illustrated video ↗</button><div class="row"><button type="button" id="newSessionButton">New session</button><button type="button" id="retryConnection">Reconnect</button></div><div id="generateReason" class="help" role="status"></div><div id="uploadProgress" class="upload-progress" role="status"></div><small>Audio, artwork and exported videos stay on this computer.</small>
+</form></aside>
+<section class="workspace"><div id="studioCompatibility"></div>
+
+<div class="status-grid">
+<section class="panel"><div class="panel-head"><h2>Progress over time</h2><span class="badge">Live</span></div><div class="chart-box"><svg viewBox="0 0 400 150" role="img" aria-label="Overall percentage completion over elapsed time"><defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d5f59b" stop-opacity=".24"/><stop offset="1" stop-color="#d5f59b" stop-opacity="0"/></linearGradient></defs><g stroke="#30362c" stroke-width="1"><path d="M30 15H390M30 72H390M30 130H390"/></g><g fill="#8d9c80" font-size="10"><text x="0" y="19">100</text><text x="7" y="76">50</text><text x="13" y="134">0</text></g><path id="chartArea" fill="url(#fill)"/><path id="chartLine" fill="none" stroke="#d5f59b" stroke-width="2.5" stroke-linejoin="round"/></svg><div class="chart-labels"><span>Start</span><span id="chartTime">Elapsed time</span></div></div><div class="stat-row"><span id="elapsed">00:00 elapsed</span><span id="imageCount">0 images ready</span></div></section></div>
+<div id="reviewBanner" class="review-banner"><div><h3>Make the artwork yours</h3><small>Inspect, regenerate or replace images. Selected images with rejected scores must be repaired before rendering.</small></div><button id="approve" class="primary">Approve artwork &amp; render →</button></div>
+<section class="panel"><div class="panel-head"><div><h2>Illustration workspace</h2><small>Images appear as they finish. Inspect finished images now; regeneration requests queue safely while the GPU is busy.</small></div><span class="badge">02 / Review</span></div><div class="vision-row"><button id="verifyAll" style="font-size:11px" disabled>Review all</button><small>Local vision review evaluates hands, anatomy, lettering and subject relevance using your selected validation model from the creative brief.</small></div><div class="gallery" id="gallery"><div class="empty"><div class="empty-symbol">▧</div><h3>A canvas for your lyrics</h3><p style="margin-top:6px">Generated illustrations and transparent cutouts will appear here.</p></div></div></section>
+<section class="panel video-panel" id="videoPanel"><div class="panel-head"><h2>Your lyric video</h2><a id="download" class="download" download="lyric-video.mp4">Download MP4 ↗</a></div><div class="video-history-controls"><label for="videoHistory">Video history</label><div class="row"><select id="videoHistory"><option value="current">Current export</option></select><button type="button" id="latestVideo" hidden>Back to current</button></div><div id="videoVersionInfo" class="help"></div></div><video id="video" controls preload="metadata"></video><div class="help" style="padding:12px 20px" id="videoNote">Use the rebuild controls above the workspace after changing images or letter effects. Image rebuilds update affected sections; effect changes rerender the complete video. Previous versions are retained.</div></section>
+<section class="panel"><div class="panel-head"><h2>Production log</h2><div class="log-toolbar"><select id="logFilter" aria-label="Log filter"><option value="all">All messages</option><option value="warning">Warnings &amp; errors</option><option value="error">Errors only</option></select><label class="row" style="margin:0"><input id="autoScroll" type="checkbox" checked> Follow</label><button id="downloadLog" style="font-size:11px;padding:4px 8px">Save log</button></div></div><div id="logs" class="logs" role="log" aria-label="Scrollable production messages"><span class="muted">Ready. No job running.</span></div></section>
+</section></main>
+<dialog id="effectBrowser" class="effect-browser" aria-labelledby="effectBrowserTitle">
+<header class="effect-browser-header"><div><div class="eyebrow">Typography library</div><h2 id="effectBrowserTitle">Find your effect</h2></div><button type="button" id="closeEffectBrowser" aria-label="Close effect browser">Done</button></header>
+<div class="effect-browser-tabs" role="tablist" aria-label="Effect phase"><button type="button" id="entranceTab" role="tab" aria-controls="entranceBrowser">Entrance</button><button type="button" id="exitTab" role="tab" aria-controls="exitBrowser">Exit</button><button type="button" id="textTab" role="tab" aria-controls="textBrowser">Word motion</button></div>
+<div class="effect-browser-body"><div class="effect-browser-lists">
+<section id="entranceBrowser" role="tabpanel" aria-labelledby="entranceTab" class="effect-phase-panel" hidden>
+<div class="effect-list-tools"><label for="entranceSearch" class="sr-only">Search entrance effects</label><input type="search" id="entranceSearch" placeholder="Search effects…">
+<label for="entranceFamily" class="sr-only">Filter entrance family</label><select id="entranceFamily"><option value="">All families</option></select>
+<div class="effect-list-actions"><label><input type="checkbox" id="entranceSelectedOnly"> Selected only</label><div><button type="button" id="entranceAll">All</button><button type="button" id="entranceNone">Clear</button></div></div>
+<div class="effect-list-meta" id="entranceResultCount" aria-live="polite"></div></div>
+<div id="entrancePoolList" class="particle-list" data-particle-pool="entrance"></div></section>
+<section id="exitBrowser" role="tabpanel" aria-labelledby="exitTab" class="effect-phase-panel" hidden>
+<div class="effect-list-tools"><label for="exitSearch" class="sr-only">Search exit effects</label><input type="search" id="exitSearch" placeholder="Search effects…">
+<label for="exitFamily" class="sr-only">Filter exit family</label><select id="exitFamily"><option value="">All families</option></select>
+<div class="effect-list-actions"><label><input type="checkbox" id="exitSelectedOnly"> Selected only</label><div><button type="button" id="exitAll">All</button><button type="button" id="exitNone">Clear</button></div></div>
+<div class="effect-list-meta" id="exitResultCount" aria-live="polite"></div></div>
+<div id="exitPoolList" class="particle-list" data-particle-pool="exit"></div></section>
+<section id="textBrowser" role="tabpanel" aria-labelledby="textTab" class="effect-phase-panel" hidden><div class="effect-list-tools"><label for="textSearch" class="sr-only">Search word animations</label><input type="search" id="textSearch" placeholder="Search word animations…"><div class="effect-list-actions"><button type="button" id="textAll">Select all</button><button type="button" id="textNone">Clear</button><span id="textPoolCount"></span></div><div id="textResultCount" class="effect-list-meta"></div></div><div id="textPoolList" class="particle-list"></div></section></div><section class="effect-preview-pane" aria-label="Effect preview"><div id="particleSample">
+<div class="effect-preview-heading"><span class="eyebrow" id="particleSamplePhase">Preview</span><h3 id="particleSampleTitle">Choose an effect</h3><p id="particleSampleDescription">Click an effect in the list to see it here.</p></div>
+<div class="effect-preview-stage"><img id="particleSampleImage" alt="Selected particle effect animation" hidden><span id="particleSampleLoading" hidden>Rendering preview…</span></div>
+<div class="effect-preview-status"><span id="particleSampleStatus" role="status">Choose any preset to start.</span><button type="button" id="replayParticle" disabled>Replay</button></div>
+<button type="button" id="useParticleEffect" class="primary" disabled>Use this effect</button><p id="particleSelectionHint" class="help">Previewing does not change your selection. Use this effect to apply one preset, or check presets for mixed mode.</p>
+</div></section></div></dialog>
+<dialog class="modal" id="imageModal"><div class="row" style="justify-content:space-between"><h3 id="modalTitle">Inspect illustration</h3><button id="closeModal">Close ✕</button></div><img id="modalImage" alt="Enlarged illustration for manual review"></dialog><dialog class="modal" id="regenerateModal" style="width:540px"><div class="row" style="justify-content:space-between"><h3>Regenerate illustration</h3><button id="closeRegenerate" type="button">Close</button></div><p id="regenerateSubject" class="muted" style="margin:14px 0;font-size:12px"></p><label for="regeneratePrompt">Generation prompt</label><textarea id="regeneratePrompt" rows="10" placeholder="Edit the original generation prompt…"></textarea><p class="help" style="margin:10px 0">Starts with the original prompt. Edit it freely; this full prompt is used for the new candidate. Your current selection is kept.</p><label for="regenerateDirection">Guidance for a new prompt (optional)</label><textarea id="regenerateDirection" rows="2" placeholder="What should the new interpretation change?"></textarea><div class="row" style="margin-top:12px;flex-wrap:wrap"><button id="submitRegenerate" class="primary" type="button">Generate with edited prompt</button><button id="regeneratePromptAction" type="button">Regenerate prompt</button></div><p class="help" id="repromptHelp" style="margin-top:10px">Regenerate prompt queues a new prompt and then a new image. Generate with edited prompt uses your text exactly.</p></dialog><div class="toast" id="toast" role="alert"></div>
+<script>
+const $=id=>document.getElementById(id);let token='',jobId='',cursor=0,logs=[],refs=[],state=null,selected={},gallerySignature='',videoUrl='',busy=false,uploading=false;const stages=['alignment','subjects','model','illustrations','cutouts','review','direction','render'];
+renderProductionStages();
+function toast(message){$('toast').textContent=message;$('toast').style.display='block';clearTimeout(window.toastTimer);window.toastTimer=setTimeout(()=>$('toast').style.display='none',9000)}
+async function api(path,data){
+ for(let attempt=0;attempt<2;attempt++){
+  const options=data===undefined?{}:{method:'POST',headers:{'X-Studio-Token':token},body:data instanceof FormData?data:JSON.stringify(data)};
+  if(data!==undefined&&!(data instanceof FormData))options.headers['Content-Type']='application/json';
+  options.signal=AbortSignal.timeout(45000);
+  const r=await fetch(path,options);const body=await r.json();
+  if(r.status===403&&body.error==='Reload the studio page'&&data!==undefined&&attempt===0){
+   const connection=await fetch('/api/config',{signal:AbortSignal.timeout(15000)});
+   const config=await connection.json();if(!connection.ok||!config.token)throw Error('Could not reconnect to Studio');
+   token=config.token;continue;
+  }
+  if(!r.ok)throw Error(body.error||'Request failed');return body;
+ }
+}
+function button(text,callback,disabled=false){const b=document.createElement('button');b.textContent=text;b.type='button';b.disabled=disabled;b.onclick=callback;return b}
+
+const removedSongKey='lyricStudioRemovedSongs';
+let removedSongs=new Set();
+try{const saved=JSON.parse(localStorage.getItem(removedSongKey)||'[]');if(Array.isArray(saved))removedSongs=new Set(saved)}catch{}
+function visibleJobs(jobs){return jobs.filter(j=>!removedSongs.has(j.id))}
+const songPicker=document.createElement('details');songPicker.className='song-picker';
+const songSummary=document.createElement('summary');songSummary.setAttribute('aria-label','Previous songs');
+const songLabel=document.createElement('span');songLabel.className='song-picker-label';songSummary.append(songLabel);
+const songMenu=document.createElement('div');songMenu.className='song-menu';songMenu.setAttribute('role','group');songMenu.setAttribute('aria-label','Previous songs');songPicker.append(songSummary,songMenu);
+$('jobs').hidden=true;$('jobs').after(songPicker);
+function syncSongPicker(){
+ songLabel.textContent=$('jobs').selectedOptions[0]?.textContent||'New session';songMenu.replaceChildren();
+ for(const option of $('jobs').options){
+  if(removedSongs.has(option.value))continue;
+  const row=document.createElement('div');row.className='song-row';row.setAttribute('aria-current',String(option.value===$('jobs').value));
+  const choose=button(option.textContent,()=>{$('jobs').value=option.value;$('jobs').dispatchEvent(new Event('change'));songPicker.open=false;songSummary.focus();syncSongPicker()});choose.className='song-choice';row.append(choose);
+  if(option.value){const remove=button('×',()=>{
+   const next=new Set(removedSongs);next.add(option.value);
+   try{localStorage.setItem(removedSongKey,JSON.stringify([...next]))}catch{toast('Could not save the song list.');return}
+   removedSongs=next;const wasCurrent=$('jobs').value===option.value;option.remove();if(wasCurrent)newSession();syncSongPicker();songMenu.querySelector('button')?.focus();
+  });remove.className='song-remove';remove.setAttribute('aria-label','Remove '+option.textContent+' from list');remove.title='Remove from list';row.append(remove)}
+  songMenu.append(row);
+ }
+}
+new MutationObserver(syncSongPicker).observe($('jobs'),{childList:true,subtree:true,characterData:true});
+songPicker.addEventListener('toggle',()=>{if(songPicker.open)syncSongPicker()});
+songPicker.addEventListener('keydown',event=>{if(event.key==='Escape'){songPicker.open=false;songSummary.focus()}if(['ArrowDown','ArrowUp'].includes(event.key)){event.preventDefault();const buttons=[...songMenu.querySelectorAll('button')];const index=buttons.indexOf(document.activeElement);buttons[(index+(event.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length]?.focus()}});
+document.addEventListener('click',event=>{if(!songPicker.contains(event.target))songPicker.open=false});
+syncSongPicker();
+
+function timeText(seconds){return Math.floor(seconds/60).toString().padStart(2,'0')+':'+Math.floor(seconds%60).toString().padStart(2,'0')}
+function lineCount(){const count=$('lyrics').value.split(/\r?\n/).filter(s=>s.trim()&&!/^\s*\[.*\]\s*$/.test(s)).length;const n=+$('lines').value||2;$('lineCount').textContent=count?`${count} lyric lines / approximately ${Math.ceil(count/n)} images`:'Leave blank to recover lyrics and timing with Whisper'}
+const lyricsDraftKey='lyricStudioLyricsDraft';
+let lyricsStorageWarning=false;
+function saveLyricsDraft(){try{localStorage.setItem(lyricsDraftKey,$('lyrics').value);lyricsStorageWarning=false}catch{if(!lyricsStorageWarning){toast('Lyrics could not be saved in this browser. Copy them before closing the page.');lyricsStorageWarning=true}}}
+try{const draft=localStorage.getItem(lyricsDraftKey);if(draft!==null)$('lyrics').value=draft}catch{}
+$('lyrics').addEventListener('input',saveLyricsDraft);
+$('lyrics').oninput=lineCount;$('lines').oninput=lineCount;$('loadLyrics').onclick=()=>$('lyricsFile').click();$('lyricsFile').onchange=async()=>{if($('lyricsFile').files[0]){$('lyrics').value=await $('lyricsFile').files[0].text();saveLyricsDraft();lineCount();speechInfo()}};
+let audioObjectUrl='';$('audio').onchange=()=>{audioRestoreVersion++;profileAudioPath='';profileAudioName='';profileAudioFile=null;profileAudioStatus('');if(audioObjectUrl){URL.revokeObjectURL(audioObjectUrl);audioObjectUrl=''}const f=$('audio').files[0];$('audioPreview').hidden=!f;if(f){audioObjectUrl=URL.createObjectURL(f);$('audioPreview').src=audioObjectUrl;persistProfileAudio().catch(e=>{if($('audio').files[0]===f)profileAudioStatus('Audio could not be remembered: '+e.message,true)})}else{$('audioPreview').pause();$('audioPreview').removeAttribute('src');rememberAudioDraft()}};
+function showRefs(){$('refList').replaceChildren();refs.forEach((ref,i)=>{const div=document.createElement('div');div.className='ref';const img=document.createElement('img');img.src=ref.url;img.alt=ref.file.name;div.append(img,button('×',()=>{URL.revokeObjectURL(ref.url);refs.splice(i,1);showRefs()}));$('refList').append(div)})}
+$('references').onchange=()=>{for(const file of $('references').files)refs.push({file,url:URL.createObjectURL(file)});$('references').value='';showRefs()};
+function updateGenerate(){const reason=!backendReady?'Connecting to the studio backend. Refresh after a server restart.':uploading?'Uploading your inputs...':state?.action?'Wait for the current image operation to finish.':['running','queued'].includes(state?.status)?'This job is still running.':state?.status==='review'?'Artwork is ready for review. Use Approve artwork & render, or choose New session to start another video.':'';$('generate').disabled=!!reason;$('generate').title=reason;$('generateReason').textContent=reason;}
+function newSession(){jobId=null;cursor=0;state=null;logs=[];selected={};gallerySignature='';videoUrl='';localStorage.removeItem('lyricStudioJob');document.body.classList.remove('has-job');$('jobs').value='';if($('projectId'))$('projectId').value='';if(window.updateProjectPipelineStatus)updateProjectPipelineStatus('');syncSongPicker();$('video').pause();$('video').removeAttribute('src');$('videoPanel').style.display='none';$('rebuildPanel').hidden=true;$('rebuildDock').hidden=true;$('reviewBanner').style.display='none';$('gallery').innerHTML='<div class="empty">Choose your audio and creative settings to start a new video.</div>';$('logs').replaceChildren();$('status').textContent='Ready';$('message').textContent='Ready for a new video.';$('percent').textContent='0';$('bar').style.width='0%';$('actionProgress').textContent='';$('cancel').disabled=true;$('verifyAll').disabled=true;renderProductionStages();renderProductionHeader(null);updateGenerate();}
+$('newSessionButton').onclick=newSession;
+$('retryConnection').onclick=async()=>{const b=$('retryConnection');b.disabled=true;try{const cfg=await api('/api/config');token=cfg.token;backendReady=!!cfg.image_models;const current=jobId;$('jobs').replaceChildren(new Option('New session',''),...visibleJobs(cfg.jobs).map(j=>new Option(j.name+' / '+j.id,j.id)));if(current&&visibleJobs(cfg.jobs).some(j=>j.id===current)){$('jobs').value=current;await poll()}else newSession();updateGenerate();toast('Connected to the studio.')}catch(e){toast('Could not reconnect: '+e.message)}finally{b.disabled=false}};
+function setJob(id){renderSettingsJob=null;document.body.classList.add('has-job');jobId=id;cursor=0;logs=[];selected={};state=null;gallerySignature='';videoUrl='';$('logs').replaceChildren();$('videoPanel').style.display='none';$('gallery').innerHTML='<div class="empty">Loading job…</div>';$('jobs').value=id;if($('projectId'))$('projectId').value=id;if(window.updateProjectPipelineStatus)updateProjectPipelineStatus(id);syncSongPicker();localStorage.setItem('lyricStudioJob',id);poll()}
+function upload(data){return new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open('POST','/api/jobs');xhr.timeout=300000;xhr.ontimeout=()=>reject(Error('Upload timed out. Reconnect to check whether a job was created before retrying.'));xhr.setRequestHeader('X-Studio-Token',token);xhr.upload.onprogress=e=>{$('uploadProgress').textContent=e.lengthComputable?`Uploading inputs · ${Math.round(e.loaded/e.total*100)}%`:'Uploading inputs…'};xhr.onload=()=>{try{const r=JSON.parse(xhr.responseText);xhr.status<300?resolve(r):reject(Error(r.error))}catch{reject(Error('Invalid server response'))}};xhr.onerror=()=>reject(Error('Could not connect to local studio'));xhr.send(data)})}
+$('jobForm').onsubmit=async event=>{event.preventDefault();if(uploading)return;uploading=true;$('generate').disabled=true;$('uploadProgress').style.display='block';try{await ensureSelectedDownloads();const data=new FormData($('jobForm'));data.set('auto_repair',$('autoRepair').checked?'on':'off');refs.forEach(r=>data.append('references',r.file));data.set('vision_model',$('visionModel').value);const job=await upload(data);const songName=$('audio').files[0]?.name||$('jobs')?.selectedOptions[0]?.textContent||job.id;if(![...$('jobs').options].some(o=>o.value===job.id))$('jobs').add(new Option(songName,job.id),1);setJob(job.id)}catch(e){toast(e.message)}finally{uploading=false;$('uploadProgress').style.display='none';updateGenerate()}};
+async function action(op,args={}){
+ if(!jobId)return;
+ const generation=['regenerate','reprompt'].includes(op);
+ if(busy&&!generation){toast('Another action is being submitted. Try again shortly.');return;}
+ const expected=jobId;let optimisticKey=null;
+ if(generation){
+  optimisticKey=expected+':'+args.index+':'+op;
+  if(optimisticRegenerations.has(optimisticKey)){toast('This illustration is already being queued.');return;}
+  optimisticRegenerations.set(optimisticKey,{job:expected,index:args.index,action:op,accepted:false});
+  paintOptimisticQueue();
+ }else busy=true;
+ try{
+  await api(`/api/jobs/${expected}/${op}`,args);
+  if(op==='cancel')for(const [key,item] of optimisticRegenerations)if(item.job===expected)optimisticRegenerations.delete(key);
+  if(optimisticKey&&optimisticRegenerations.has(optimisticKey))optimisticRegenerations.get(optimisticKey).accepted=true;
+  recordRebuildAction(op,args);gallerySignature='';if(jobId===expected)await poll();
+ }catch(e){
+  if(optimisticKey){optimisticRegenerations.delete(optimisticKey);paintOptimisticQueue();}
+  toast('Could not '+(generation?'queue illustration '+(Number(args.index)+1):op)+': '+e.message);
+ }finally{if(!generation)busy=false;}
+}
+$('cancel').onclick=()=>action('cancel');$('approve').onclick=()=>action('approve');$('jobs').onchange=()=>{if($('jobs').value)setJob($('jobs').value);else newSession()};
+$('refreshModels').onclick=async()=>{const b=$('refreshModels');b.disabled=true;b.textContent='Finding…';try{installModelChoices(await api('/api/models?review='+($('autoVerify').checked?'1':'0')))}catch(e){toast('Model lookup unavailable: '+e.message)}finally{b.disabled=false;b.textContent='Find models'}};
+$('rebuildImages').onclick=()=>action('rebuild');$('rebuildEffects').onclick=()=>action('rerender',{type_effect:$('typeEffect').value,text_animation:$('textAnimation').value,text_pool:selectedParticlePool('text'),font_family:$('fontFamily').value,font_style:$('fontStyle').value,font_scale:+$('fontScale').value,entrance_effect:$('entranceEffect').value,exit_effect:$('exitEffect').value,entrance_pool:selectedParticlePool('entrance'),exit_pool:selectedParticlePool('exit'),particle_intensity:+$('particleIntensity').value,particle_speed:+$('particleSpeed').value});
+$('verifyAll').onclick=()=>action('verify-all',{model:$('visionModel').value,review_threshold:+$('reviewThreshold').value,auto_repair:$('autoRepair').checked});
+$('visionModel').onchange=()=>{preferredVisionModel=$('visionModel').value;gallerySignature='';if(state)renderGallery(state)};
+function renderLogs(){const filter=$('logFilter').value;const el=$('logs');const shown=logs.filter(l=>filter==='all'||filter==='warning'&&l.level!=='info'||filter==='error'&&l.level==='error');el.replaceChildren();for(const l of shown){const row=document.createElement('div');row.className='log-line '+l.level;const t=document.createElement('time');t.textContent=new Date(l.time*1000).toLocaleTimeString([],{hour12:false});const text=document.createElement('span');text.textContent=l.text;row.append(t,text);el.append(row)}if($('autoScroll').checked)el.scrollTop=el.scrollHeight}
+$('logFilter').onchange=renderLogs;$('downloadLog').onclick=()=>{const blob=new Blob([logs.map(l=>new Date(l.time*1000).toISOString()+' ['+l.level+'] '+l.text).join('\n')],{type:'text/plain'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='lyric-studio.log';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+function inspect(url,index){$('modalImage').src=url;$('modalTitle').textContent=`Illustration ${index+1} · inspect anatomy and detail`;$('imageModal').showModal()};$('closeModal').onclick=()=>$('imageModal').close();
+let regenerateIndex=null,promptRegenerationSupported=false;const pendingSelections={};
+function openRegeneration(index,subject,prompt,variant){regenerateIndex=index;$('regenerateSubject').textContent=subject;$('regeneratePrompt').value=prompt||'';$('regenerateDirection').value='';$('regeneratePromptAction').disabled=!promptRegenerationSupported;$('repromptHelp').textContent=promptRegenerationSupported?'Regenerate prompt queues a new prompt and then a new image. Generate with edited prompt uses your text exactly.':'Restart Kinetic Lyrics after the current task finishes to enable queued prompt regeneration. Edited-prompt image regeneration is available now.';$('regenerateModal').showModal();$('regeneratePrompt').focus();restoreExactCandidatePrompt(variant,index,prompt||'')}
+async function restoreExactCandidatePrompt(variant,index,initial){
+ if(!variant||typeof variant.prompt==='string'||!variant.url)return;
+ const url=new URL(variant.url,location.href),root=url.pathname.match(/^\/files\/[^/]+\//)?.[0];
+ if(!root)return;
+ try{
+  let relative=variant.path;
+  if(variant.current){
+   const response=await fetch(url.pathname.replace(/\.png$/,'.selection.json'));
+   if(!response.ok)return;
+   const selection=await response.json(),saved=String(selection.selected||'').split(String.fromCharCode(92)).join('/');
+   const position=saved.lastIndexOf('/candidates/');if(position<0)return;
+   relative=saved.slice(position+1);
+  }
+  let record,position=0;
+  if(/^candidates\/\d{3}\/[^/]+\/\d{3}\.png$/.test(relative)){
+   const response=await fetch(root+relative.replace(/[^/]+$/,'illustrations.json'));if(!response.ok)throw Error('Candidate prompt could not be loaded');
+   record=await response.json();
+  }else if(/^versions\//.test(relative)){
+   const response=await fetch(root+relative.replace(/\.png$/,'.artwork.json'));if(!response.ok)return;
+   const metadata=await response.json();record={prompts:[metadata.prompt],visual_descriptions:[metadata.subject]};
+  }else return;
+  if(regenerateIndex!==index||!$('regenerateModal').open||$('regeneratePrompt').value!==initial)return;
+  if(typeof record.prompts?.[position]==='string')$('regeneratePrompt').value=record.prompts[position];
+  if(typeof record.visual_descriptions?.[position]==='string')$('regenerateSubject').textContent=record.visual_descriptions[position];
+ }catch(e){if(regenerateIndex===index&&$('regenerateModal').open)$('repromptHelp').textContent=e.message+'. Check the prompt before generating.'}
+}
+$('closeRegenerate').onclick=()=>$('regenerateModal').close();
+$('regeneratePromptAction').onclick=()=>{const prompt=$('regenerateDirection').value;$('regenerateModal').close();action('reprompt',{index:regenerateIndex,prompt,model:$('aiModel').value})};
+$('submitRegenerate').onclick=()=>{const prompt=$('regeneratePrompt').value;$('regenerateModal').close();action('regenerate',{index:regenerateIndex,prompt})};
+
+function renderGallery(s){const editable=(['review','complete'].includes(s.status)||s.status==='running'&&['illustrations','cutouts','verification','repair','repair-complete','direction','render'].includes(s.stage))&&(!s.action||['verify','regenerate','reprompt'].includes(s.action));const canRegenerate=['running','review','complete'].includes(s.status);const sig=JSON.stringify([s.images,s.status,s.stage,s.action,s.dirty,s.queued_actions,s.artwork_notice,$('visionModel').value]);if(sig===gallerySignature)return;gallerySignature=sig;const gallery=$('gallery');const previousImages=new Map([...gallery.querySelectorAll('[data-image-index]')].map(card=>[+card.dataset.imageIndex,card.querySelector('.image-stage img')]));gallery.replaceChildren();if(s.artwork_notice){const note=document.createElement('p');note.className='workspace-notice';note.textContent=s.artwork_notice;gallery.append(note)}if(!s.images.length){const empty=document.createElement('div');empty.className='empty';empty.textContent='Planning illustrations. Finished images will appear here automatically.';gallery.append(empty);return}for(const item of s.images){const card=document.createElement('article');card.className='image-card';card.dataset.imageIndex=item.index;const variants=item.variants;const queued=(s.queued_actions||[]).find(q=>q.index===item.index&&['regenerate','reprompt'].includes(q.action||'regenerate'));const pending=(item.pending==='Image queued'?'Queued for regeneration':item.pending)||(queued?(queued.action==='reprompt'?'Prompt queued':'Queued for regeneration'):'');const latest=variants.filter(v=>v.path.startsWith('candidates/')).at(-1);if((s.replacement_review||[]).includes(item.index)&&latest?.review&&!latest.review.rejected&&!pending&&automaticReplacementPreview.get(item.index)!==latest.path){selected[item.index]=latest.path;automaticReplacementPreview.set(item.index,latest.path)}if(pending){if(!Object.hasOwn(pendingSelections,item.index))pendingSelections[item.index]=latest?.path||''}else if(Object.hasOwn(pendingSelections,item.index)){if(latest&&latest.path!==pendingSelections[item.index])selected[item.index]=latest.path;delete pendingSelections[item.index]}const generating=['running','queued'].includes(s.status)&&['alignment','subjects','model','illustrations','cutouts'].includes(s.stage);const previews=generating?variants.filter(v=>v.current||v.raw||v.fresh):variants;let active=previews.find(v=>v.path===selected[item.index])||previews.find(v=>v.current)||previews[0];if(active)selected[item.index]=active.path;else delete selected[item.index];const stage=document.createElement('div');stage.className='image-stage';if(pending)stage.setAttribute('aria-busy','true');if(pending&&!active){stage.classList.add('image-pending');stage.textContent=pending+'…';stage.setAttribute('aria-busy','true')}else if(active){appendStableArtwork(stage,active,item,previousImages.get(item.index));if(pending){const status=document.createElement('span');status.className='image-progress-label';status.textContent=pending+'…';status.setAttribute('role','status');stage.append(status)}}else{stage.textContent='Waiting to generate…';stage.style.color='#5b6252'}const body=document.createElement('div');body.className='card-body';const title=document.createElement('div');title.className='card-title';const heading=document.createElement('h3');heading.textContent='Illustration '+(item.index+1);const badge=document.createElement('span');badge.className='badge';badge.textContent=pending?pending:active?(active.current?'Selected':active.raw?'Raw':'Candidate'):'Queued';title.append(heading,badge);const lyric=document.createElement('div');lyric.className='lyrics';lyric.textContent=item.lyrics;const subject=document.createElement('div');subject.className='subject';subject.textContent=item.subject;subject.title=item.subject;body.append(title,lyric,subject);const strip=document.createElement('div');strip.className='variants';variants.forEach(v=>{const b=button('',()=>{selected[item.index]=v.path;gallerySignature='';renderGallery(s)});b.className='variant'+(v.path===active?.path?' selected':'');b.disabled=generating&&!v.current&&!v.raw&&!v.fresh;b.title=b.disabled?'Previous attempt · available after this generation finishes':v.current?'Current selection':v.raw?'Raw generation':'Alternative';const img=document.createElement('img');img.src=v.url;img.alt=b.title;b.append(img);strip.append(b)});body.append(strip);const actions=document.createElement('div');actions.className='card-actions';actions.append(button(active?.current?'Selected image':active?.review?.rejected?'Rejected image':active&&!active.raw&&!active.review&&$('autoVerify').checked?'Waiting for validation':'Use image',()=>action('select',{index:item.index,path:active.path}),!editable||!active||active.current||active.raw||active.review?.rejected||!active.review&&$('autoVerify').checked||!variants.some(v=>v.current)));actions.append(button(s.action||s.status==='running'?'Queue regeneration':'Regenerate',()=>openRegeneration(item.index,active?.subject||item.subject,active?.prompt??item.prompt,active),!canRegenerate));actions.append(button('Replace',()=>{const input=document.createElement('input');input.type='file';input.accept='image/png,image/jpeg,image/webp';input.onchange=()=>{if(input.files[0]){const form=new FormData();form.append('index',item.index);form.append('replacement',input.files[0]);action('replace',form)}};input.click()},!editable));actions.append(button('Verify',()=>action('verify',{index:item.index,path:active.path,model:$('visionModel').value,review_threshold:+$('reviewThreshold').value,auto_repair:$('autoRepair').checked}),!['review','complete'].includes(s.status)||!!s.action||!active||(!$('visionModel').value||!$('autoVerify').checked)));if(s.status==='complete')actions.append(button('Rebuild section',()=>action('patch',{index:item.index}),!editable||!s.dirty.includes(item.index)));body.append(actions);if(s.dirty.includes(item.index)&&s.video){const note=document.createElement('div');note.className='dirty';note.textContent='Image changed · video section needs rebuilding';body.append(note)}if(active&&!active.raw&&!active.review){const note=document.createElement('div');note.className='help';note.textContent='Not reviewed - Verify checks visible anatomy and lettering.';body.append(note)}if(active?.review){const review=document.createElement('div');review.className='review-result'+(active.review.rejected?' flagged':'');review.textContent=(active.review.validation_pending?'Validation pending · Verify to retry':Number.isFinite(active.review.score)?`Quality ${active.review.score}% · ${active.review.rejected?'Rejected':'Accepted'} · threshold ${active.review.threshold??50}%`:'Legacy review · Verify again for a score')+'\n'+active.review.summary+(active.review.issues?.length?'\n'+active.review.issues.map(i=>`${i.severity}: ${i.location?i.location+' - ':''}${i.issue}`).join('\n'):'')+(active.review.hand_checks?.length?'\n'+active.review.hand_checks.map(h=>`${h.hand}: ${h.visible_fingers??'unclear'} visible digits ? ${h.assessment}`).join('\n'):'')+(active.review.uncertain?'\nSome details are uncertain.':'');body.append(review)}card.append(stage,body);gallery.append(card)}}
+let renderSettingsJob=null;
+function restoreRenderSettings(s){
+ if(!s.render_settings||renderSettingsJob===jobId)return;
+ const settings=s.render_settings;
+ for(const name of ['font_family','font_style','font_scale','text_animation','type_effect','entrance_effect','exit_effect','particle_intensity','particle_speed']){
+  const el=$('jobForm').elements.namedItem(name);if(!el||settings[name]===undefined)continue;
+  const value=String(settings[name]);
+  el.value=el.tagName==='SELECT'&&![...el.options].some(o=>o.value===value)?'none':value;
+ }
+ if(typeof settings.auto_accept==='boolean')$('autoAccept').checked=settings.auto_accept;
+ restoreParticlePools(settings);if($('textAnimation').value==='ai'&&!window.aiTypographyAvailable)$('textAnimation').value='mixed';if(window.refreshTypographyLabels)refreshTypographyLabels();updateDensity();updateSpeed();refreshSidebarLabels();renderSettingsJob=jobId;
+}
+function update(s){s=showOptimisticQueue(s);restoreRenderSettings(s);state=s;refreshProjectPipelineLive(s);updateRebuildNotice(s);const active=['running','queued','review'].includes(s.status);renderProductionHeader(s);$('actionProgress').textContent=s.action?(s.action==='verify'?'Reviewing visible anatomy / '+(s.queued_actions?.length||0)+' operations queued':`${s.action} / ${Math.floor(s.action_percent)}% of current operation`):(s.queued_actions?.length?s.queued_actions.length+' image operations queued':'');$('cancel').disabled=!(active||s.action);$('verifyAll').disabled=!['review','complete'].includes(s.status)||!!s.action||(!$('visionModel').value||!$('autoVerify').checked);updateGenerate();$('reviewBanner').style.display=s.status==='review'?'flex':'none';$('approve').disabled=!!s.action||!!s.queued_actions?.length||!!s.rejected_images?.length;$('elapsed').textContent=timeText(s.elapsed)+' elapsed';const ready=s.images.filter(i=>i.variants.some(v=>v.current)).length;$('imageCount').textContent=`${ready}/${s.images.length||'—'} images ready`;renderProductionStages(s);const history=s.history.length?s.history:[[0,0]];const maxTime=Math.max(1,s.elapsed,history.at(-1)[0]);const points=[[0,0],...history].map(([t,p])=>[30+360*t/maxTime,130-115*p/100]);const d=points.map(([x,y],i)=>(i?'L':'M')+x.toFixed(2)+' '+y.toFixed(2)).join(' ');$('chartLine').setAttribute('d',d);$('chartArea').setAttribute('d',d+` L${points.at(-1)[0]} 130 L30 130 Z`);$('chartTime').textContent=timeText(maxTime);if(s.logs.length){logs.push(...s.logs);renderLogs()}cursor=s.cursor;renderGallery(s);updateVideoHistory(s)}
+let polling=false;async function poll(){if(!jobId||polling)return;polling=true;const expected=jobId;try{const s=await api(`/api/jobs/${jobId}?cursor=${cursor}`);await hydrateLiveArtwork(s,expected);if(jobId===expected)update(s)}catch(e){if(jobId===expected){$('message').textContent='Connection interrupted: '+e.message;$('generateReason').textContent='Cannot refresh job status. Use Reconnect or New session to recover.'}}finally{polling=false}}
+async function init(){try{const cfg=await api('/api/config');token=cfg.token;$('referencePrompt').value=cfg.style_prompt;initModels(cfg);initializeVideoControls();await initializeProfiles();visibleJobs(cfg.jobs).forEach(j=>$('jobs').add(new Option(j.name+' · '+j.id,j.id)));const saved=localStorage.getItem('lyricStudioJob');if(saved&&visibleJobs(cfg.jobs).some(j=>j.id===saved))setJob(saved);else if(window.updateProjectPipelineStatus)updateProjectPipelineStatus('');lineCount();$('refreshModels').click()}catch(e){toast(e.message)}}setInterval(poll,1200);
+</script>
+<script>
+const VOCAL_LANGUAGES={"af": "afrikaans", "sq": "albanian", "am": "amharic", "ar": "arabic", "hy": "armenian", "as": "assamese", "az": "azerbaijani", "ba": "bashkir", "eu": "basque", "be": "belarusian", "bn": "bengali", "bs": "bosnian", "br": "breton", "bg": "bulgarian", "yue": "cantonese", "ca": "catalan", "zh": "chinese", "hr": "croatian", "cs": "czech", "da": "danish", "nl": "dutch", "en": "english", "et": "estonian", "fo": "faroese", "fi": "finnish", "fr": "french", "gl": "galician", "ka": "georgian", "de": "german", "el": "greek", "gu": "gujarati", "ht": "haitian creole", "ha": "hausa", "haw": "hawaiian", "he": "hebrew", "hi": "hindi", "hu": "hungarian", "is": "icelandic", "id": "indonesian", "it": "italian", "ja": "japanese", "jw": "javanese", "kn": "kannada", "kk": "kazakh", "km": "khmer", "ko": "korean", "lo": "lao", "la": "latin", "lv": "latvian", "ln": "lingala", "lt": "lithuanian", "lb": "luxembourgish", "mk": "macedonian", "mg": "malagasy", "ms": "malay", "ml": "malayalam", "mt": "maltese", "mi": "maori", "mr": "marathi", "mn": "mongolian", "my": "myanmar", "ne": "nepali", "no": "norwegian", "nn": "nynorsk", "oc": "occitan", "ps": "pashto", "fa": "persian", "pl": "polish", "pt": "portuguese", "pa": "punjabi", "ro": "romanian", "ru": "russian", "sa": "sanskrit", "sr": "serbian", "sn": "shona", "sd": "sindhi", "si": "sinhala", "sk": "slovak", "sl": "slovenian", "so": "somali", "es": "spanish", "su": "sundanese", "sw": "swahili", "sv": "swedish", "tl": "tagalog", "tg": "tajik", "ta": "tamil", "tt": "tatar", "te": "telugu", "th": "thai", "bo": "tibetan", "tr": "turkish", "tk": "turkmen", "uk": "ukrainian", "ur": "urdu", "uz": "uzbek", "vi": "vietnamese", "cy": "welsh", "yi": "yiddish", "yo": "yoruba"};
+const PROFILE_KEY='lyricStudioProfilesV1';
+
+const ACTIVE_PROFILE_KEY=PROFILE_KEY+'Active';
+let preferredVisionModel=null,profileAudioPath='',profileAudioName='',profileAudioFile=null,audioRestoreVersion=0;
+const AUDIO_DRAFT_KEY='lyricStudioAudioDraftV1';
+let audioSavePromise=null,audioSaveFile=null;
+function profileAudioStatus(message,missing=false){const el=$('profileAudioStatus');if(el){el.textContent=message;el.style.color=missing?'var(--warn)':''}}
+function rememberAudioDraft(){try{localStorage.setItem(AUDIO_DRAFT_KEY,JSON.stringify({audio_path:profileAudioPath,audio_name:profileAudioName}))}catch{toast('The audio is saved locally, but this browser could not remember its path for reload.')}}
+function readAudioDraft(){try{const value=JSON.parse(localStorage.getItem(AUDIO_DRAFT_KEY)||'null');return value&&typeof value.audio_path==='string'?value:null}catch{return null}}
+async function persistProfileAudio(){
+ const file=$('audio').files[0];
+ if(!file)return;
+ if(file===profileAudioFile&&profileAudioPath){rememberAudioDraft();return}
+ if(audioSaveFile===file&&audioSavePromise)return audioSavePromise;
+ audioSaveFile=file;
+ const saving=(async()=>{
+  profileAudioStatus('Saving audio for reload…');
+  const form=new FormData();form.append('audio',file);
+  const saved=await api('/api/profile-audio',form);
+  if($('audio').files[0]!==file)throw Error('Audio changed while saving.');
+  profileAudioPath=saved.path;profileAudioName=file.name;profileAudioFile=file;
+  rememberAudioDraft();profileAudioStatus('Saved audio: '+profileAudioPath);
+ })();
+ audioSavePromise=saving;
+ try{await saving}finally{if(audioSavePromise===saving){audioSavePromise=null;audioSaveFile=null}}
+}
+async function restoreProfileAudio(settings){
+ if(!Object.hasOwn(settings,'audio_path'))return;
+ const version=++audioRestoreVersion;
+ profileAudioPath=typeof settings.audio_path==='string'?settings.audio_path:'';
+ profileAudioName=typeof settings.audio_name==='string'?settings.audio_name:'';
+ rememberAudioDraft();
+ profileAudioFile=null;$('audio').value='';
+ if(audioObjectUrl){URL.revokeObjectURL(audioObjectUrl);audioObjectUrl=''}
+ $('audioPreview').pause();$('audioPreview').removeAttribute('src');$('audioPreview').hidden=true;
+ profileAudioStatus('');if(!profileAudioPath)return;
+ const path=profileAudioPath;profileAudioStatus('Loading saved audio…');
+ try{
+  const response=await fetch('/api/profile-audio?path='+encodeURIComponent(path));
+  if(!response.ok){const error=await response.json();throw Error(error.error||'Saved audio could not be loaded')}
+  const blob=await response.blob();if(version!==audioRestoreVersion)return;
+  const file=new File([blob],profileAudioName||path.split(/[\\/]/).pop(),{type:blob.type});
+  const transfer=new DataTransfer();transfer.items.add(file);$('audio').files=transfer.files;profileAudioFile=$('audio').files[0];
+  audioObjectUrl=URL.createObjectURL(file);$('audioPreview').src=audioObjectUrl;$('audioPreview').hidden=false;
+  profileAudioStatus('Saved audio: '+path);
+ }catch(e){if(version===audioRestoreVersion)profileAudioStatus('Audio unavailable: '+e.message,true)}
+}
+function restoreVisionSelection(){
+ if(preferredVisionModel===null||!$('visionModel'))return;
+ const available=[...$('visionModel').options].some(o=>o.value===preferredVisionModel);
+ if(available){
+  $('visionModel').value=preferredVisionModel;
+ }else if(preferredVisionModel){
+  $('visionModel').add(new Option(preferredVisionModel, preferredVisionModel));
+  $('visionModel').value=preferredVisionModel;
+ }
+ gallerySignature='';if(state)renderGallery(state);
+}
+
+const PROFILE_FIELDS=['text_animation','text_pool','font_family','font_style','font_scale','auto_accept','entrance_pool','exit_pool','entrance_effect','exit_effect','artwork_mode','ai_model','particle_speed','image_model','vision_model','project_id','asr_model','alignment_model','reference_prompt','style','type_effect','particle_intensity','language','auto_verify','auto_repair','review_threshold','cinematic','resolution','lines','steps','encoder','cache'];
+let imageModels=[],audioModels=[],backendReady=false;
+const DEFAULT_PROFILE_NAME='Mucha · Bright & Flowing';
+const DEFAULT_REFERENCE='/assets/default-style-reference.jpg';
+const DEFAULT_PROFILE={version:1,settings:{artwork_mode:'cutout',ai_model:'auto',image_model:'Qwen/Qwen-Image-2512',vision_model:'',asr_model:'qwen3-asr-1.7b',alignment_model:'auto',reference_prompt:'Delicate linework, elegant proportions, expressive faces, flowing hair, and soft painterly shading inspired by Alphonse Mucha.',style:'Bright, uplifting mood; emphasis on flowing fabric, long flowing hair, graceful movement and luminous color. Expressive editorial typography with letters that shatter, melt and flow.',type_effect:'mixed',particle_intensity:'1',language:'auto',auto_verify:true,auto_repair:true,review_threshold:"50",cinematic:true,resolution:'720p',lines:'2',steps:'50',encoder:'h264_nvenc',cache:'',reference_asset:DEFAULT_REFERENCE}};
+async function initializeProfiles(){
+ if(!window.profileChoicePersistenceBound){
+  window.profileChoicePersistenceBound=true;
+  for(const [id,key] of [['artworkMode','artwork_mode'],['autoVerify','auto_verify'],['autoRepair','auto_repair']]){
+   $(id)?.addEventListener('change',()=>{
+    try{
+     const name=localStorage.getItem(ACTIVE_PROFILE_KEY)||$('profileList').value;
+     const profiles=getProfiles();if(!name||!profiles[name])return;
+     profiles[name].settings[key]=$(id).type==='checkbox'?$(id).checked:$(id).value;
+     localStorage.setItem(PROFILE_KEY,JSON.stringify(profiles));
+    }catch{toast('The profile setting could not be saved in this browser.');}
+   });
+  }
+ }
+
+ try{
+  const profiles=getProfiles();
+  if(!Object.hasOwn(profiles,DEFAULT_PROFILE_NAME))profiles[DEFAULT_PROFILE_NAME]=JSON.parse(JSON.stringify(DEFAULT_PROFILE));
+  if(!localStorage.getItem(PROFILE_KEY+'QwenGpuDefaultsV1')){
+   profiles[DEFAULT_PROFILE_NAME].settings.image_model='Qwen/Qwen-Image-2512';profiles[DEFAULT_PROFILE_NAME].settings.steps='50';
+   localStorage.setItem(PROFILE_KEY+'QwenGpuDefaultsV1','1');
+  }
+  localStorage.setItem(PROFILE_KEY,JSON.stringify(profiles));
+  localStorage.setItem('lyricStudioDefaultProfileV1','1');
+  const activeName=localStorage.getItem(ACTIVE_PROFILE_KEY);
+  const selectedName=activeName&&Object.hasOwn(profiles,activeName)?activeName:DEFAULT_PROFILE_NAME;
+  refreshProfiles(selectedName);$('profileName').value=selectedName;
+  const previousAudio=profiles[activeName]?.settings;
+  const audioDraft=readAudioDraft()??(typeof previousAudio?.audio_path==='string'?{audio_path:previousAudio.audio_path,audio_name:previousAudio.audio_name||''}:null);
+  await applyProfile({...profiles[selectedName].settings,...(audioDraft||{})});
+  localStorage.setItem(ACTIVE_PROFILE_KEY,selectedName);refreshProfiles(selectedName);
+ }catch(e){toast(e.message)}
+}
+async function restoreProfileReference(asset){if(asset!==DEFAULT_REFERENCE)throw Error('Unknown bundled profile reference');if(!backendReady)return;const response=await fetch(asset);if(!response.ok)throw Error('The bundled reference image could not be loaded');const blob=await response.blob();refs.forEach(r=>URL.revokeObjectURL(r.url));refs=[{file:new File([blob],'default-style-reference.jpg',{type:'image/jpeg'}),url:URL.createObjectURL(blob),asset}];showRefs();}
+
+function modelHelp(){const m=imageModels.find(m=>m.id===$('imageModel').value);if(!m)return;$('modelHelp').textContent=`${m.description} ${m.license}. Allow ~${m.disk_gb} GB disk space for first download.`;$('modelLink').href='https://huggingface.co/'+m.id;}
+function initModels(cfg){initParticleEffects(cfg);promptRegenerationSupported=!!cfg.prompt_regeneration;initSpeech(cfg);setupModelControls(cfg);backendReady=!!cfg.image_models;$('generate').disabled=!backendReady;imageModels=cfg.image_models||[{id:cfg.model,name:'Current model (restart to change)',description:'The studio backend needs a restart after the active job finishes.',license:'',disk_gb:40}];if(!backendReady){const note=document.createElement('p');note.className='compatibility-note';note.textContent='Updated controls are installed. Restart Kinetic Lyrics after this job finishes to enable model selection and rebuilds.';$('studioCompatibility').append(note);$('imageModel').disabled=true;}$('imageModel').replaceChildren(...imageModels.map(m=>new Option(m.name,m.id)));$('imageModel').value=cfg.model;modelHelp();$('imageModel').onchange=()=>{const m=imageModels.find(m=>m.id===$('imageModel').value);if(m)$('steps').value=m.steps;modelHelp()};try{const saved=localStorage.getItem('lyricStudioModelFolder');if(saved)$('cache').value=saved}catch{}$('cache').onchange=()=>{try{localStorage.setItem('lyricStudioModelFolder',$('cache').value)}catch{toast('Could not remember the model folder.')}};}
+function getProfiles(){const value=JSON.parse(localStorage.getItem(PROFILE_KEY)||'{}');return value&&typeof value==='object'&&!Array.isArray(value)?value:{};}
+function refreshProfiles(selected=''){try{const profiles=getProfiles();$('profileList').replaceChildren(new Option('Choose a profile',''),...Object.keys(profiles).sort().map(n=>new Option(n,n)));$('profileList').value=selected;const has=!!$('profileList').value;$('loadProfile').disabled=!has;$('deleteProfile').disabled=!has;}catch{toast('Profiles could not be read from browser storage.');}}
+function profileSettings(){
+ const settings={};
+ for(const name of PROFILE_FIELDS){
+  const el=$('jobForm').elements.namedItem(name);
+  if(el)settings[name]=el.type==='checkbox'?el.checked:el.value;
+ }
+ settings.ai_model=$('aiModel')?$('aiModel').value:'auto';
+ settings.image_model=$('imageModel')?$('imageModel').value:'';
+ settings.vision_model=preferredVisionModel??($('visionModel')?$('visionModel').value:'');
+ settings.project_id=($('projectId')?$('projectId').value:'')||(window.jobId||'');
+ if(profileAudioPath){
+  settings.audio_path=profileAudioPath;
+  settings.audio_name=profileAudioName;
+ }
+ const bundled=refs.find(r=>r.asset);
+ if(bundled)settings.reference_asset=bundled.asset;
+ return settings;
+}
+async function applyProfile(settings){
+ if(!settings||typeof settings!=='object'||Array.isArray(settings))throw Error('Invalid profile settings');
+ settings={font_family:'auto',font_style:'auto',font_scale:1.25,text_pool:['directed','highlight','karaoke','slide','fade','none'],...settings};
+
+ if($('autoAccept'))$('autoAccept').checked=settings.auto_accept===true;
+ if($('textAnimation'))$('textAnimation').value=[...$('textAnimation').options].some(option=>option.value===settings.text_animation)?settings.text_animation:'directed';
+ for(const phase of ['entrance','exit']){
+  const el=$(phase+'Effect');const value=settings[phase+'_effect']??'legacy';
+  if(el)el.value=[...el.options].some(o=>o.value===String(value))?String(value):'none';
+ }
+ for(const name of PROFILE_FIELDS){
+  const el=$('jobForm').elements.namedItem(name);
+  if(!el||!Object.hasOwn(settings,name))continue;
+  const value=name.endsWith('_pool')&&Array.isArray(settings[name])?JSON.stringify(settings[name]):settings[name];
+  if(el.type==='checkbox'){
+   if(typeof value!=='boolean')throw Error('Invalid checkbox setting: '+name);
+   el.checked=value;
+  }else{
+   if(typeof value!=='string'&&typeof value!=='number')throw Error('Invalid setting: '+name);
+   if(el.tagName==='SELECT'&&![...el.options].some(o=>o.value===String(value))){
+    if(el.id==='aiModel'||el.id==='visionModel'){
+     el.add(new Option(String(value),String(value)));
+    }else{
+     continue;
+    }
+   }
+   el.value=String(value);
+  }
+ }
+ restoreParticlePools(settings);if($('textAnimation').value==='ai'&&!window.aiTypographyAvailable)$('textAnimation').value='mixed';if(window.refreshTypographyLabels)refreshTypographyLabels();
+ if(typeof settings.ai_model==='string'&&$('aiModel')){
+  const prompt=promptingModelSelection(settings.ai_model);
+  for(const option of [...$('aiModel').options])if(isVisionModel(option.value))option.remove();
+  if(![...$('aiModel').options].some(o=>o.value===prompt)){
+   $('aiModel').add(new Option(prompt,prompt));
+  }
+  $('aiModel').value=prompt;
+ }
+ if(typeof settings.vision_model==='string'){
+  preferredVisionModel=settings.vision_model;
+  restoreVisionSelection();
+ }
+ const targetProject=(typeof settings.project_id==='string'&&settings.project_id)||window.jobId||($('projectId')?$('projectId').value:'')||($('jobs')?$('jobs').value:'')||'';
+ if($('projectId'))$('projectId').value=targetProject;
+ await updateProjectPipelineStatus(targetProject);
+ await restoreProfileAudio(settings);
+ syncValidationControls();modelHelp();lineCount();updateDensity();updateSpeed();speechInfo();refreshSidebarLabels();
+ if(settings.reference_asset)await restoreProfileReference(settings.reference_asset);
+ else{refs.forEach(r=>URL.revokeObjectURL(r.url));refs=[];showRefs();}
+}
+
+let projectStatusRequestVersion=0;
+async function updateProjectPipelineStatus(projId,options={}){
+ const requestVersion=++projectStatusRequestVersion;
+ const card=$('projectPipelineCard');
+ const nameLabel=$('projectNameLabel');
+ const badge=$('projectStepBadge');
+ const startSelect=$('startStep');
+ 
+ if(!projId){
+  projId=(window.jobId||($('projectId')?$('projectId').value:'')||($('jobs')?$('jobs').value:'')||'').trim();
+ }
+ const prevVal=startSelect?startSelect.value:'beginning';
+
+ const resetStepsCard=()=>{
+  if(!card)return;
+  card.querySelectorAll('.pipe-step').forEach(s=>{
+   s.dataset.status='pending';
+   s.style.background='#ffffff06';
+   s.style.borderColor='#ffffff22';
+   s.style.color='var(--muted)';
+   s.style.cursor='default';
+   s.style.outline='none';
+   s.onclick=null;
+   const icon=s.querySelector('.step-icon');
+   if(icon)icon.textContent='○';
+   const label=s.querySelector('.step-name');if(label)label.textContent=['Timing','Prompts','Images','Review','Video'][+s.dataset.step-1];
+  });
+ };
+
+ if(!projId){
+  resetStepsCard();
+  if(startSelect){
+   for(const opt of startSelect.options){
+    opt.disabled=(opt.value!=='beginning');
+   }
+   startSelect.value='beginning';
+  }
+  if(nameLabel)nameLabel.textContent='No project linked';
+  if(badge){badge.textContent='New';badge.style.color='var(--muted)';}
+  if($('audio'))$('audio').required=true;
+  updateStepHelp();
+  return;
+ }
+ 
+ try{
+  const st=await api(`/api/projects/${encodeURIComponent(projId)}/status`);
+  if(requestVersion!==projectStatusRequestVersion)return;
+  if(!st||!st.exists){
+   resetStepsCard();
+   if(startSelect){
+    for(const opt of startSelect.options){
+     opt.disabled=(opt.value!=='beginning');
+    }
+    startSelect.value='beginning';
+   }
+   if(nameLabel)nameLabel.textContent='Project: '+projId+' (not found)';
+   if(badge){badge.textContent='Missing';badge.style.color='var(--error)';}
+   if($('audio'))$('audio').required=true;
+   updateStepHelp();
+   return;
+  }
+  if(nameLabel)nameLabel.textContent='Project: '+projId;
+  if($('projectId'))$('projectId').value=projId;
+  resetStepsCard();
+  
+  const setStepDone=(stepNum,label)=>{
+   if(!card)return;
+   const el=card.querySelector(`.pipe-step[data-step="${stepNum}"]`);
+   if(el){
+    el.style.background='#ffffff0a';
+    el.style.borderColor='#ffffff38';
+    el.style.color='#a6f3c1';
+    const icon=el.querySelector('.step-icon');
+    if(icon)icon.textContent='✓';
+    if(label){
+     const nm=el.querySelector('.step-name');
+     if(nm)nm.textContent=label;
+    }
+   }
+  };
+
+  if(startSelect){
+   const ob=startSelect.querySelector('option[value="beginning"]');if(ob)ob.disabled=false;
+   const o1=startSelect.querySelector('option[value="timing"]');if(o1)o1.disabled=!(st.has_audio||st.exists);
+   const o2=startSelect.querySelector('option[value="prompts"]');if(o2)o2.disabled=!st.has_timings;
+   const o3=startSelect.querySelector('option[value="images"]');if(o3)o3.disabled=!(st.has_prompts&&st.has_timings);
+   const o4=startSelect.querySelector('option[value="review"]');if(o4)o4.disabled=!st.has_images;
+   const o5=startSelect.querySelector('option[value="render"]');if(o5)o5.disabled=!st.has_images;
+  }
+
+  if(st.has_timings)setStepDone(1,'Timing');
+  if(st.has_prompts)setStepDone(2,'Prompts');
+  if(st.has_images)setStepDone(3,st.image_count?`${st.image_count} Imgs`:'Images');
+  if(st.has_reviews)setStepDone(4,'Review');
+  if(st.has_video)setStepDone(5,'Video');
+
+  if(badge){
+   badge.textContent=`Step ${st.current_step}/5`;
+   badge.style.color=st.current_step===5?'#9bf5b8':'var(--lime)';
+  }
+
+  if(startSelect){
+   let defaultStep='beginning';
+   if(st.has_video||st.has_reviews){
+    defaultStep='render';
+   }else if(st.has_images){
+    defaultStep='review';
+   }else if(st.has_prompts){
+    defaultStep='images';
+   }else if(st.has_timings){
+    defaultStep='prompts';
+   }else if(st.has_audio||st.exists){
+    defaultStep='timing';
+   }
+
+   const chosen=startSelect.querySelector(`option[value="${prevVal}"]`);
+   if(chosen&&!chosen.disabled&&(prevVal!=='beginning'||options.live)){
+    startSelect.value=prevVal;
+   }else{
+    startSelect.value=defaultStep;
+   }
+  }
+
+  if(card&&startSelect){
+   const stepMap={1:'timing',2:'prompts',3:'images',4:'review',5:'render'};
+   card.querySelectorAll('.pipe-step').forEach(s=>{
+    const num=+s.getAttribute('data-step');
+    const val=stepMap[num];
+    const opt=startSelect.querySelector(`option[value="${val}"]`);
+    if(opt&&!opt.disabled){
+     s.style.cursor='pointer';
+     s.title=`Restart at Step ${num} (${val})`;
+     s.onclick=()=>{
+      startSelect.value=val;
+      updateStepHelp();
+     };
+    }
+   });
+  }
+
+  if($('audio')){
+   $('audio').required=(startSelect&&startSelect.value==='beginning')&&!st.has_audio;
+  }
+  updateStepHelp();
+ }catch(e){
+  if(requestVersion!==projectStatusRequestVersion)return;
+  if(nameLabel)nameLabel.textContent='Project: '+projId;
+  if(badge){badge.textContent='Offline';badge.style.color='var(--warn)';}
+ }
+}
+
+function updateStepHelp(){
+ const sel=$('startStep');
+ const help=$('stepHelp');
+ if(!sel||!help)return;
+ const msgs={
+  beginning:'Starts a brand-new project run from scratch without reusing previous data.',
+  timing:'Re-runs speech transcription and word timing from audio.',
+  prompts:'Reuses existing word timings; regenerates visual scene plan and prompts.',
+  images:'Reuses existing word timings and prompts; regenerates illustration images.',
+  review:'Reuses existing illustrations and timings; re-runs vision validation.',
+  render:'Reuses existing approved artwork and timings; compiles and renders video MP4.'
+ };
+ help.textContent=msgs[sel.value]||'Choose where to begin execution.';
+ if($('audio')){
+  const hasExistingAudio=!!($('projectId')?.value||window.jobId);
+  $('audio').required=(sel.value==='beginning')||!hasExistingAudio;
+ }
+ const card=$('projectPipelineCard');
+ if(card){
+  const stepMap={'timing':1,'prompts':2,'images':3,'review':4,'render':5};
+  const activeNum=stepMap[sel.value];
+  card.querySelectorAll('.pipe-step').forEach(s=>{
+   const num=+s.getAttribute('data-step');
+   if(num===activeNum){
+    s.style.outline='2px solid var(--lime)';
+   }else{
+    s.style.outline='none';
+   }
+  });
+ }
+}
+if($('startStep'))$('startStep').onchange=updateStepHelp;
+
+window.updateProjectPipelineStatus=updateProjectPipelineStatus;
+
+function saveNamedProfile(name,settings){name=name.trim().slice(0,80);if(!name)throw Error('Enter a profile name first');if(['__proto__','prototype','constructor'].includes(name))throw Error('Choose another profile name');const profiles=getProfiles();profiles[name]={version:1,settings};localStorage.setItem(PROFILE_KEY,JSON.stringify(profiles));localStorage.setItem(ACTIVE_PROFILE_KEY,name);refreshProfiles(name);$('profileName').value=name;}
+$('newProfile').onclick=()=>{$('profileList').value='';$('profileName').value='';$('profileName').focus();$('loadProfile').disabled=true;$('deleteProfile').disabled=true;toast('Enter a profile name and Save to keep the current settings.');};
+$('profileList').onchange=()=>{const name=$('profileList').value;$('profileName').value=name;$('loadProfile').disabled=!name;$('deleteProfile').disabled=!name;};
+$('saveProfile').onclick=async()=>{try{await persistProfileAudio();saveNamedProfile($('profileName').value,profileSettings());toast('Profile saved.')}catch(e){toast(e.message)}};
+$('loadProfile').onclick=async()=>{try{const profile=getProfiles()[$('profileList').value];if(!profile)throw Error('Choose a saved profile');await applyProfile(profile.settings);localStorage.setItem(ACTIVE_PROFILE_KEY,$('profileList').value);toast('Profile loaded into the creative brief.')}catch(e){toast(e.message)}};
+$('deleteProfile').onclick=()=>{try{const name=$('profileList').value;if(!name)return;const profiles=getProfiles();delete profiles[name];if(localStorage.getItem(ACTIVE_PROFILE_KEY)===name)localStorage.removeItem(ACTIVE_PROFILE_KEY);localStorage.setItem(PROFILE_KEY,JSON.stringify(profiles));refreshProfiles();$('profileName').value='';toast('Profile deleted.')}catch(e){toast(e.message)}};
+$('exportProfile').onclick=async()=>{try{await persistProfileAudio();const name=$('profileName').value.trim()||'lyric-studio';const data={version:1,name,settings:profileSettings()};const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=name.replace(/[^a-z0-9_-]/gi,'-')+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(e){toast(e.message)}};
+$('importProfile').onclick=()=>$('profileFile').click();
+$('profileFile').onchange=async()=>{try{const file=$('profileFile').files[0];if(!file)return;if(file.size>65536)throw Error('Profile must be smaller than 64 KB');const p=JSON.parse(await file.text());if(p.version!==1||typeof p.name!=='string'||!p.settings||typeof p.settings!=='object')throw Error('Not a supported Kinetic Lyrics profile');await applyProfile(p.settings);saveNamedProfile(p.name,profileSettings());toast('Profile imported and loaded.')}catch(e){toast(e.message)}finally{$('profileFile').value=''}};
+function updateDensity(){$('densityValue').value=(+$('particleIntensity').value).toFixed(1)+'×'}
+$('particleIntensity').oninput=updateDensity;
+function updateSpeed(){if($('particleSpeed')&&$('speedValue'))$('speedValue').value=(+$('particleSpeed').value).toFixed(1)+'×'}
+if($('particleSpeed'))$('particleSpeed').oninput=updateSpeed;
+init();
+
+function initSpeech(cfg){
+    audioModels=cfg.asr_models||[];
+    $('asrModel').replaceChildren(...audioModels.map(m=>new Option(m.name,m.id)));
+    if(!audioModels.length)$('asrModel').add(new Option('Restart studio to select audio models','qwen3-asr-1.7b'));
+    $('asrModel').value=cfg.default_asr||'qwen3-asr-1.7b';
+    $('language').replaceChildren(new Option('Auto-detect','auto'),...Object.entries(cfg.vocal_languages||VOCAL_LANGUAGES).sort((a,b)=>a[1].localeCompare(b[1])).map(([code,name])=>new Option(name.replace(/\b\w/g,c=>c.toUpperCase())+' ('+code+')',code)));
+    $('asrModel').onchange=speechInfo;$('language').onchange=speechInfo;$('alignmentModel').onchange=speechInfo;
+    const previous=$('lyrics').oninput;$('lyrics').oninput=()=>{previous?.();speechInfo()};
+    speechInfo();
+}
+function speechInfo(){
+    const m=audioModels.find(m=>m.id===$('asrModel').value);if(!m)return;
+    const language=$('language').value;const supplied=!!$('lyrics').value.trim();
+    const unsupported=language!=='auto'&&!m.languages.includes(language)&&!supplied;
+    $('language').setCustomValidity(unsupported?'This audio model does not support the selected language. Choose another model, or supply your lyrics.':'');
+    $('speechHelp').textContent=m.description+' '+m.languages.length+' supported languages. '+(supplied?'Supplied lyrics skip transcription; the word timing model is used.':'Missing speech weights download to the model folder under speech/.');
+    $('speechLink').href='https://huggingface.co/'+m.repo;
+    $('languageHelp').textContent=unsupported?'Choose a different audio model for this language.':'All 100 Whisper languages are listed. Audio models support different subsets.';
+}
+
+</script>
+</body></html>

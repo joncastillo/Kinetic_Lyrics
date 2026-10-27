@@ -1,0 +1,11 @@
+{
+  "name": "Glass mosaic",
+  "family": "glass",
+  "trajectory": "left",
+  "spread": 2.4,
+  "gravity": 0.85,
+  "spin": 1.4625,
+  "twist": 0.0,
+  "stagger": 0.35,
+  "density": 0.8
+}

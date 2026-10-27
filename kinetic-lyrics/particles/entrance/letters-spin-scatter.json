@@ -1,0 +1,10 @@
+{
+  "name": "Spinning letters from all directions",
+  "family": "letters",
+  "trajectory": "radial",
+  "spread": 2.8,
+  "spin": 1.8,
+  "twist": 4.2,
+  "stagger": 0.25,
+  "density": 1.0
+}

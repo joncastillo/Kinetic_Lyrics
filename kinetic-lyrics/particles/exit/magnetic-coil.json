@@ -1,0 +1,11 @@
+{
+  "name": "Magnetic coil",
+  "family": "magnetic",
+  "trajectory": "spiral",
+  "spread": 2.1,
+  "gravity": 0.0,
+  "spin": 0.16800000000000004,
+  "twist": 3.8,
+  "stagger": 0.15,
+  "density": 1.1
+}

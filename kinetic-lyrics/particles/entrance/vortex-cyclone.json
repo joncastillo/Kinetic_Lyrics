@@ -1,0 +1,11 @@
+{
+  "name": "Vortex cyclone",
+  "family": "vortex",
+  "trajectory": "up",
+  "spread": 1.9,
+  "gravity": 0.0,
+  "spin": 1.2060000000000002,
+  "twist": 0.0,
+  "stagger": 0.5,
+  "density": 1.3
+}

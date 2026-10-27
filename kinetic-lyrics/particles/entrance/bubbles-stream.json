@@ -1,0 +1,11 @@
+{
+  "name": "Bubbles stream",
+  "family": "bubbles",
+  "trajectory": "left",
+  "spread": 2.4,
+  "gravity": -0.7,
+  "spin": 0.23399999999999999,
+  "twist": 0.0,
+  "stagger": 0.35,
+  "density": 0.8
+}

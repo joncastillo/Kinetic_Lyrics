@@ -1,0 +1,11 @@
+{
+  "name": "Sparks arc",
+  "family": "sparks",
+  "trajectory": "fan",
+  "spread": 2.7,
+  "gravity": 0.6,
+  "spin": 1.057,
+  "twist": 0.0,
+  "stagger": 0.22,
+  "density": 0.65
+}

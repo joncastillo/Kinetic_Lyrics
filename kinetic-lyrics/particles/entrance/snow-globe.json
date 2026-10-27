@@ -1,0 +1,11 @@
+{
+  "name": "Snow globe",
+  "family": "snow",
+  "trajectory": "spiral",
+  "spread": 2.1,
+  "gravity": 0.55,
+  "spin": 2.5200000000000005,
+  "twist": 3.8,
+  "stagger": 0.15,
+  "density": 1.1
+}

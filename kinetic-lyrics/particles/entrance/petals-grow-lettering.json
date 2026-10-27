@@ -1,0 +1,11 @@
+{
+  "name": "Vines, leaves and flowers growing from faint letters",
+  "family": "petals",
+  "hold": "particles",
+  "trajectory": "grow",
+  "spread": 1.0,
+  "spin": 0.4,
+  "twist": 0.0,
+  "stagger": 0.35,
+  "density": 1.25
+}

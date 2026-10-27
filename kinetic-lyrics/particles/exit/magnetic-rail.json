@@ -1,0 +1,11 @@
+{
+  "name": "Magnetic rail",
+  "family": "magnetic",
+  "trajectory": "left",
+  "spread": 2.4,
+  "gravity": 0.0,
+  "spin": 0.11699999999999999,
+  "twist": 0.0,
+  "stagger": 0.35,
+  "density": 0.8
+}
