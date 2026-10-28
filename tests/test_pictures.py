@@ -71,5 +71,18 @@ class PictureTest(unittest.TestCase):
         self.assertIn('expressive faces', icon_prompt('a dancing woman', '', style))
 
 
+class InstrumentOverlayTest(unittest.TestCase):
+    def test_overlay_keeps_the_frame_rgb_for_the_encoder(self):
+        from instrument_stage import InstrumentStage
+        stage = InstrumentStage.__new__(InstrumentStage)
+        stage.width, stage.height, stage.size = 64, 36, 9
+        picture = Image.new('RGBA', (9, 9), (200, 120, 40, 255))
+        stage.items = [dict(picture=picture, spans=[(0., 10.)], motion='keys', hits=[], hit_times=[], level=[],
+                            pitch=None, anchor=(.5, .5), flip=False)]
+        frame = stage.paint(Image.new('RGB', (64, 36)), 5.)
+        self.assertEqual((frame.mode, frame.size), ('RGB', (64, 36)))
+        self.assertNotEqual(frame.getpixel((32, 18)), (0, 0, 0))
+
+
 if __name__ == '__main__':
     unittest.main()

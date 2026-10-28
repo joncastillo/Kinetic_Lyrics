@@ -22,6 +22,8 @@ from line_arrival import line_arrivals, reading_lanes, reading_regions
 from typography_settings import KINETIC_TEXT_SCALE, typography_options, selected_font, selected_word_animation
 
 READING_HOLD = 0.
+_REPORTED = set()  # special-instruction problems already reported in this process
+EDGE_FADE = (1., 1.5)  # seconds the video fades in from black and out to black (the `fade` setting)
 
 
 MODES = ('push', 'drop', 'zoom', 'blocks', 'marquee', 'stack')
@@ -260,7 +262,7 @@ class Compositor:
                  cinematic=False, preserve_art_slots=False, type_effect='none',
                  particle_intensity=1., artwork_mode='cutout', layout_seed=42,
                  particle_speed=1., entrance_effect=None, exit_effect=None, entrance_pool=None, exit_pool=None, text_animation='directed', font_family='auto', font_style='auto', font_scale=1.25, text_pool=None, lettering_styles=None, reading_flow='preview', melody=None, rhythm=None, kinetic=None, effect_speeds=None,
-                 effect_intensities=None, instruments=None):
+                 effect_intensities=None, instruments=None, instructions=''):
         self.source_cues=[line['words'][0]['start'] for line in data]
         self.focused_words=False
         self.data, self.plan = data, validate_plan(plan, data)
@@ -280,7 +282,7 @@ class Compositor:
         if text_animation not in TEXT_ANIMATIONS:
             raise ValueError('Unknown word animation: '+str(text_animation))
         self.text_animation = text_animation
-        self.typography = typography_options(dict(font_family=font_family,font_style=font_style,font_scale=font_scale,text_pool=text_pool,lettering_styles=lettering_styles,reading_flow=reading_flow,kinetic=kinetic,effect_speeds=effect_speeds,effect_intensities=effect_intensities))
+        self.typography = typography_options(dict(font_family=font_family,font_style=font_style,font_scale=font_scale,text_pool=text_pool,lettering_styles=lettering_styles,reading_flow=reading_flow,kinetic=kinetic,instructions=instructions,effect_speeds=effect_speeds,effect_intensities=effect_intensities))
         self.word_animations=[[selected_word_animation(text_animation,self.typography['text_pool'],index)]*len(line['words'])
                               for index,line in enumerate(data)]
         self.text_animations=[motions[0] for motions in self.word_animations]
@@ -326,8 +328,19 @@ class Compositor:
             self.word_effect_pairs.append(effects)
             total+=len(line['words'])
         self.text_animations=[motions[0] for motions in self.word_animations]
+        # Special instructions typed for the renderer override the chosen effect and colour of the words they name.
+        from render_instructions import word_directives
+        self.word_directives, problems = word_directives(data, self.typography['instructions'], self.effect_catalog['entrance'])
+        import multiprocessing
+        for problem in problems:  # once per run: the compositor is rebuilt, and render workers build their own
+            if multiprocessing.parent_process() is None and problem not in _REPORTED:
+                _REPORTED.add(problem)
+                print('Special instructions: '+problem, flush=True)
         self.effect_pairs=[(next((a for a,b in effects if a!='none'),'none'),
                             next((b for a,b in effects if b!='none'),'none')) for effects in self.word_effect_pairs]
+        for (line, index), directive in self.word_directives.items():  # after the lines' own effects are settled
+            if directive.get('effect'):
+                self.word_effect_pairs[line][index] = (directive['effect'], self.word_effect_pairs[line][index][1])
         self.lead_in = lead_in
         self.cues = [line['words'][0]['start'] for line in data]
         self.exit_lengths = [
@@ -811,6 +824,14 @@ class Compositor:
         image = self._frame(t, text_only=text_only)
         if self.instrument_stage is not None and not text_only:
             image = self.instrument_stage.paint(image, t)
+        if text_only:
+            return image
+        # The encoder reads raw rgb24: any other mode would shift every later frame and end the video early.
+        image = image if image.mode == 'RGB' else image.convert('RGB')
+        if self.typography['kinetic']['fade']:
+            level = max(0., min(1., t/EDGE_FADE[0], (self.duration-t)/EDGE_FADE[1]))
+            if level < 1:
+                image = Image.blend(Image.new('RGB', image.size), image, level)
         return image
 
     def _frame(self, t, *, text_only=False):
@@ -1033,6 +1054,13 @@ def render_compositor(data,plan,duration,args):
         instruments=getattr(args, 'instrument_pictures', None), **typography_options(vars(args)))
 
 
+def ffmpeg_failure(log, code):
+    """FFmpeg's own error text, or its exit code when it died without writing one (a crash)."""
+    log.seek(0)
+    text = log.read().decode(errors='replace').strip()
+    return f'FFmpeg (exit {code}): {text}' if text else f'FFmpeg exited with code {code} ({code & 0xFFFFFFFF:#x}) without an error message'
+
+
 def _render_video(audio, output, data, plan, duration, args):
     import tempfile
     compositor = render_compositor(data,plan,duration,args)
@@ -1056,7 +1084,7 @@ def _render_video(audio, output, data, plan, duration, args):
             emit('direction', 0, message='AI choosing the small animated pictures for each block')
             plan = ensure_ornaments(data, plan, compositor, dict(vars(args), ornament_images=pictures == 'ai-painted'), Path(output).parent)
         compositor = render_compositor(data,plan,duration,args)
-    if getattr(args, 'instruments_found', None) and getattr(args, 'instruments', 'auto') != 'off':
+    if getattr(args, 'instruments_found', None) and getattr(args, 'instruments', 'off') != 'off':
         from instrument_stage import instrument_pictures
         emit('direction', 0, message='Painting the instruments heard in the song')
         args.instrument_pictures = instrument_pictures(args.instruments_found, Path(output).parent, vars(args))
@@ -1102,12 +1130,9 @@ def _render_video(audio, output, data, plan, duration, args):
                 process.stdin.close()
                 code = process.wait()
                 if code:
-                    log.seek(0)
-                    raise ValueError('FFmpeg: ' + log.read().decode(errors='replace'))
+                    raise ValueError(ffmpeg_failure(log, code))
             except BrokenPipeError as exc:
-                process.wait()
-                log.seek(0)
-                raise ValueError('FFmpeg: ' + log.read().decode(errors='replace')) from exc
+                raise ValueError(ffmpeg_failure(log, process.wait())) from exc
             finally:
                 if process.poll() is None:
                     process.kill()

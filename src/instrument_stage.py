@@ -148,18 +148,25 @@ class InstrumentStage:
             glow = glow.filter(ImageFilter.GaussianBlur(9))
             layer.alpha_composite(glow, (round(cx-glow.width/2), round(cy-glow.height/2)))
             if envelope > .05:
-                halo = Image.new('RGBA', sprite.size)
-                ImageDraw.Draw(halo).ellipse((0, 0, sprite.width, sprite.height), fill=(255, 220, 160, round(70*min(1, envelope)*present)))
-                layer.alpha_composite(halo.filter(ImageFilter.GaussianBlur(sprite.width/6)),
-                                      (round(cx-sprite.width/2), round(cy-sprite.height/2)))
+                # The pulse glows out from the instrument's own outline (its cut-out silhouette), never a box.
+                reach = max(4, round(max(sprite.size)*.08))
+                outline = Image.new('L', (sprite.width+reach*4, sprite.height+reach*4))
+                outline.paste(sprite.getchannel('A'), (reach*2, reach*2))
+                outline = outline.filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.GaussianBlur(reach))
+                strength = min(1., envelope)*present
+                halo = Image.new('RGBA', outline.size, (255, 220, 160, 0))
+                halo.putalpha(outline.point(lambda a, k=strength: round(min(255, a*1.6)*.75*k)))
+                layer.alpha_composite(halo, (round(cx-halo.width/2), round(cy-halo.height/2)))
             faded = sprite.copy()
             faded.putalpha(sprite.getchannel('A').point(lambda a, k=present: round(a*k)))
             layer.alpha_composite(faded, (round(cx-sprite.width/2), round(cy-sprite.height/2)))
             if pose['extra']:
                 self.paint_extra(layer, pose['extra'], cx, cy, picture.size, present)
         if layer is not None:
+            mode = frame.mode
             frame = frame.convert('RGBA')
             frame.alpha_composite(layer)
+            frame = frame.convert(mode)
         return frame
 
     def paint_extra(self, layer, extra, cx, cy, size, present):

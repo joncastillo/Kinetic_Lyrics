@@ -2,5 +2,5 @@
   "name": "Panning canvas",
   "camera": "pan",
   "particles": null,
-  "description": "Words land on one gliding painted canvas, with flowing bands and drifting shapes."
+  "description": "Words land on one gliding painted canvas, with flowing bands and a wisp that traces translucent shapes."
 }

@@ -1,7 +1,7 @@
 """Scene effects: the curated looks a video's song sections are filmed in.
 
 Each scene is a small JSON recipe in scenes/. Its `camera` picks the renderer: "pan" (the
-real-time panning canvas, with flowing bands and drifting shapes), "still" (the real-time
+real-time panning canvas, with flowing bands and a wisp tracing shapes), "still" (the real-time
 still camera, lines built inside shapes) or "blocks" (the 3D stage). A blocks scene owns a
 few particle effects (`particles`), such as the varied tree canopy entrances;
 inside that scene the AI picks one of them for each block. A blocks scene's `layout` is

@@ -12,7 +12,7 @@ BACKDROP_KINDS = ('outline','filled','vertical','echo','giant')
 GLOW_INSTRUMENTS = ('drums','other','bass')
 CAMERA_MODES = ('pan','still')
 KINETIC_DEFAULTS = dict(camera='pan',pan_speed=.05,backdrop_rate=.6,backdrops=list(BACKDROP_KINDS),traces=True,
-                        geometry=.8,frames=.1,glows=list(GLOW_INSTRUMENTS),glow_words=.5,glow_strength=.55,glitch=True,text_pulse=.1,word_shapes=0.,scenes=None)
+                        geometry=.8,frames=.1,glows=list(GLOW_INSTRUMENTS),glow_words=.15,glow_strength=.55,glitch=True,text_pulse=0.,word_shapes=0.,scenes=None,fade=True)
 
 
 def effect_speeds(value):
@@ -75,7 +75,7 @@ def kinetic_options(value):
         from scene_catalog import scene_catalog
         known=scene_catalog()
         result['scenes']=[s for s in dict.fromkeys(result['scenes']) if s in known] or list(known)
-    for key in ('traces','glitch'):
+    for key in ('traces','glitch','fade'):
         if type(result[key]) is not bool:raise ValueError(f'Kinetic setting {key} must be on or off')
     return result
 LETTERING_STYLES = ('swiss','poster','outline','cutout','neon','extrude','split')
@@ -108,7 +108,10 @@ def typography_options(values):
     flow = values.get('reading_flow','realtime') or 'realtime'
     if flow not in READING_FLOWS:
         raise ValueError('Choose the real-time, preview, 3D stage or scene mix reading flow')
-    return dict(font_family=family,font_style=style,font_scale=scale,text_pool=list(dict.fromkeys(pool)),reading_flow=flow,
+    instructions = values.get('instructions') or ''
+    if not isinstance(instructions,str) or len(instructions) > 2000:
+        raise ValueError('Special instructions must be text of at most 2000 characters')
+    return dict(instructions=instructions.strip(),font_family=family,font_style=style,font_scale=scale,text_pool=list(dict.fromkeys(pool)),reading_flow=flow,
                 kinetic=kinetic_options(values.get('kinetic')),effect_speeds=effect_speeds(values.get('effect_speeds')),
                 effect_intensities=effect_intensities(values.get('effect_intensities')),
                 lettering_styles=[choice for choice in LETTERING_STYLES if choice in styles])

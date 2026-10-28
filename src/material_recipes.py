@@ -382,80 +382,164 @@ def paint_silk(F, canvas, t, sdf, height, folds, alpha=1., hem=True, side=None):
     mucha_lines(F, canvas, sdf, folds, alpha)
 
 
-@recipe('mucha-silk-lettering', 'entrance', pad=1.5)
+def silk_strokes(F, lo, hi):
+    """The letter's stroke centrelines between columns lo and hi, as one route a ribbon can follow:
+    [(x, y, half stroke width, drawn)], where `drawn` is False on the hops between separate strokes."""
+    def build():
+        from scipy.ndimage import distance_transform_edt
+        from skimage.morphology import skeletonize
+        mask = F.ink > .5
+        mask[:, :max(0, int(lo))] = False
+        mask[:, int(hi):] = False
+        if not mask.any():
+            return []
+        width = distance_transform_edt(mask)
+        skeleton = skeletonize(mask)
+        pixels = set(zip(*np.nonzero(skeleton)))
+
+        def around(p):
+            return [(p[0]+dy, p[1]+dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if (dy or dx) and (p[0]+dy, p[1]+dx) in pixels]
+        degree = {p: len(around(p)) for p in pixels}
+        used, chains = set(), []
+
+        def walk(a, b):
+            chain = [a, b]
+            used.add(frozenset((a, b)))
+            while degree[chain[-1]] == 2:
+                step = [q for q in around(chain[-1]) if frozenset((chain[-1], q)) not in used]
+                if not step:
+                    break
+                used.add(frozenset((chain[-1], step[0])))
+                chain.append(step[0])
+            return chain
+        for p in sorted(pixels, key=lambda p: (degree[p] == 2, p[1], p[0])):
+            for q in around(p):
+                if frozenset((p, q)) not in used:
+                    chains.append(walk(p, q))
+        # Drop the short spurs a skeleton grows into corners.
+        spur = max(3., float(np.median([width[p] for p in pixels]))*1.5)
+        chains = [c for c in chains if len(c) >= spur or (degree[c[0]] != 1 and degree[c[-1]] != 1)] or chains
+        # Join the strokes into one route: start at the top-left, then always the nearest loose end.
+        route, chains = [], [list(c) for c in chains]
+        chains.sort(key=lambda c: min(c[0][1]+c[0][0]*.5, c[-1][1]+c[-1][0]*.5))
+        current = chains.pop(0)
+        if current[-1][1]+current[-1][0]*.5 < current[0][1]+current[0][0]*.5:
+            current.reverse()
+        while True:
+            route.extend((x, y, width[y, x], k > 0 or not route) for k, (y, x) in enumerate(current))
+            if not chains:
+                break
+            last = current[-1]
+            k, flip = min(((k, flip) for k in range(len(chains)) for flip in (False, True)),
+                          key=lambda kf: math.dist(last, chains[kf[0]][-1 if kf[1] else 0]))
+            current = chains.pop(k)[::-1] if flip else chains.pop(k)
+            hop = math.dist(last, current[0]) > 2.5
+            route.append((current[0][1], current[0][0], width[current[0]], not hop))
+        # Ease the pixel staircase into smooth strokes.
+        xy = np.array([(x, y) for x, y, _, _ in route], dtype=float)
+        smoothed = xy.copy()
+        for k in range(len(route)):
+            if route[k][3] and 0 < k < len(route)-1 and route[k-1][3] and route[k+1][3]:
+                smoothed[k] = xy[max(0, k-2):k+3].mean(axis=0)
+        return [(float(x), float(y), float(w), drawn) for (x, y), (_, _, w, drawn) in zip(smoothed, route)]
+    return F.memo(('silk-strokes', int(lo), int(hi)), build)
 
 
-def mucha_silk(F, canvas, t, intensity):
-    spans = silk_letter_spans(F)
-    for i, (left, right) in enumerate(spans):
-        start = .025+.1*i/max(1, len(spans)-1)
-        progress = sm(t, start, start+.76)
-        if progress <= 0:
-            continue
-        palette = MUCHA_SILKS[i % len(MUCHA_SILKS)]
-        lo = (spans[i-1][1]+left)/2 if i else left-F.u*.42
-        hi = (right+spans[i+1][0])/2 if i+1 < len(spans) else right+F.u*.42
-        # The moving scarf hands its pigment to the glyph along its windward front. Both
-        # surfaces share the same travelling fold phase and palette, so the formed letter
-        # remains chiffon rather than hardening into a bevelled shape.
-        front = left-F.u*.25+(right-left+F.u*.5)*sm(progress, 0, .82)
-        handoff = smooth(front-F.px, F.u*.01, F.u*.22)*sm(progress, .13, .75)
-        scarf_colour, scarf_alpha = letter_scarf(F, t, i, left, right, progress, palette)
-        canvas.over(scarf_colour, scarf_alpha*(1-handoff*.85)*(1-sm(progress, .78, 1)))
-        phase = (F.px-left)/F.u*12-(F.py-F.cy)/F.u*5-t*6+i*1.7
-        folds = .5+.5*np.sin(phase)+.16*np.sin(phase*2.2+1.3)
-        shade = np.clip(folds, 0, 1)
-        cloth = mix(palette[0], palette[1], .45+.45*shade)
-        cloth = mix(cloth, palette[2], .18*smooth(np.sin(phase*1.4), .65, 1.))
-        ink = coverage(F.sdf)*((F.px >= lo) & (F.px < hi))
-        alpha = ink*handoff*(.48+.18*shade)
-        canvas.over(np.clip(cloth, 0, 1), alpha)
-        hem = smooth(-F.sdf, 0, 1.)*(1-smooth(-F.sdf, F.u*.012, F.u*.022))
-        canvas.over(palette[2], hem*handoff*.14*((F.px >= lo) & (F.px < hi)))
+def silk_arrival(F, index, route, left, right):
+    """The flight in: from off to the upper left, one graceful spin, then onto the start of the strokes."""
+    x1, y1 = route[0][0], route[0][1]
+    x0, y0 = left-F.u*(1.1+.2*(index % 3)), F.cy-F.u*(.75-.25*(index % 2))
+    radius = F.u*.22
+    points = []
+    for k in range(48):
+        a = k/47
+        x, y = x0+(x1-x0)*a, y0+(y1-y0)*a
+        spin = math.sin(math.pi*a)  # the loop opens in the middle of the flight
+        angle = a*math.tau*1.1
+        points.append((x+radius*spin*math.sin(angle), y-radius*spin*(1-math.cos(angle)), F.u*.11, True))
+    return points
 
 
-def letter_scarf(F, t, index, left, right, progress, palette):
-    """The same fine shaded polygon strips used by silk unfurl, scaled to one letter."""
+def silk_ribbon(F, t, index, route, head, tail, palette, spin_length):
+    """A pleated satin ribbon laid along `route` from `tail` to `head` (distances in px): it twists as it goes,
+    showing its paler face and deeper reverse, with folds across its width and a sheen where it turns."""
     from PIL import Image, ImageDraw
     scale = 2
     colour_image = Image.new('RGB', (F.W*scale, F.H*scale))
     alpha_image = Image.new('L', (F.W*scale, F.H*scale))
     colour_draw, alpha_draw = ImageDraw.Draw(colour_image), ImageDraw.Draw(alpha_image)
-    sections = []
-    head = progress*1.04
-    for step in range(101):
-        along = step/100
-        tau = head-.85*along
-        if tau < -.03:
-            break
-        x = left-F.u*.5+(right-left+F.u)*tau
-        y = F.cy+F.u*(.27*math.sin(tau*5.6+t*4.5+index*1.4)
-                      +.07*math.sin(tau*13-t*6+index*.8))
-        sections.append((x, y, along))
-    for (xa, ya, ua), (xb, yb, ub) in zip(sections, sections[1:]):
-        dx, dy = xb-xa, yb-ya
+    travelled = [0.]
+    for a, b in zip(route, route[1:]):
+        travelled.append(travelled[-1]+math.dist(a[:2], b[:2]))
+    reverse = mix(palette[0], palette[1], .45)
+
+    def twist_at(distance):
+        # Fast spinning twists while it flies in, a slow lazy twist once it lies along the strokes.
+        return math.cos(distance/(F.u*.5)*(2.6 if distance < spin_length else .9)+t*2.4+index*.9)
+
+    def edge_at(k):
+        """The ribbon's cross-section at route point k: its direction across, and its half width. Neighbouring
+        pieces share these, so curves stay smooth instead of fanning into a comb."""
+        before = route[k-1] if k and route[k][3] else route[k]
+        after = route[k+1] if k+1 < len(route) and route[k+1][3] else route[k]
+        dx, dy = after[0]-before[0], after[1]-before[1]
         length = math.hypot(dx, dy) or 1.
-        nx, ny = -dy/length, dx/length
-        twist = math.cos((ua*1.5+t*.9+index*.29)*math.pi)
-        taper = math.sin(math.pi*min(1., ua*1.02))**.5*(1-.28*ua)
-        half = F.u*.29*taper*(.16+.84*abs(twist))
-        face = palette[1] if twist > 0 else mix(palette[0], palette[1], .5)
-        sheen = math.exp(-((abs(twist)-.38)/.2)**2)
-        opacity = min(.68, .4/(abs(twist)+.32))*(1-ua**3)
+        distance = travelled[k]
+        # Both loose ends taper; once the trailing end has reached the strokes the letter is whole.
+        ends = min(1., (head-distance)/(F.u*.18), (distance-tail)/(F.u*.18) if tail < spin_length-1 else 1.)
+        half = max(1.2, route[k][2]*1.15)*max(0., min(1., ends))**.6*(.42+.58*abs(twist_at(distance)))
+        return -dy/length, dx/length, half
+    for k in range(len(route)-1):
+        (xa, ya, _, _), (xb, yb, _, drawn) = route[k], route[k+1]
+        sa, sb = travelled[k], travelled[k+1]
+        if not drawn or sb <= tail or sa >= head or sb-sa < 1e-6:
+            continue
+        (nax, nay, ha), (nbx, nby, hb) = edge_at(k), edge_at(k+1)
+        middle = (sa+sb)/2
+        twist = twist_at(middle)
+        face = palette[1] if twist > 0 else reverse
+        sheen = math.exp(-((abs(twist)-.35)/.2)**2)
         for strip in range(6):
             va, vb = -1+strip/3, -1+(strip+1)/3
-            pleat = .8+.2*math.sin((strip+.5)*2.1+ua*3+t*2+index)
-            color = mix(face, palette[2], .18*sheen)*pleat
+            pleat = .8+.2*math.sin((strip+.5)*2.1+middle/(F.u*.2)+t*2+index)
+            edge = .84 if strip in (0, 5) else 1.
+            color = mix(mix(face, palette[2], .12), palette[2], .25*sheen)*pleat*edge
             fill = tuple(int(np.clip(channel*255, 0, 255)) for channel in color)
-            quad = [((xa+nx*half*va)*scale, (ya+ny*half*va)*scale),
-                    ((xa+nx*half*vb)*scale, (ya+ny*half*vb)*scale),
-                    ((xb+nx*half*vb)*scale, (yb+ny*half*vb)*scale),
-                    ((xb+nx*half*va)*scale, (yb+ny*half*va)*scale)]
+            quad = [((xa+nax*ha*va)*scale, (ya+nay*ha*va)*scale), ((xa+nax*ha*vb)*scale, (ya+nay*ha*vb)*scale),
+                    ((xb+nbx*hb*vb)*scale, (yb+nby*hb*vb)*scale), ((xb+nbx*hb*va)*scale, (yb+nby*hb*va)*scale)]
+            opacity = round(255*min(.85, .52/(abs(twist)+.3))*(.9+.1*pleat))
             colour_draw.polygon(quad, fill=fill, outline=fill)
-            alpha_draw.polygon(quad, fill=round(255*opacity*pleat), outline=round(255*opacity*pleat))
-    colour = blur(np.asarray(colour_image.resize((F.W, F.H), Image.LANCZOS), dtype=float)/255, .8)
-    alpha = gaussian_filter(np.asarray(alpha_image.resize((F.W, F.H), Image.LANCZOS), dtype=float)/255, .8)
+            alpha_draw.polygon(quad, fill=opacity, outline=opacity)
+    colour = blur(np.asarray(colour_image.resize((F.W, F.H), Image.LANCZOS), dtype=float)/255, .7)
+    alpha = gaussian_filter(np.asarray(alpha_image.resize((F.W, F.H), Image.LANCZOS), dtype=float)/255, .7)
     return np.clip(colour, 0, 1), np.clip(alpha, 0, 1)
+
+
+@recipe('mucha-silk-lettering', 'entrance', pad=1.5)
+def mucha_silk(F, canvas, t, intensity):
+    """Each letter is a length of silk: it flies in with a spin, then lays itself along the letter's strokes,
+    twisting and folding as it goes. The letter stays fabric (pleats, sheen, its reverse side where it turns);
+    the solid glyph is never drawn."""
+    spans = silk_letter_spans(F)
+    for i, (left, right) in enumerate(spans):
+        start = .02+.12*i/max(1, len(spans)-1)
+        progress = sm(t, start, start+.8)
+        if progress <= 0:
+            continue
+        lo = (spans[i-1][1]+left)/2 if i else left-F.u*.42
+        hi = (right+spans[i+1][0])/2 if i+1 < len(spans) else right+F.u*.42
+        strokes = silk_strokes(F, lo, hi)
+        if len(strokes) < 2:
+            continue
+        arrival = silk_arrival(F, i, strokes, left, right)
+        route = arrival+strokes
+        flight = sum(math.dist(a[:2], b[:2]) for a, b in zip(arrival, arrival[1:]))
+        total = flight+sum(math.dist(a[:2], b[:2]) for a, b in zip(strokes, strokes[1:]))
+        head = total*progress
+        tail = flight*sm(progress, .3, 1.)  # the trailing end follows it in, so only the strokes remain
+        colour, alpha = silk_ribbon(F, t, i, route, head, tail, MUCHA_SILKS[i % len(MUCHA_SILKS)], flight)
+        canvas.over(rgb(60, 30, 30), shadow(alpha, F, .04, .08, .06, .3))
+        canvas.over(colour, alpha)
 
 
 @recipe('mucha-silk-unfurl', 'exit', pad=1.1)
