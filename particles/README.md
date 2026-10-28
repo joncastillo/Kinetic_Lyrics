@@ -1,34 +1,67 @@
-# Typography particle recipes
+# Particle effects
 
-Studio exposes 34 entrances and 19 exits from the curated catalog.
-Additional legacy recipes remain on disk for compatibility.
-Every recipe operates on fragments of the actual word.
+Each entrance and exit effect is a small JSON recipe. The recipes in `entrance/`
+control how a word arrives, and the recipes in `exit/` control how it leaves. Every
+effect works on fragments of the real glyphs, so the particles are always shaped
+like the word itself rather than laid on top of it.
 
-Studio lets you pick one preset per phase or use **Mixed**. **Browse entrances**
-and **Browse exits** open a large effect browser: the list scrolls independently
-beside its preview (below the pinned preview on mobile). Search, family filters
-and Selected only help manage the list. Click a preset to preview without changing
-the selected effect; **Use this effect** applies it. Checkboxes choose the mixed
-set and select mixed mode automatically. All/Clear change the entire set. Empty
-means clean type for that phase. Profiles, jobs and rebuilds retain the choices.
+## A word's lifetime
 
-Every preview uses the exact recipe and current intensity/speed. Dust uses fine
-grains, snow uses branched crystals, smoke uses soft puffs, bubbles use rings,
-sparks use hot streaks, petals use leaf silhouettes, and pixels use stepped blocks.
-These materials also appear in exported videos. The intact reading hold is
-preserved before a glyph turns into its selected material. Glass retains the
-actual fractured glyph surface and individual tumbling.
+```mermaid
+flowchart LR
+    P[Faint preview<br/>8% opacity] --> E[Entrance<br/>starts when the<br/>word is sung]
+    E --> H[Hold<br/>the word stays<br/>readable]
+    H --> X[Exit<br/>1 s after the<br/>word ends]
+```
 
-To add an effect, copy a JSON file into the appropriate phase folder and give it a
-unique lowercase, hyphenated filename. Its filename without `.json` is the saved
-effect ID. Edit its display name and motion settings. No Python import, registry,
-front-end list, or build step is required. Removing the file removes that choice.
-Refresh Studio to reload its choices. New render jobs rescan the folders; an
-already-running render keeps its effect snapshot so exports remain consistent.
-Saved projects whose recipe has been removed use clean typography with a warning.
-Invalid recipes are skipped with a warning rather than breaking the Studio.
+Upcoming words show as a faint preview. A word's entrance begins at its sung
+timestamp, the word then holds intact so it can be read, and its exit starts one
+second after the word ends. Changing the motion speed makes the animation longer or
+shorter, but the timing of the sung words stays the same. Setting the intensity to
+zero turns the fragment effects off. A frame always depends only on its timestamp,
+so seeking to a frame and rendering it again gives the same image.
 
-Example `exit/glass-shatter.json`:
+## Choosing effects in Studio
+
+You can pick one effect for each phase, or choose **Mixed** and tick several so that
+each line uses a different one. **Browse entrances** and **Browse exits** open a
+browser with search and family filters. Clicking an effect previews it, and **Use
+this effect** selects it. If nothing is ticked, that phase uses plain type. Your
+choices are saved with profiles, jobs and rebuilds.
+
+The previews use the same renderer and settings as the final video, and they run on
+the CPU without loading any AI models.
+
+If you switch on AI selection, the language model only sees the effects you ticked.
+For each line it gets each effect's short description together with that line's
+illustration and scene details. If you change a description or the scene, the
+typography plan is made again the next time you render.
+
+## Adding an effect
+
+```mermaid
+flowchart LR
+    A[Copy a JSON recipe<br/>into entrance/ or exit/] --> B[Give it a unique<br/>lowercase-hyphenated name]
+    B --> C[Add a description<br/>to descriptions.json]
+    C --> D[Refresh Studio]
+```
+
+The file name, without `.json`, becomes the effect's ID. You do not need to change
+any code or run a build. Studio reloads the folders when you refresh it, and each
+new render job scans them again. A render that is already running keeps the effects
+it started with. If a recipe is invalid, it is skipped with a warning. If a saved
+project uses an effect that has since been deleted, that phase falls back to plain
+type and you get a warning.
+
+Only recipes from certain families are used, in Studio and on the command line
+alike. For entrances, these are the glass, letters, ornament, trees and cinematic
+families, plus a few petal, ink and thread lettering effects. For exits, they are the
+glass, petals, smoke and cinematic families. The other recipes on disk are kept so
+that older projects still load, but if you ask for one of them you get plain type
+and a warning. To make a new family available, add it to the filter in
+`discover_effects` in `src/particle_catalog.py`.
+
+Here is `exit/glass-shatter.json`:
 
 ```json
 {
@@ -44,84 +77,53 @@ Example `exit/glass-shatter.json`:
 }
 ```
 
-Families: glass, dust, sparks, ribbons, pixels, petals, snow, smoke, bubbles, ink,
-vortex, magnetic, letters, ornament, trees, flock, cinematic. Trajectories:
-radial, left, right, up, down, spiral, wave, fan, grow.
-`spread` controls travel distance, `gravity` downward acceleration (negative rises),
-`spin` angular motion, `twist` spiral motion, `stagger` variation in fragment release,
-and `density` fragment count. The loader validates finite numbers and safe ranges;
-see `particle_catalog.py` for the exact bounds. Existing engines can be combined
-and tuned through these recipes; a new material or simulation requires extending
-the shared runtime in `particle_motion.py`.
+| Field | What it controls |
+|---|---|
+| `family` | The material: glass, dust, sparks, ribbons, pixels, petals, snow, smoke, bubbles, ink, vortex, magnetic, letters, ornament, trees, flock or cinematic |
+| `trajectory` | The direction of travel: radial, left, right, up, down, spiral, wave, fan or grow |
+| `spread` | How far the fragments travel |
+| `gravity` | How strongly fragments are pulled down. A negative value makes them rise |
+| `spin`, `twist` | How much the fragments rotate and spiral |
+| `stagger` | How spread out in time the fragments are released |
+| `density` | How many fragments there are |
+| `hold: "particles"` | Optional. The word stays made of particles at rest instead of turning back into solid type |
+| `description` | Optional. Overrides the entry in `descriptions.json` |
 
-Glass exits spread cracks, pause until 25% of the exit interval, and then eject
-irregular Voronoi fragments with individual three-axis rotation, perspective size
-variation, gravity and changing face/edge highlights. Glass entrances are separate
-assembly recipes. This is a deterministic raster projection of rotating shards,
-not a refractive ray-traced glass simulation.
+The allowed range of each number is defined in `src/particle_catalog.py`. You can
+build new looks by combining these settings, but a brand-new material or simulation
+needs code changes in `src/particle_motion.py`.
 
-Words begin entrance animation at their unchanged alignment timestamps. Upcoming
-words have an 8% opacity preview, independent of activation. Exits start after the
-individual word ends plus a one-second reading hold. Exits take precedence over the next line's advance preview;
-tightly adjacent lines may still have insufficient room for a full exit.
-Intensity zero disables fragment effects. Motion speed changes animation duration
-without moving the sung cues. Geometry is cached only for the current lyric line;
-rendering the same timestamp gives the same frame even after seeking.
+Please give every recipe a description in `descriptions.json` of no more than ten
+words. Studio's search uses it, and so does AI selection.
 
-CLI:
+## How some families behave
+
+- **Glass** exits crack first and pause until a quarter of the exit has passed. Large
+  shards then fly out, tumbling in three dimensions, and break again into smaller,
+  faster pieces. This is a projection of rotating shards, not a ray-traced glass
+  simulation.
+- **Petal lettering** (`petals-wind-lettering`, `petals-breeze-lettering`,
+  `petals-spiral-lettering`) sends many petals along curling paths into the shape of
+  the word. The word stays made of petals while it holds, and its exit breaks up that
+  petal word.
+- **`letters-spin-*`** effects rotate strips of each glyph in three dimensions as
+  they fly in.
+- **Cinematic** effects, such as prismatic, aurora silk, liquid chrome and ember, add
+  shaded streamers, droplets and trails. They fade in from invisible, and they leave
+  along a different path from the one they arrived on.
+
+Exit trails can carry on behind the next line rather than being squeezed into the
+short gap between lines.
+
+## Command line
 
 ```powershell
-python kinetic_lyrics.py song.wav lyrics.txt --entrance-effect dust-coalesce --exit-effect glass-shatter
+kinetic-lyrics.cmd song.wav lyrics.txt --entrance-effect glass-assemble --exit-effect glass-shatter
 ```
 
-`--type-effect` and older Studio profiles retain their legacy pairings. In
-particular, legacy `shatter` now selects a clean entrance and a glass-shatter exit.
-Independent entrance/exit selections override those pairings.
-
-For CLI mixed mode, `--entrance-pool` and `--exit-pool` accept JSON lists of IDs.
-An omitted pool enables all available recipes; `[]` enables none.
-
-## Formation and breakup choreography
-
-Generic material entrances use interpolated signed-distance contours to reshape
-particles into the actual glyph patches, rather than crossfading in a whole word.
-Material color and shape remain visible during travel. Glass, letters and the
-formation presets have their own assembly paths.
-
-`petals-wind-lettering`, `petals-breeze-lettering` and
-`petals-spiral-lettering` set `hold: "particles"`: many individual petals follow
-curling, staggered paths to destinations sampled from the glyph mask. They remain
-petals at rest. Exits operate on that petal-shaped word rather than switching to
-solid lettering. This hold mode also supports growth trajectories in other material families.
-
-`letters-spin-*` uses individual glyph strips with independent three-axis
-rotation and directional approaches. Glass exits have three stages: crack/hold,
-ejection of larger pieces, then a second fracture into smaller, faster-spinning
-pieces. Children inherit the parent pose and trajectory before their new impulse.
-Dust, sparks, ribbons, pixels, petals, snow, smoke, bubbles, ink, vortex and
-magnetic particles have material-specific drift, drag, flutter, growth and
-terminal behavior. Exit tails can continue behind the next line instead of being
-compressed into a short inter-line gap.
-
-
-## Effect descriptions and AI selection
-
-`descriptions.json` maps phase and effect ID to a short visual/mood description,
-with at most ten whitespace-separated words. Keep every recipe described. The
-shared metadata file lets older running workers continue reading their recipes.
-New loaders also accept an inline `description`; it takes precedence. Descriptions
-are returned in the catalog API and appear in Studio's searchable effect browser.
-
-AI typography receives only checked effects, each with its ID, name and short
-description. Each line also receives its matching existing illustration description,
-artwork mode and scene palette/style/energy. No extra vision inference is needed.
-When no illustration description exists, selection uses lyrics and scene context.
-Descriptions and background context participate in the direction cache signature.
-Changing either causes direction to be planned again when AI mode is selected.
-
-The cinematic family adds paired prismatic, aurora silk, liquid chrome and ember
-entrances/exits. They reuse actual glyph fragments, deterministic depth projections,
-shaded streamers, droplets and analytic trails. Entrances start invisible and fade
-in; intact holds preserve the original glyph pixels and holes. Departure paths are
-independent of arrival paths. Existing per-word timing and speed controls apply.
-CPU previews use the same renderer and do not load any image or text model.
+For mixed mode, pass the effect IDs as JSON lists with `--entrance-pool` and
+`--exit-pool`. If you leave a pool out, every available effect is used, and `[]`
+uses none. The older `--type-effect` option and older Studio profiles keep their
+original pairings. For example, the legacy `shatter` option gives a plain entrance
+and a glass-shatter exit. Choosing an entrance or exit effect directly overrides
+these pairings.
