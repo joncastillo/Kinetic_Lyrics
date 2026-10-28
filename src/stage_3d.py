@@ -20,8 +20,9 @@ space, between blocks) and outlined shapes drift and turn on strong bass notes, 
 around the blocks so they shift with parallax. Words and pictures share one invisible
 rectangle: a picture beside a word takes its own slot in the justified row. A scene can
 set its blocks in the "contrast" layout instead: thin and heavy words side by side, one
-heavy display word filled with a slowly flowing marbled texture in the accent's tones (drawn
-by a shader, so the texture keeps moving inside the letters), and the last word set
+heavy display word whose every letter has its own texture, tone and motion (marble, warped
+stripes, ripples, a rolling sweep or glinting grain, in tones close to the accent, drawn by
+a shader so the textures keep moving inside the letters), and the last word set
 vertically close beside the rows; every letter springs in with an elastic bounce, and the camera zooms in and
 rolls into a tilt. Which side, which way the vertical word reads, how the fonts pair, the
 tilt and the zoom vary from block to block. A scene effect
@@ -47,7 +48,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 import glyph_art
 from lyric_blocks import TARGET_RATIO, group_lines, layout_block
 from realtime_typography import (BACKDROP_COLORS, FUNCTION_WORDS, SHAPE_LIFE, SHAPES, THREAD_LIFE, assign_roles, bare, hex_rgb,
-                                  monotone_keys, overshoot, role_font, smooth, thread_distance)
+                                  overshoot, role_font, smooth, thread_distance)
 
 FOV = 38.
 BLOCK_WIDTH = 4.
@@ -73,6 +74,8 @@ BOUNCE_ENTRY, BOUNCE_STAGGER = .55, .045
 ROLL_RANGE, ZOOM_RANGE = (5., 12.), (.9, .96)
 CONTRAST_LEADING = .42
 HOP, SWAY = .07, 3.
+PATTERNS = 5
+HUE_STEPS = (0., .045, -.045, .085, -.08, .03)
 ENTRANCES = ('flip', 'swing', 'rise', 'drop')
 MOTIONS = ('wave', 'pulse', 'tilt')
 OLD_BLOCK, DIM_TIME = .45, 1.
@@ -86,7 +89,7 @@ MOTES = 36
 SHAPE_DEPTHS = (-3.2, -.6)
 SHAPE_REACH = 1.5
 BANDS, BAND_WIDTH, BAND_STEP, BAND_OPACITY = 3, .05, .09, .42
-RIBBON_DEPTH, RIBBON_BOW, RIBBON_REACH = -.12, .35, 28.
+RIBBON_DEPTH, RIBBON_SWING, RIBBON_REACH = -.12, 1.6, 28.
 TEXTURE_LIMIT = 220
 
 VERTEX = '''
@@ -152,6 +155,9 @@ uniform vec2 span;
 uniform vec3 deep;
 uniform vec3 middle;
 uniform vec3 light;
+uniform int pattern;
+uniform float angle;
+uniform float speed;
 in vec2 uv;
 out vec4 color;
 
@@ -170,12 +176,30 @@ float fbm(vec2 p) {
 void main() {
     vec4 texel = texture(image, uv);
     vec2 p = origin+vec2(uv.x, 1.-uv.y)*span+vec2(seed*7.31, seed*3.17);
-    vec2 q = vec2(fbm(p*1.1+vec2(0., time*.16)), fbm(p*1.1+vec2(5.2, 1.3)-vec2(time*.12, 0.)));
-    float n = fbm(p*1.4+2.2*q+vec2(time*.05, -time*.04));
-    vec3 ink = mix(deep, middle, smoothstep(.25, .62, n));
-    ink = mix(ink, light, smoothstep(.6, .9, n)*.85);
-    float band = abs(fract((p.x*.55+p.y*.3)*.35-time*.12)-.5);
-    ink += light*(1.-smoothstep(.0, .06, band))*.22;
+    vec2 along = vec2(cos(angle), sin(angle));
+    float clock = time*speed;
+    float n;
+    if (pattern == 0) {
+        vec2 q = vec2(fbm(p*1.1+along*clock*.16), fbm(p*1.1+vec2(5.2, 1.3)-along.yx*clock*.12));
+        n = fbm(p*1.4+2.2*q+along*clock*.05);
+    } else if (pattern == 1) {
+        float warp = fbm(p*1.8+vec2(clock*.1, 0.))*2.4;
+        n = .5+.5*sin(dot(p, along)*7.+warp-clock*1.6);
+    } else if (pattern == 2) {
+        vec2 centre = origin+span*.5+along*.25;
+        n = .5+.5*sin(length(p-centre-vec2(seed*7.31, seed*3.17))*11.-clock*2.4+fbm(p*2.)*1.5);
+    } else if (pattern == 3) {
+        n = smoothstep(0., 1., abs(fract(dot(p, along)*.45-clock*.22)*2.-1.));
+        n = mix(n, fbm(p*2.6), .25);
+    } else {
+        float base = fbm(p*1.6+along*clock*.08);
+        float glint = smoothstep(.78, .95, noise(p*18.+along*clock*1.5));
+        n = mix(base, 1., glint*.85);
+    }
+    vec3 ink = mix(deep, middle, smoothstep(.2, .62, n));
+    ink = mix(ink, light, smoothstep(.62, .92, n)*.85);
+    float band = abs(fract(dot(p, vec2(.55, .3))*.35-time*.12)-.5);
+    ink += light*(1.-smoothstep(.0, .06, band))*.18;
     color = vec4(ink*texel.r, texel.a)*opacity;
 }
 '''
@@ -313,8 +337,9 @@ class GLStage:
         program['uv_rect'].value = (0., 0., 1., 1.)
         for name in ('deep', 'middle', 'light'):
             program[name].value = tuple(v/255 for v in fill[name])
-        for name in ('time', 'seed'):
+        for name in ('time', 'seed', 'angle', 'speed'):
             program[name].value = float(fill[name])
+        program['pattern'].value = int(fill['pattern'])
         for name in ('origin', 'span'):
             program[name].value = tuple(float(v) for v in fill[name])
         self.fill_vao.render(self.moderngl.TRIANGLES, vertices=6)
@@ -389,6 +414,22 @@ def text_sprite(text, role, size, color):
     image.putalpha(halo.point(lambda a: round(a*.55)))
     image.alpha_composite(Image.merge('RGBA', (*Image.new('RGB', shape.size, color).split(), shape)))
     return image, pad, ascent
+
+
+def letter_fills(accent, count, rng):
+    """A different texture, tone and motion for each letter, all close to the accent so the word stays one
+    family: patterns shuffled so neighbours differ, hues a few steps either side, own drift and speed."""
+    patterns = list(range(PATTERNS))
+    rng.shuffle(patterns)
+    h, s, v = colorsys.rgb_to_hsv(*(c/255 for c in accent))
+    fills = []
+    for k in range(count):
+        shift = HUE_STEPS[k % len(HUE_STEPS)]*rng.uniform(.7, 1.2)
+        tone = colorsys.hsv_to_rgb((h+shift) % 1., s, min(1., v*rng.uniform(.88, 1.06)))
+        fills.append(dict(texture_tones(tuple(round(c*255) for c in tone)), pattern=patterns[k % PATTERNS],
+                          angle=rng.uniform(0., math.pi), speed=rng.uniform(.6, 1.4)*rng.choice((-1, 1)),
+                          seed=rng.uniform(0., 50.)))
+    return fills
 
 
 def texture_tones(accent):
@@ -583,7 +624,7 @@ class Stage3D:
             word.update(font='thin' if thin else 'heavy', text=word['text'].upper(), bouncy=True)
         vertical.update(font='heavy', vertical=True)
         if sweet is not None:
-            sweet.update(font='sweet', sweet=True, text=sweet['text'].lower(), fill=texture_tones(accent))
+            sweet.update(font='sweet', sweet=True, text=sweet['text'].lower(), fills=letter_fills(accent, len(sweet['text']), rng))
         return dict(vertical=vertical, side=rng.choice((-1, 1)), reads=rng.choice(('up', 'down')),
                     roll=rng.choice((-1, 1))*rng.uniform(*ROLL_RANGE), zoom=rng.uniform(*ZOOM_RANGE))
 
@@ -835,42 +876,49 @@ class Stage3D:
         return items
 
     def plan_ribbon(self):
-        """The bands' path through the world: a smooth curve just behind each hero word, bowed out of the
-        block plane between words, reached as each is sung (the same timing as the 2D thread)."""
+        """The bands' path through the world: from block to block, just behind each block's first hero word
+        as it is sung, turning continuously at one cruising speed and weaving in the blocks' planes (see
+        flow_path). One stop per block keeps the distances and times between stops even, so the band can
+        sweep on without braking."""
         stops = []
         for block in self.blocks:
-            for word in block['words']:
-                if word['role'] == 'hero':
-                    local = np.array([word['x']+word['width']/2, word['baseline']+word['cap']/2, RIBBON_DEPTH, 1.])
-                    stops.append((word['start'], (block['placement']@word['frame']@local)[:3], word['color'], block['placement'][:3, 2]))
-        if len(stops) < 2:
-            return None
+            word = next((w for w in block['words'] if w['role'] == 'hero'), block['words'][0])
+            local = np.array([word['x']+word['width']/2, word['baseline']+word['cap']/2, RIBBON_DEPTH, 1.])
+            stops.append((word['start'], (block['placement']@word['frame']@local)[:3], block['accent'], block['placement'][:3, 2],
+                          block['lines'][0], block['lines'][-1]))
         stops.sort(key=lambda stop: stop[0])
         times = []
         for stop in stops:
             times.append(max(stop[0], times[-1]+.05) if times else stop[0])
-        points, colors, distances, total = [], [], [0.], 0.
-        for (_, a, _, normal_a), (_, b, color, normal_b) in zip(stops, stops[1:]):
-            bow = (normal_a+normal_b)/2*min(1.5, np.linalg.norm(b-a))*RIBBON_BOW
-            curve = [(1-u)**2*a+2*(1-u)*u*((a+b)/2+bow)+u*u*b for u in (k/24 for k in range(25))]
-            for p, q in zip(curve, curve[1:]):
-                points.append((p, q))
-                colors.append(color)
-                total += float(np.linalg.norm(q-p))
-            distances.append(total)
-        return dict(segments=points, colors=colors, keys=monotone_keys(times, distances))
+        from flow_path import build_flows
+        runs, runs_of, label = [], [], 0
+        for n, stop in enumerate(stops):
+            label += 0 if not n else 1 if stop[4] == stops[n-1][5]+1 else 2
+            runs_of.append(label)
+        for flow in build_flows(times, [stop[1] for stop in stops], [stop[2] for stop in stops], amplitude=RIBBON_SWING,
+                                normals=[stop[3] for stop in stops], lines=runs_of):
+            segments, colors = [], []
+            for piece in flow['pieces']:
+                points = [np.array(p) for p in piece['points']]
+                segments.extend(zip(points, points[1:]))
+                colors.extend([piece['color']]*(len(points)-1))
+            runs.append(dict(segments=segments, colors=colors, keys=flow['keys']))
+        return runs
 
     def ribbon_bands(self, t, eye):
         """Translucent bands from the thread's tail to its head, each swelling and narrowing in its own slow
         wave and pinching together at both ends, turned to face the camera: one vertex row per sample."""
-        if not self.options['traces'] or not self.ribbon:
+        if not self.options['traces']:
             return []
-        head = thread_distance(self.ribbon['keys'], t)
+        return [band for run in self.ribbon for band in self.run_bands(run, t, eye)]
+
+    def run_bands(self, run, t, eye):
+        head = thread_distance(run['keys'], t)
         if head is None:
             return []
-        tail = max(thread_distance(self.ribbon['keys'], t-THREAD_LIFE) or 0., head-RIBBON_REACH)
+        tail = max(thread_distance(run['keys'], t-THREAD_LIFE) or 0., head-RIBBON_REACH)
         samples, travelled = [], 0.
-        for (p, q), color in zip(self.ribbon['segments'], self.ribbon['colors']):
+        for (p, q), color in zip(run['segments'], run['colors']):
             length = float(np.linalg.norm(q-p))
             start, travelled = travelled, travelled+length
             if travelled <= tail or start >= head or length < 1e-6:
@@ -1078,8 +1126,8 @@ class Stage3D:
             base = (block['placement']@word['frame']@translation(*anchor, 0.)@local
                     @translation(relative[0]-glyph_width/2, relative[1], 0.))
             if sweet:
-                fill = dict(word['fill'], time=t, seed=word['line']*13+word['index'],
-                            origin=((offset-pad*k)/word['cap'], -(height-ascent-pad)*k/word['cap']),
+                fill = dict(word['fills'][(number or 0) % len(word['fills'])], time=t,
+                            origin=(-pad*k/word['cap'], -(height-ascent-pad)*k/word['cap']),
                             span=(width*k/word['cap'], height*k/word['cap']))
                 items.append((base@scaling(width*k, height*k), sprite, alpha, (1., 1., 1.), fill))
                 continue

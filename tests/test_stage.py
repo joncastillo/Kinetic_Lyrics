@@ -45,6 +45,30 @@ class BlockTest(unittest.TestCase):
         self.assertAlmostEqual(height, 1.+1.2)
 
 
+
+class FlowTest(unittest.TestCase):
+    def test_band_turns_gently_and_never_brakes(self):
+        import math
+        import numpy as np
+        from flow_path import build_flows, SLOWEST
+        from realtime_typography import thread_distance
+        times = [0., 1., 1.4, 5., 6., 20., 21.5]
+        points = [(0, 0), (300, 40), (320, 60), (360, 300), (700, 260), (900, 100), (1300, 200)]
+        lines = [0, 1, 2, 3, 4, 9, 10]
+        runs = build_flows(times, points, ['a']*7, amplitude=200., lines=lines)
+        self.assertEqual(len(runs), 2)
+        for run in runs:
+            pts = [np.array(p) for piece in run['pieces'] for p in piece['points']]
+            pts = [p for p, q in zip(pts, pts[1:]+[None]) if q is None or np.linalg.norm(q-p) > 1e-9]
+            turns = [math.degrees(math.acos(max(-1., min(1., float(np.dot(b-a, c-b)/(np.linalg.norm(b-a)*np.linalg.norm(c-b)))))))
+                     for a, b, c in zip(pts, pts[1:], pts[2:])]
+            self.assertLess(max(turns), 15.)
+            keys = run['keys']
+            moments = np.arange(keys[0][0], keys[0][-1]-.5, 1/30)
+            speed = np.diff([thread_distance(keys, t) for t in moments])*30
+            self.assertGreater(speed.min(), speed.max()*SLOWEST*.7)
+
+
 class PlacementTest(unittest.TestCase):
     def test_growing_effects_are_top_only(self):
         from particle_catalog import discover_effects
