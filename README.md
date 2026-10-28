@@ -217,7 +217,7 @@ file name is the scene's ID, and `camera` picks how the scene is filmed:
 | `name`, `description` | What Studio shows, and what the model reads when it picks scenes |
 | `camera` | `pan` for the panning canvas, `still` for framed lines, or `blocks` for the 3D stage |
 | `particles` | For a `blocks` scene, the particle effects that the scene owns, such as maple and oak for **Tree canopy**. Use an empty list for plain blocks. Pan and still scenes keep the per-line entrance effects, so it is `null` for them |
-| `layout` | Optional, and only for a `blocks` scene. `justified` (the default) gives rows of equal width. `contrast`, used by **Sweet contrast**, mixes thin and heavy words, fills one heavy word with a marbled texture in the accent's tones that keeps flowing inside the letters, and runs the last word vertically, close beside the rows. Every letter springs in with an elastic bounce, and the camera zooms in and rolls into a tilt. The side, the reading direction of the vertical word, the font pairing, the tilt and the zoom vary from block to block |
+| `layout` | Optional, and only for a `blocks` scene. `justified` (the default) gives rows of equal width. `contrast`, used by **Sweet contrast**, mixes thin and heavy words, gives every letter of one heavy word its own moving texture (marble, warped stripes, ripples, a rolling sweep or glinting grain) in tones close to the accent, and runs the last word vertically, close beside the rows. Every letter springs in with an elastic bounce, and the camera zooms in and rolls into a tilt. The side, the reading direction of the vertical word, the font pairing, the tilt and the zoom vary from block to block |
 
 The panning canvas and framed lines keep all their effects, including the flowing
 bands, the drifting shapes, the highlighting and the backdrops.
@@ -252,9 +252,12 @@ flowchart LR
   the scene's own particle effects grows on the top row, and the picture, so that
   they all suit each other and the lyric. The choices are saved in
   `video.blocks.json`.
-- **Bands and shapes.** As in the panning canvas, translucent bands flow from hero
-  word to hero word, here through 3D space between blocks, and outlined shapes drift
-  and turn on strong bass notes at different depths around the blocks.
+- **Bands and shapes.** As in the panning canvas, translucent bands flow on from one
+  block to the next, here through 3D space, and outlined shapes drift and turn on
+  strong bass notes at different depths around the blocks. In both places the band
+  bends continuously, like the waves on a PSP menu. It never turns a corner, brakes or
+  stops: it weaves gentle S-curves where it has time to spare and cruises at one
+  steady speed, easing only slightly faster or slower to stay near the words.
 - **Moving words.** Words flip, swing, rise or drop into place as they are sung, hero
   words are extruded for depth, and some words keep moving with a letter wave, a beat
   pulse or a slow tilt.

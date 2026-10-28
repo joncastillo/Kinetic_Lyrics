@@ -630,16 +630,16 @@ class RealtimeTypography:
             layer.alpha_composite(trace)
 
     def paint_thread(self, draw, fill_layer, t, base):
-        thread = self.thread_path()
-        head = thread_distance(thread['keys'], t)
-        if head is None:
-            return
-        tail = thread_distance(thread['keys'], t-THREAD_LIFE) or 0.
-        samples = sample_thread(thread['pieces'], tail, head, STRAND_STEP)
-        if len(samples) >= 2:
-            self.paint_bands(draw, fill_layer, samples, tail, head, t, base)
-            x, y = samples[-1][0]-base[0], samples[-1][1]-base[1]
-            draw.ellipse((x-5, y-5, x+5, y+5), fill=(255, 255, 255, 230))
+        for thread in self.thread_path():
+            head = thread_distance(thread['keys'], t)
+            if head is None:
+                continue
+            tail = thread_distance(thread['keys'], t-THREAD_LIFE) or 0.
+            samples = sample_thread(thread['pieces'], tail, head, STRAND_STEP)
+            if len(samples) >= 2 and tail < thread['pieces'][-1]['end']:
+                self.paint_bands(draw, fill_layer, samples, tail, head, t, base)
+                x, y = samples[-1][0]-base[0], samples[-1][1]-base[1]
+                draw.ellipse((x-5, y-5, x+5, y+5), fill=(255, 255, 255, 230))
 
     def paint_bands(self, draw, fill_layer, samples, tail, head, t, base):
         """The thread as a few thick translucent bands, like the PSP waves: each swells and narrows in its
@@ -671,9 +671,8 @@ class RealtimeTypography:
             fill_layer.alpha_composite(bands.crop(box).filter(ImageFilter.GaussianBlur(1.1)), box[:2])
 
     def thread_path(self):
-        """The whole thread on the canvas: a curve into each hero word, with the distance its head has
-        reached as each is sung. Joins match direction so it never kinks, and each curve bends just
-        enough to fill its time at one cruising speed."""
+        """The whole thread on the canvas: a smooth path through each hero word, with the distance its head
+        has reached as each is sung. It turns continuously and keeps one cruising speed (see flow_path)."""
         if getattr(self, '_thread', None) is not None:
             return self._thread
         stops = []
@@ -685,23 +684,14 @@ class RealtimeTypography:
                     ascent = role_font(word.role, word.size).getmetrics()[0]
                     top = word.y+line['offset'][1]+ascent*.08
                     bottom = word.y+line['offset'][1]+ascent*1.02
-                    stops.append(dict(word=word, anchor=(word.x+line['offset'][0]+word.width/2, (top+bottom)/2)))
+                    stops.append(dict(word=word, line=index, anchor=(word.x+line['offset'][0]+word.width/2, (top+bottom)/2)))
         stops.sort(key=lambda stop: stop['word'].start)
         times = []
         for stop in stops:
             times.append(max(stop['word'].start, times[-1]+.05) if times else stop['word'].start)
-        for number, stop in enumerate(stops):
-            stop['arrive'] = stop['leave'] = direction(stops[number-1]['anchor'], stop['anchor']) if number else (1., 0.)
-        rates = sorted(math.dist(stops[n]['anchor'], stops[n+1]['anchor'])/(times[n+1]-times[n]) for n in range(len(stops)-1))
-        cruise = rates[len(rates)//2] if rates else 0.
-        pieces, distances, total = [], [], 0.
-        for number, stop in enumerate(stops):
-            if number:
-                wanted = cruise*(times[number]-times[number-1])
-                curve = thread_curve(stops[number-1], stop, wanted, 1 if number % 2 else -1)
-                total = add_piece(pieces, curve, stop['word'].color, total)
-            distances.append(total)
-        self._thread = dict(pieces=pieces, keys=monotone_keys(times, distances))
+        from flow_path import build_flows
+        self._thread = build_flows(times, [stop['anchor'] for stop in stops], [stop['word'].color for stop in stops],
+                                   amplitude=self.c.height*.3, lines=[stop['line'] for stop in stops])
         return self._thread
 
 
@@ -795,38 +785,6 @@ def rounded(corners, cy, passes=4):
     return ring+[ring[0]]
 
 
-def direction(a, b):
-    length = math.hypot(b[0]-a[0], b[1]-a[1]) or 1.
-    return (b[0]-a[0])/length, (b[1]-a[1])/length
-
-
-def polyline_length(points):
-    return sum(math.dist(a, b) for a, b in zip(points, points[1:]))
-
-
-def thread_curve(previous, stop, wanted, side, most=2.5):
-    """Cubic curve between two thread stops, leaving and arriving along their directions, bowed sideways
-    until it is about `wanted` long (never more than `most` times the straight distance)."""
-    a, b = previous['anchor'], stop['anchor']
-    span = math.dist(a, b) or 1.
-    normal = ((a[1]-b[1])/span*side, (b[0]-a[0])/span*side)
-
-    def curve(bow):
-        reach = span*.45
-        c1 = (a[0]+previous['leave'][0]*reach+normal[0]*bow, a[1]+previous['leave'][1]*reach+normal[1]*bow)
-        c2 = (b[0]-stop['arrive'][0]*reach+normal[0]*bow, b[1]-stop['arrive'][1]*reach+normal[1]*bow)
-        return [((1-u)**3*a[0]+3*(1-u)**2*u*c1[0]+3*(1-u)*u*u*c2[0]+u**3*b[0],
-                 (1-u)**3*a[1]+3*(1-u)**2*u*c1[1]+3*(1-u)*u*u*c2[1]+u**3*b[1]) for u in (k/48 for k in range(49))]
-    target = min(wanted, span*most)
-    low, high = 0., span*2
-    if polyline_length(curve(0.)) >= target:
-        return curve(0.)
-    for _ in range(18):
-        middle = (low+high)/2
-        low, high = (middle, high) if polyline_length(curve(middle)) < target else (low, middle)
-    return curve(low)
-
-
 def sample_thread(pieces, tail, head, step):
     """Evenly spaced (x, y, distance, colour) points along the thread, starting exactly at `tail` and
     ending exactly at `head` so both ends move every frame instead of in whole steps."""
@@ -879,13 +837,6 @@ def group_by_color(points):
     if len(current) >= 2:
         runs.append((color, current))
     return runs
-
-
-def add_piece(pieces, points, color, total):
-    length = sum(math.hypot(b[0]-a[0], b[1]-a[1]) for a, b in zip(points, points[1:]))
-    if length > 1e-6:
-        pieces.append(dict(points=points, color=color, start=total, end=total+length))
-    return total+length
 
 
 def monotone_keys(times, distances):
