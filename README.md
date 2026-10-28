@@ -217,6 +217,7 @@ file name is the scene's ID, and `camera` picks how the scene is filmed:
 | `name`, `description` | What Studio shows, and what the model reads when it picks scenes |
 | `camera` | `pan` for the panning canvas, `still` for framed lines, or `blocks` for the 3D stage |
 | `particles` | For a `blocks` scene, the particle effects that the scene owns, such as maple and oak for **Tree canopy**. Use an empty list for plain blocks. Pan and still scenes keep the per-line entrance effects, so it is `null` for them |
+| `layout` | Optional, and only for a `blocks` scene. `justified` (the default) gives rows of equal width. `contrast`, used by **Sweet contrast**, mixes thin and heavy words, sets one word in bouncing candy colours with a white outline and runs the last word vertically down one side. Every letter springs in with an elastic bounce, and the camera zooms in and rolls into a tilt. The side, the reading direction of the vertical word, the font pairing, the tilt and the zoom vary from block to block |
 
 The panning canvas and framed lines keep all their effects, including the flowing
 bands, the drifting shapes, the highlighting and the backdrops.

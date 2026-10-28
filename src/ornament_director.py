@@ -60,7 +60,8 @@ def block_candidates(stage):
     """Per block: the words a picture may attach to, as {id: word}, skipping top-row effect words."""
     result = []
     for block in stage.plan():
-        result.append({f"{w['line']}:{w['index']}": w for w in block['words'] if not w.get('effect') and w['bare']})
+        result.append({f"{w['line']}:{w['index']}": w for w in block['words']
+                       if not w.get('effect') and w['bare'] and not w.get('vertical') and not w.get('sweet')})
     return result
 
 
