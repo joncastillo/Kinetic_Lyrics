@@ -72,7 +72,7 @@ def whisper_model(args):
         raise ValueError("Whisper transcription/alignment needs stable-ts. Install requirements-kinetic.txt "
                          "or supply --timings with reviewed word timestamps.") from exc
     return stable_whisper.load_model(args.model, device=args.device,
-        download_root=str((Path(getattr(args,'image_cache',None) or Path(__file__).resolve().parent.parent/'.cache')/'speech'/'whisper').resolve()))
+        download_root=str((Path(getattr(args,'image_cache',None) or Path(__file__).resolve().parent/'.cache')/'speech'/'whisper').resolve()))
 
 
 def release_whisper_memory():
@@ -342,7 +342,7 @@ def main(argv=None):
     parser.add_argument('audio', type=Path)
     parser.add_argument('lyrics', type=Path, nargs='?', help='Optional UTF-8 lyrics; omit to transcribe audio with Whisper')
     parser.add_argument('-o', '--output', type=Path)
-    parser.add_argument('--theme', default='minimal cinematic', help='Mood prompt; see kinetic-lyrics/README.md')
+    parser.add_argument('--theme', default='minimal cinematic', help='Mood prompt; see README.md')
     parser.add_argument('--timings', type=Path, help='Reuse/edit a generated timings JSON')
     parser.add_argument('--alignment-audio', type=Path, help='Optional matching vocal stem, same time origin')
     parser.add_argument('--language', help='Whisper language code, e.g. en or tl; transcription autodetects by default')
@@ -373,7 +373,7 @@ def main(argv=None):
     parser.add_argument('--text-animation', choices=TEXT_ANIMATIONS, default='directed', help='Word highlighting, timed sweep, slide, fade or scene-directed motion')
     parser.add_argument('--entrance-pool', default=None, help='JSON list of enabled entrance IDs for mixed mode')
     parser.add_argument('--exit-pool', default=None, help='JSON list of enabled exit IDs for mixed mode')
-    parser.add_argument('--entrance-effect', default=None, help='Entrance recipe filename without .json, mixed, or none')
+    parser.add_argument('--entrance-effect', default=None, help='Entrance recipe filename without .json, mixed, ai (chosen per line from scene, lyrics and readable colours), or none')
     parser.add_argument('--exit-effect', default=None, help='Exit recipe filename without .json, mixed, or none')
     parser.add_argument('--director', default='ollama', choices=['ollama', 'rules'],
                         help='Local AI art direction (default), or explicit offline rules')
@@ -402,7 +402,6 @@ def main(argv=None):
     parser.add_argument('--overwrite', action='store_true')
     parser.add_argument('--review-artwork', action='store_true', help='Wait for studio approval before rendering')
     parser.add_argument('--preserve-art-slots', action='store_true', help='Keep illustration group positions even when image pixels repeat')
-    parser.add_argument('--redo-dimensions', action='store_true', help='Measure text areas on the artwork again instead of reusing saved dimensions')
     parser.add_argument('--no-default-style-references', action='store_true', help='Use only explicitly supplied style references')
     args = parser.parse_args(argv)
     args.preserve_art_slots = args.preserve_art_slots or args.review_artwork
@@ -524,8 +523,6 @@ def main(argv=None):
                         time.sleep(.5)
             else:
                 print('Illustration panels: none (typography only).', flush=True)
-            from lyric_placement import run_dimensions
-            run_dimensions(args.illustrations,vars(args),output,force=args.redo_dimensions)
             emit('direction', 0, message='Planning typography and motion')
             plan = (validate_plan(json.loads(args.plan.read_text(encoding='utf-8-sig')), data)
                     if args.plan else direct(data, theme, args.theme, args.ai_model, args.director))

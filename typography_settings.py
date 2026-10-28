@@ -10,8 +10,9 @@ WORD_ANIMATIONS = ('directed','highlight','karaoke','slide','fade','none')
 READING_FLOWS = ('realtime','preview')
 BACKDROP_KINDS = ('outline','filled','vertical','echo','giant')
 GLOW_INSTRUMENTS = ('drums','other','bass')
-KINETIC_DEFAULTS = dict(pan_speed=.05,backdrop_rate=.6,backdrops=list(BACKDROP_KINDS),traces=True,
-                        geometry=.8,frames=.1,glows=[],glow_strength=.55,glitch=True,text_pulse=.1,thread_shapes=.8)
+CAMERA_MODES = ('pan','still')
+KINETIC_DEFAULTS = dict(camera='pan',pan_speed=.05,backdrop_rate=.6,backdrops=list(BACKDROP_KINDS),traces=True,
+                        geometry=.8,frames=.1,glows=list(GLOW_INSTRUMENTS),glow_words=.5,glow_strength=.55,glitch=True,text_pulse=.1,word_shapes=.6)
 
 
 def effect_speeds(value):
@@ -36,16 +37,19 @@ def kinetic_options(value):
         try:value=json.loads(value) if value.strip() else {}
         except json.JSONDecodeError as exc:raise ValueError('Invalid kinetic effect settings') from exc
     value=value or {}
+    if isinstance(value,dict):
+        value={k:v for k,v in value.items() if k!='thread_shapes'}
     if not isinstance(value,dict) or set(value)-set(KINETIC_DEFAULTS):
         raise ValueError('Invalid kinetic effect settings')
     result=dict(KINETIC_DEFAULTS,**value)
-    for key,low,high in (('pan_speed',0.,.15),('backdrop_rate',0.,1.),('geometry',0.,1.),('frames',0.,1.),('glow_strength',0.,1.),('text_pulse',0.,1.),('thread_shapes',0.,1.)):
+    for key,low,high in (('pan_speed',0.,.15),('backdrop_rate',0.,1.),('geometry',0.,1.),('frames',0.,1.),('glow_strength',0.,1.),('text_pulse',0.,1.),('glow_words',0.,1.),('word_shapes',0.,1.)):
         number=float(result[key])
         if not math.isfinite(number) or not low<=number<=high:raise ValueError(f'Kinetic setting {key} is out of range')
         result[key]=number
     for key,allowed in (('backdrops',BACKDROP_KINDS),('glows',GLOW_INSTRUMENTS)):
         if not isinstance(result[key],list) or any(item not in allowed for item in result[key]):
             raise ValueError(f'Invalid kinetic setting {key}')
+    if result['camera'] not in CAMERA_MODES:raise ValueError('Invalid kinetic setting camera')
     for key in ('traces','glitch'):
         if type(result[key]) is not bool:raise ValueError(f'Kinetic setting {key} must be on or off')
     return result

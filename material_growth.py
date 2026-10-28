@@ -2,7 +2,7 @@
 import math
 import random
 import numpy as np
-from PIL import Image,ImageDraw
+from PIL import Image,ImageDraw,ImageFilter
 from scipy.ndimage import distance_transform_edt,gaussian_filter
 from particle_cache import sprite_key
 from particle_choreography import entrance_opacity
@@ -78,6 +78,9 @@ def paint_growth(layer,sprite,x,y,progress,effect,seed,intensity=1.,cache=None,g
     if progress<=0:return
     reveal=smooth((progress-birth)/.22)*entrance_opacity(progress)
     photo=texture.copy();photo.putalpha(Image.fromarray((np.asarray(texture.getchannel('A'))*reveal).astype('uint8'),'L'))
+    if effect.id=='thread-stitch-lettering':
+        outline=Image.new('RGBA',photo.size,(0,0,0,255));outline.putalpha(photo.getchannel('A').filter(ImageFilter.MaxFilter(7)))
+        layer.alpha_composite(outline,(round(x),round(y)))
     layer.alpha_composite(photo,(round(x),round(y)))
     draw=ImageDraw.Draw(layer)
     for px,py,angle,length,born,rand in branches:

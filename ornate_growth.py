@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import math
 import random
 import numpy as np
-from PIL import Image,ImageDraw,ImageChops
+from PIL import Image,ImageDraw,ImageChops,ImageFilter
 from scipy.ndimage import distance_transform_edt,gaussian_filter
 from particle_cache import sprite_key
 from particle_choreography import entrance_opacity
@@ -248,5 +248,12 @@ def paint_growth(layer,sprite,x,y,progress,effect,seed,intensity=1.,cache=None):
     rear.putalpha(ImageChops.multiply(rear.getchannel('A'),ImageChops.invert(mask)))
     body=texture.copy();reveal=ease((progress-birth)/.46)*fade
     body.putalpha(Image.fromarray((np.asarray(texture.getchannel('A'))*reveal*(.38 if effect.id=='pearl-lace-lettering' else 1.)).astype('uint8')))
-    held=Image.new('RGBA',size);held.alpha_composite(rear);held.alpha_composite(body,(padding,padding));held.alpha_composite(internal);held.alpha_composite(front)
+    held=Image.new('RGBA',size);held.alpha_composite(rear)
+    if effect.id in ('clockwork-lettering','gold-filigree-lettering','pearl-lace-lettering'):
+        outline_mask=Image.new('L',size)
+        outline_mask.paste(Image.fromarray((np.asarray(texture.getchannel('A'))*reveal).astype('uint8')),(padding,padding))
+        outline=Image.new('RGBA',size,(0,0,0,255))
+        outline.putalpha(outline_mask.filter(ImageFilter.MaxFilter(7)))
+        held.alpha_composite(outline)
+    held.alpha_composite(body,(padding,padding));held.alpha_composite(internal);held.alpha_composite(front)
     layer.alpha_composite(held,(round(x)-padding,round(y)-padding))

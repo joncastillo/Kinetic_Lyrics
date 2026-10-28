@@ -1,4 +1,8 @@
 @echo off
 setlocal
-call "%~dp0kinetic-lyrics\run.cmd" %*
+if exist "%~dp0.venv\Scripts\python.exe" (
+  "%~dp0.venv\Scripts\python.exe" "%~dp0kinetic_lyrics.py" %*
+) else (
+  python "%~dp0kinetic_lyrics.py" %*
+)
 exit /b %errorlevel%

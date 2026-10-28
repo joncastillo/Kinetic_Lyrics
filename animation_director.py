@@ -107,7 +107,7 @@ def ensure_word_direction(data,plan,options,request=None):
                 'one large RED focal word on the next row, and the remaining words in the base font/color below. '
                 'Scale one meaningful word up to 3; keep most supporting words near 1 and color base. '
                 'Reserve actual room around large words so boxes do not collide. Never invent, remove or reorder lyric words. '
-                'Return exactly one item per input word with its original index. Coordinates refer to the background reserved lyric area. '
+                'Return exactly one item per input word with its original index. Coordinates refer to the lyric reading area. '
                 'The whole line is fully visible one second before its first sung word and exits together after its final word; do not output timing.')
             payload=dict(model=model,stream=False,think=False,keep_alive="10m",format=schema,
                 options=dict(temperature=.35,num_ctx=16384,num_predict=6144),messages=[dict(role='system',content=prompt),

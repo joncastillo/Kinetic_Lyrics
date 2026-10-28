@@ -2,6 +2,8 @@ __pycache__/
 *.pyc
 .venv/
 .cache/
+.preview-cache/
+.pytest_cache/
 output/
 *.log
-kinetic-lyrics/profiles/
+profiles/

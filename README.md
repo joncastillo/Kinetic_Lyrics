@@ -19,10 +19,10 @@ design tools such as Adobe After Effects.
 ## Setup
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File kinetic-lyrics\setup.ps1
+powershell -ExecutionPolicy Bypass -File setup.ps1
 ```
 
-This creates `kinetic-lyrics\.venv`, installs CUDA PyTorch and the dependencies in
+This creates `.venv`, installs CUDA PyTorch and the dependencies in
 `requirements.txt`. Model weights download on first use into
 `KINETIC_LYRICS_MODEL_CACHE` (default `~/.cache/kinetic-lyrics`). Set
 `KINETIC_LYRICS_OUTPUT` to choose where projects are written.
@@ -53,18 +53,23 @@ Useful options: `--style-reference a.png b.png`, `--illustrations art.png ...`,
 
 The default reading flow writes each word exactly as it is sung:
 
-- **One continuous camera.** Every illustration is stitched into one collage; the camera
-  glides along a smooth path through it at constant speed, and each line is written where
-  the camera is heading so it crosses the whole screen while it is sung.
+- **Panning or still camera.** By default every illustration is stitched into one seamless
+  collage and the camera glides through it at constant speed, writing each line where the
+  camera is heading. The still camera instead frames each line in a shape and plays the
+  exit animation when its space is needed again.
 - **Font mix by role.** Small typewriter function words, heavy content words and huge
   condensed hero words. Hero words can form through particle and material lettering.
 - **Melody and instruments.** Demucs separates the vocals and instruments. Line starts snap to
   the measured vocal onset, high notes turn hero words hot, fast passages snap in, and some
   lines pulse with their dominant instrument (never the voice).
 - **Backdrops and traces.** Whole-line marquees, echo and giant words, glowing underlines,
-  a thread that wraps shapes around hero words, and drawn-on geometry.
-- **Readable colour.** Every entrance recipe has a measured base colour; lettering is never
-  paired with a background of the same colour.
+  a ribbon of translucent wavy bands flowing from hero word to hero word, translucent shapes
+  fading in behind hero words, and words that glow in time with an instrument.
+- **Readable colour.** Each entrance recipe's main lettering colours are measured, and the
+  backdrop actually behind each line is checked so lettering never blends into it. Material
+  lettering (oak, maple, gold filigree, pearl lace, embroidery) carries a black outline.
+- **AI effect choice.** Optionally a local model picks each line's entrance from a shortlist
+  retrieved for readability on that line's backdrop and relevance to its meaning and scene.
 
 Everything is adjustable in Studio's **Kinetic effects** panel and saved in profiles,
 including a separate particle speed for each effect. `--reading-flow preview` keeps the
@@ -75,11 +80,11 @@ renders split across CPU workers are identical to single-core output.
 
 ## Style reference
 
-`kinetic-lyrics/assets/default-style-reference.jpg` is the bundled default art style
+`assets/default-style-reference.jpg` is the bundled default art style
 reference. Studio preloads it for new sessions and the command line uses it when no
 `--style-reference` is given. Pass `--no-default-style-references` to disable it.
 
 ## Particle effects
 
-Entrance and exit effects are JSON recipes in `kinetic-lyrics/particles/`. See
-[`particles/README.md`](kinetic-lyrics/particles/README.md) for the format.
+Entrance and exit effects are JSON recipes in `particles/`. See
+[`particles/README.md`](particles/README.md) for the format.

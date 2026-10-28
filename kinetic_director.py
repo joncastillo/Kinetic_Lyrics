@@ -293,10 +293,17 @@ class Compositor:
         self.effect_catalog = discover_effects()
         self.effect_cache = {}
         entrance_pool = parse_pool(entrance_pool, 'entrance', self.effect_catalog, strict=False)
+        if self.typography['reading_flow'] == 'realtime' and self.typography['kinetic']['camera'] == 'pan':
+            exit_effect, exit_pool = 'none', None
         exit_pool = parse_pool(exit_pool, 'exit', self.effect_catalog, strict=False)
         self.word_effect_pairs=[]
         total=0
         planned=plan.get('word_effects') if text_animation=='ai' else None
+        line_effects=plan.get('line_effects') if entrance_effect=='ai' else None
+        if line_effects is not None and (len(line_effects)!=len(data) or any(e not in self.effect_catalog['entrance'] and e!='none' for e in line_effects)):
+            line_effects=None
+        if entrance_effect=='ai':
+            entrance_effect='mixed'
         if text_animation=='ai' and (not isinstance(planned,list) or len(planned)!=len(data)):
             raise ValueError('AI word animation choices must be planned before rendering')
         for index,line in enumerate(data):
@@ -309,7 +316,7 @@ class Compositor:
                     self.word_animations[index][j]=chosen['motion']
                     effects.append((chosen['entrance'],chosen['exit']))
                 else:
-                    effects.append((resolve_effect(entrance_effect,'entrance',self.effect_catalog,total+j,type_effect,entrance_pool),
+                    effects.append((line_effects[index] if line_effects else resolve_effect(entrance_effect,'entrance',self.effect_catalog,total+j,type_effect,entrance_pool),
                                     resolve_effect(exit_effect,'exit',self.effect_catalog,total+j,type_effect,exit_pool)))
             self.word_effect_pairs.append(effects)
             total+=len(line['words'])
@@ -350,7 +357,6 @@ class Compositor:
             raise ValueError('Illustration line count must be a positive integer.')
         self.art = []
         self.illustration_paths = [Path(p) for p in (illustrations or [])]
-        self.safe_text_boxes=[]
         self.artwork_revisions = {}
         self.text_box = (0, 0, width, height)
         if illustrations:
@@ -364,11 +370,6 @@ class Compositor:
                 if fingerprint in seen and not preserve_art_slots:
                     continue
                 seen.add(fingerprint)
-                from lyric_placement import cached_placement,revision_key
-                placement=cached_placement(path,width,height)
-                self.artwork_revisions[str(slot)]=revision_key(fingerprint.hex(),placement)
-                box=placement['chosen'] if placement else None
-                self.safe_text_boxes.append(tuple(round(v*d/1000) for v,d in zip((box[0],box[1],box[2]-box[0],box[3]-box[1]),(width,height,width,height))) if box else None)
                 with Image.open(BytesIO(source_bytes)) as source:
                     image = source.convert('RGBA')
                     if artwork_mode in ('fullscreen', 'verse'):
@@ -381,7 +382,6 @@ class Compositor:
                     box = illustration_layout(len(self.art), width, height, cinematic, artwork_mode, layout_seed)['art_box']
                     size = tuple(max(1, round(v*.94)) for v in box[2:]) if cinematic else box[2:]
                     self.art.append(ImageOps.contain(image, size, Image.Resampling.LANCZOS))
-        if self.safe_text_boxes and self.safe_text_boxes[0]:self.text_box=self.safe_text_boxes[0]
         self.default_text_box = self.text_box
         art_cues=[max(0.,cue-self.lead_in) for cue in self.source_cues]
         self.art_starts = [art_cues[i*self.illustration_lines]
@@ -403,7 +403,8 @@ class Compositor:
             artwork=max(0,bisect.bisect_right(self.art_starts,cue)-1) if self.art_starts else None
             base_boxes.append(self.composition(artwork)[1] if artwork is not None else self.default_text_box)
         self.line_regions=reading_regions(self.starts,self.effect_end_times,base_boxes)
-        self.keep_effects_readable(entrance_effect, entrance_pool)
+        if not line_effects:
+            self.keep_effects_readable(entrance_effect, entrance_pool)
 
     def effect_speed(self, effect_id):
         """An effect's own particle speed from the profile, or the global speed."""
@@ -425,12 +426,17 @@ class Compositor:
             return
         from effect_colors import readable_effect
         candidates = [e for e in (entrance_pool or list(self.effect_catalog['entrance'])) if e in self.effect_catalog['entrance']]
+        if self.realtime is not None:
+            from effect_director import dominant_colors, line_backdrops
+            backdrops = [dominant_colors(image) for image in line_backdrops(self)]
+        else:
+            backdrops = [[(self.line_background(index), 1.)] for index in range(len(self.effect_pairs))]
         for index, (entrance, exit_effect) in enumerate(self.effect_pairs):
             if entrance not in self.effect_catalog['entrance']:
                 continue
             ink = rgb(PALETTES[self.plan['scenes'][index]['palette']][2])
             neighbours = {self.effect_pairs[i][0] for i in (index-1, index+1) if 0 <= i < len(self.effect_pairs)}
-            chosen = readable_effect(entrance, candidates, ink, self.line_background(index), neighbours)
+            chosen = readable_effect(entrance, candidates, ink, backdrops[index], neighbours)
             if chosen != entrance:
                 self.effect_pairs[index] = (chosen, exit_effect)
                 self.word_effect_pairs[index] = [(chosen if a == entrance else a, b) for a, b in self.word_effect_pairs[index]]
@@ -438,8 +444,7 @@ class Compositor:
     def composition(self, artwork):
         """A stable reading area for each drawing; change only with new art."""
         layout = illustration_layout(artwork, self.width, self.height, self.cinematic, self.artwork_mode, self.layout_seed)
-        safe=self.safe_text_boxes[artwork] if artwork<len(self.safe_text_boxes) else None
-        return layout['art_box'],safe or layout['text_box']
+        return layout['art_box'], layout['text_box']
 
     def illustration(self, frame, index, t):
         if self.artwork_mode in ('fullscreen', 'verse'):
@@ -993,6 +998,11 @@ def render_compositor(data,plan,duration,args):
 def _render_video(audio, output, data, plan, duration, args):
     import tempfile
     compositor = render_compositor(data,plan,duration,args)
+    if getattr(args, 'entrance_effect', None) == 'ai' and compositor.particle_intensity > 0:
+        from effect_director import ensure_line_effects
+        emit('direction', 0, message='AI choosing effects for each line')
+        plan = ensure_line_effects(data, plan, compositor, vars(args), Path(output).parent)
+        compositor = render_compositor(data,plan,duration,args)
     encoding = (['-c:v', 'h264_nvenc', '-preset', 'p5', '-tune', 'hq', '-rc', 'vbr', '-cq', '18', '-b:v', '0']
                 if args.encoder == 'h264_nvenc' else ['-c:v', 'libx264', '-preset', 'medium', '-crf', '18'])
     with tempfile.TemporaryDirectory(prefix='kinetic-', dir=output.parent) as temp:
