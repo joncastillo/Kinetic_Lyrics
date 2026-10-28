@@ -228,9 +228,22 @@ def image_pose(motion, t, beat):
 @lru_cache(maxsize=32)
 def cutout(path):
     from staging_matte import remove_staging
+    from scipy.ndimage import binary_dilation, binary_propagation
     with Image.open(path) as source:
         image = source.convert('RGBA')
     image = remove_staging(image)  # any flat staging backdrop left around the subject becomes transparent
+    pixels = np.array(image)
+    rgb = pixels[..., :3].astype(int)
+    white = (rgb.min(axis=-1) > 178) & (rgb.max(axis=-1)-rgb.min(axis=-1) < 64)
+    outside = pixels[..., 3] < 64
+    # Model-made sticker outlines are often separated from the transparent exterior by a grey
+    # antialiased shadow. Start a short way inside that fringe, then follow only neutral light pixels.
+    seed = binary_dilation(outside, iterations=max(2, round(min(pixels.shape[:2])*.026))) & white
+    border = binary_propagation(seed, mask=white) & ~outside
+    if border.sum() < .7*(pixels[..., 3] >= 128).sum():
+        fringe = binary_dilation(border, iterations=max(1, round(min(pixels.shape[:2])*.003)))
+        pixels[..., 3] = np.where(fringe, 0, pixels[..., 3])
+    image = Image.fromarray(pixels, 'RGBA')
     bounds = image.getchannel('A').getbbox()
     if bounds:
         image = image.crop(bounds)

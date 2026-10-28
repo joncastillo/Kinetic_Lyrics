@@ -7,9 +7,7 @@
  "cathedral-stained-glass": "#625B6F",
  "catholic-cross-lettering": "#A4977F",
  "clockwork-lettering": "#66543B",
- "driftwood-sandblast": "#494542",
  "ember-forge": "ink",
- "ferrofluid-spikes": "#52545F",
  "folded-paper-lettering": "#B3A594",
  "frost-crystal-lettering": "#B9E6F6",
  "glass-assemble": "ink",
@@ -43,10 +41,6 @@
  "petals-spiral-lettering": "#68483F",
  "petals-wind-lettering": "#68483F",
  "prismatic-helix": "ink",
- "sand-hourglass-fill": "#8F7B5C",
- "sandstone-wind-erosion": "#8E7459",
  "stained-glass-leading": "#888069",
- "thread-stitch-lettering": "#595244",
- "verdigris-patina": "#677163",
- "welding-bead": "ink"
+ "thread-stitch-lettering": "#595244"
 }
