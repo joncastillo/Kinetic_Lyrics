@@ -21,19 +21,19 @@ so seeking to a frame and rendering it again gives the same image.
 
 ## Choosing effects in Studio
 
-You can pick one effect for each phase, or choose **Mixed** and tick several so that
-each line uses a different one. **Browse entrances** and **Browse exits** open a
+The user picks one effect for each phase, or chooses **Mixed** and ticks several so
+that each line uses a different one. **Browse entrances** and **Browse exits** open a
 browser with search and family filters. Clicking an effect previews it, and **Use
-this effect** selects it. If nothing is ticked, that phase uses plain type. Your
-choices are saved with profiles, jobs and rebuilds.
+this effect** selects it. If nothing is ticked, that phase uses plain type. The
+user's choices are saved with profiles, jobs and rebuilds.
 
 The previews use the same renderer and settings as the final video, and they run on
 the CPU without loading any AI models.
 
-If you switch on AI selection, the language model only sees the effects you ticked.
-For each line it gets each effect's short description together with that line's
-illustration and scene details. If you change a description or the scene, the
-typography plan is made again the next time you render.
+When the user switches on AI selection, the language model only sees the effects the
+user ticked. For each line it gets each effect's short description together with
+that line's illustration and scene details. If a description or the scene changes,
+the typography plan is made again at the next render.
 
 ## Adding an effect
 
@@ -42,19 +42,19 @@ flowchart LR
     A[Copy a recipe] --> B[Rename it] --> C[Describe it] --> D[Refresh Studio]
 ```
 
-The file name, without `.json`, becomes the effect's ID. You do not need to change
-any code or run a build. Studio reloads the folders when you refresh it, and each
+The file name, without `.json`, becomes the effect's ID. No code changes or build
+step are needed. Studio reloads the folders when the user refreshes it, and each
 new render job scans them again. A render that is already running keeps the effects
 it started with. If a recipe is invalid, it is skipped with a warning. If a saved
 project uses an effect that has since been deleted, that phase falls back to plain
-type and you get a warning.
+type and the user sees a warning.
 
 Only recipes from certain families are used, in Studio and on the command line
 alike. For entrances, these are the glass, letters, ornament, trees and cinematic
 families, plus a few petal, ink and thread lettering effects. For exits, they are the
 glass, petals, smoke and cinematic families. The other recipes on disk are kept so
-that older projects still load, but if you ask for one of them you get plain type
-and a warning. To make a new family available, add it to the filter in
+that older projects still load, but choosing one of them gives plain type and a
+warning. A new family is made available by adding it to the filter in
 `discover_effects` in `src/particle_catalog.py`.
 
 Here is `exit/glass-shatter.json`:
@@ -85,11 +85,11 @@ Here is `exit/glass-shatter.json`:
 | `hold: "particles"` | Optional. The word stays made of particles at rest instead of turning back into solid type |
 | `description` | Optional. Overrides the entry in `descriptions.json` |
 
-The allowed range of each number is defined in `src/particle_catalog.py`. You can
-build new looks by combining these settings, but a brand-new material or simulation
+The allowed range of each number is defined in `src/particle_catalog.py`. New looks
+can be built by combining these settings, but a brand-new material or simulation
 needs code changes in `src/particle_motion.py`.
 
-Please give every recipe a description in `descriptions.json` of no more than ten
+Every recipe should have a description in `descriptions.json` of no more than ten
 words. Studio's search uses it, and so does AI selection.
 
 ## How some families behave
@@ -117,8 +117,8 @@ short gap between lines.
 kinetic-lyrics.cmd song.wav lyrics.txt --entrance-effect glass-assemble --exit-effect glass-shatter
 ```
 
-For mixed mode, pass the effect IDs as JSON lists with `--entrance-pool` and
-`--exit-pool`. If you leave a pool out, every available effect is used, and `[]`
+For mixed mode, the user passes the effect IDs as JSON lists with `--entrance-pool`
+and `--exit-pool`. When a pool is left out, every available effect is used, and `[]`
 uses none. The older `--type-effect` option and older Studio profiles keep their
 original pairings. For example, the legacy `shatter` option gives a plain entrance
 and a glass-shatter exit. Choosing an entrance or exit effect directly overrides
