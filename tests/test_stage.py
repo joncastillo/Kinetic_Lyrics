@@ -155,6 +155,37 @@ class SceneTest(unittest.TestCase):
         finally:
             close_stage()
 
+    def test_contrast_layout(self):
+        try:
+            import moderngl
+            moderngl.create_standalone_context(require=330).release()
+        except Exception as exc:
+            self.skipTest(f'No OpenGL 3.3 context: {exc}')
+        import numpy as np
+        from kinetic_director import Compositor, rules_plan
+        from kinetic_lyrics import theme_for
+        from stage_3d import BLOCK_WIDTH, close_stage
+        data = lyrics((.2, 'maple leaves are turning gold'), (2.4, 'every word you never told'))
+        for line in data:
+            line.update(section_id=0, section_label='Verse')
+        plan = dict(rules_plan(data, theme_for('autumn')), scene_flows=[dict(start=0, end=2, scene='sweet-contrast')])
+        c = Compositor(data, plan, 320, 180, 6., reading_flow='mixed', text_animation='none')
+        try:
+            block = c.realtime.stage.plan()[0]
+            words = block['words']
+            vertical = [w for w in words if w.get('vertical')]
+            self.assertEqual([w['text'] for w in vertical], ['TOLD'])
+            self.assertFalse(np.allclose(vertical[0]['frame'], np.identity(4)))
+            self.assertAlmostEqual(vertical[0]['width'], block['height'], delta=block['height']*.02+1e-6)
+            self.assertEqual(sum(1 for w in words if w.get('sweet')), 1)
+            self.assertEqual({w['font'] for w in words} >= {'thin', 'heavy', 'sweet'}, True)
+            rows = [w for w in words if not w.get('vertical')]
+            self.assertTrue(all(-BLOCK_WIDTH/2-1e-6 <= w['x'] and w['x']+w['width'] <= BLOCK_WIDTH/2+1e-6 for w in rows))
+            self.assertNotEqual(block['roll'], 0.)
+            self.assertEqual(c.frame(5.).size, (320, 180))
+        finally:
+            close_stage()
+
 
 if __name__ == '__main__':
     unittest.main()

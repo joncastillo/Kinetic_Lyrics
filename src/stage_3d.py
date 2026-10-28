@@ -18,7 +18,12 @@ block's entry motion, accent colour and picture are the AI's matched choice for 
 As in the 2D flow, translucent bands flow from hero word to hero word (here through 3D
 space, between blocks) and outlined shapes drift and turn on strong bass notes, at depths
 around the blocks so they shift with parallax. Words and pictures share one invisible
-rectangle: a picture beside a word takes its own slot in the justified row. A scene effect
+rectangle: a picture beside a word takes its own slot in the justified row. A scene can
+set its blocks in the "contrast" layout instead: thin and heavy words side by side, one
+candy-coloured outlined word whose letters keep bouncing, and the last word set vertically
+down one side; every letter springs in with an elastic bounce, and the camera zooms in and
+rolls into a tilt. Which side, which way the vertical word reads, how the fonts pair, the
+tilt and the zoom vary from block to block. A scene effect
 can own the block's particle effects (`crowns`, such as maple and oak for the tree canopy);
 the block director then picks one of them per block. When the video mixes scenes, `only` limits
 the stage to the lines of the song sections it films. Illustrations hang far behind as planes
@@ -29,12 +34,14 @@ from __future__ import annotations
 
 import bisect
 from collections import OrderedDict
+import colorsys
+from functools import lru_cache
 import math
 import random
 import threading
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 import glyph_art
 from lyric_blocks import TARGET_RATIO, group_lines, layout_block
@@ -57,6 +64,14 @@ PARTICLE_ENTRY, GROW_ENTRY = .6, 1.4
 EFFECT_FONT = 280
 GROW_ROOM, EFFECT_ROOM = .9, .25
 ACCENT = (239, 76, 84)
+STAGE_FONTS = {'thin': ('segoeuil.ttf', 'calibril.ttf', 'DejaVuSans-ExtraLight.ttf'),
+               'heavy': ('ariblk.ttf', 'seguibl.ttf', 'DejaVuSans-Bold.ttf'),
+               'sweet': ('ARLRDBD.TTF', 'comicbd.ttf', 'segoeprb.ttf', 'DejaVuSans-Bold.ttf')}
+COLUMN_GAP, COLUMN_LIMIT = .06, .32
+BOUNCE_ENTRY, BOUNCE_STAGGER = .55, .045
+ROLL_RANGE, ZOOM_RANGE = (5., 12.), (.9, .96)
+CONTRAST_LEADING = .42
+CANDY_HUES = (0., .1, -.1, .45, .22, -.3)
 ENTRANCES = ('flip', 'swing', 'rise', 'drop')
 MOTIONS = ('wave', 'pulse', 'tilt')
 OLD_BLOCK, DIM_TIME = .45, 1.
@@ -289,19 +304,52 @@ def close_stage():
         _LOCAL.stage = None
 
 
-def text_sprite(text, role, size, color):
-    """Text drawn with its baseline at (pad, pad+ascent) over a soft dark halo; returns (image, pad, ascent)."""
-    font = role_font(role, size)
+@lru_cache(maxsize=256)
+def stage_font(name, size):
+    """The stage's extra faces (thin, heavy, sweet), or the real-time role fonts."""
+    if name not in STAGE_FONTS:
+        return role_font(name, size)
+    for file in STAGE_FONTS[name]:
+        for folder in ('', 'C:/Windows/Fonts/'):
+            try:
+                return ImageFont.truetype(folder+file, size)
+            except OSError:
+                continue
+    return role_font('content', size)
+
+
+def text_sprite(text, role, size, color, outline=False):
+    """Text drawn with its baseline at (pad, pad+ascent) over a soft dark halo (and, for candy letters, a
+    white outline); returns (image, pad, ascent)."""
+    font = stage_font(role, size)
     ascent, descent = font.getmetrics()
     pad = max(6, round(size*.14))
     width = max(1, math.ceil(font.getlength(text)))
+    stroke = max(2, round(size*.07)) if outline else 0
     shape = Image.new('L', (width+pad*2, ascent+descent+pad*2))
-    ImageDraw.Draw(shape).text((pad, pad+ascent), text, font=font, fill=255, anchor='ls')
+    ImageDraw.Draw(shape).text((pad, pad+ascent), text, font=font, fill=255, anchor='ls', stroke_width=stroke, stroke_fill=255)
     halo = shape.filter(ImageFilter.GaussianBlur(max(2, size*.07))).point(lambda a: min(255, round(a*1.4)))
     image = Image.new('RGBA', shape.size, (0, 0, 0, 0))
     image.putalpha(halo.point(lambda a: round(a*.55)))
+    if outline:
+        image.alpha_composite(Image.merge('RGBA', (*Image.new('RGB', shape.size, (255, 255, 255)).split(), shape)))
+        shape = Image.new('L', shape.size)
+        ImageDraw.Draw(shape).text((pad, pad+ascent), text, font=font, fill=255, anchor='ls')
     image.alpha_composite(Image.merge('RGBA', (*Image.new('RGB', shape.size, color).split(), shape)))
     return image, pad, ascent
+
+
+def candy(accent, count):
+    """Bright sweet colours around the block's accent, one per letter."""
+    h, _, _ = colorsys.rgb_to_hsv(*(v/255 for v in accent))
+    return [tuple(round(v*255) for v in colorsys.hsv_to_rgb((h+CANDY_HUES[k % len(CANDY_HUES)]) % 1., .72, 1.))
+            for k in range(count)]
+
+
+def elastic(value):
+    """0 to 1 with a springy overshoot that settles: letters pop in and wobble into place."""
+    value = max(0., min(1., value))
+    return 1-math.exp(-6*value)*math.cos(value*math.pi*3.2)
 
 
 def shape_image(kind, filled, size=256):
@@ -348,12 +396,13 @@ def soft_dot(size=64):
 
 
 class Stage3D:
-    def __init__(self, compositor, melody=None, rhythm=None, seed=None, only=None, breaks=(), crowns=None):
+    def __init__(self, compositor, melody=None, rhythm=None, seed=None, only=None, breaks=(), crowns=None, layouts=None):
         from typography_settings import kinetic_options
         self.c = compositor
         self.only = frozenset(only) if only is not None else None
         self.breaks = set(breaks)
         self.crowns = crowns
+        self.layouts = layouts or {}
         self.options = kinetic_options((getattr(compositor, 'typography', None) or {}).get('kinetic'))
         self.melody = melody.get('lines') if isinstance(melody, dict) else None
         self.rhythm = rhythm or {}
@@ -395,17 +444,20 @@ class Stage3D:
             scene = c.plan['scenes'][members[0]]
             palette = [hex_rgb(v) for v in PALETTES[scene['palette']]]
             words = self.block_words(members, palette)
-            height = self.arrange(words, members)
-            effect = self.block_effect(members, number, directed)
             accent = hex_rgb(directed['accent']) if directed and directed.get('accent') else ACCENT
+            style = self.contrast_style(words, rng, accent) if self.layouts.get(members[0]) == 'contrast' else None
+            arrange = (lambda pictured=None: self.arrange_contrast(words, members, style, pictured)) if style else \
+                (lambda pictured=None: self.arrange(words, members, pictured))
+            height = arrange()
+            effect = self.block_effect(members, number, directed)
             self.crown(words, effect)
-            self.choose_accent(words, palette[2], accent)
+            self.choose_accent(words, palette[2], accent, style)
             self.choose_motion(words, rng, (directed or {}).get('ornament') if direction is not None else False)
             pictured = next((w for w in words if w['ornament'] and w['letter'] is None), None)
             if pictured is not None:
-                height = self.arrange(words, members, pictured)
+                height = arrange(pictured)
                 self.crown(words, effect)
-                self.choose_accent(words, palette[2], accent)
+                self.choose_accent(words, palette[2], accent, style)
             room = (GROW_ROOM if effect.trajectory == 'grow' else EFFECT_ROOM)*REFERENCE*words[0]['scale'] if effect else 0.
             extent = max(BLOCK_WIDTH, height+room)
             if number:
@@ -419,13 +471,18 @@ class Stage3D:
             normal = placement[:3, :3]@np.array([0., 0., 1.])
             view = normalized(normal*VIEW_TILT+np.array([0., 0., 1.])*(1-VIEW_TILT))
             half = math.tan(math.radians(FOV)/2)
-            distance = max((height+room)/2/half/FILL_HEIGHT, BLOCK_WIDTH/2/(half*self.aspect)/FILL_WIDTH)
+            angle = math.radians(abs(style['roll'])) if style else 0.  # the tilted block's bounding box must fit
+            wide = BLOCK_WIDTH*math.cos(angle)+(height+room)*math.sin(angle)
+            tall = BLOCK_WIDTH*math.sin(angle)+(height+room)*math.cos(angle)
+            distance = max(tall/2/half/FILL_HEIGHT, wide/2/(half*self.aspect)/FILL_WIDTH)*(style['zoom'] if style else 1.)
             focus = (placement@np.array([0., room/2, 0., 1.]))[:3]
+            margin = .9*min(distance*half*self.aspect-wide/2, distance*half-tall/2)
             self.blocks.append(dict(lines=members, words=words, height=height, center=center, focus=focus, placement=placement,
                                     view=view, distance=distance, side=normalized(np.cross([0., 1., 0.], view)),
                                     start=min(w['start'] for w in words), end=max(w['end'] for w in words),
                                     palette=palette, entrance=rng.choice(ENTRANCES), motes=self.motes(rng, height),
-                                    drift=rng.choice((-1., 1.)), accent=accent))
+                                    drift=rng.choice((-1., 1.)), accent=accent, layout='contrast' if style else 'justified', margin=max(0., margin),
+                                    roll=style['roll'] if style else 0., zoom=style['zoom'] if style else 1.))
             if directed and directed.get('entrance') in ENTRANCES:
                 self.blocks[-1]['entrance'] = directed['entrance']
         for number, block in enumerate(self.blocks):
@@ -433,7 +490,8 @@ class Stage3D:
             following = self.blocks[number+1]['start']-MOVE_LEAD if number+1 < len(self.blocks) else self.c.duration
             block['hold'] = (max(0., block['start']-MOVE_LEAD), max(block['start']+1., following))
             ahead = self.blocks[number+1]['focus'] if number+1 < len(self.blocks) else block['focus']+self.heading(number+1, random.Random(number))
-            block['cruise'] = normalized((ahead-block['focus'])*np.array([1., 1., 0.]))
+            reach = max(.5, (block['end']-block['start'])/2+MOVE_LEAD)
+            block['cruise'] = normalized((ahead-block['focus'])*np.array([1., 1., 0.]))*min(CRUISE, block['margin']/reach)
         self.world = self.plan_world()
         self.shapes = self.plan_shapes()
         self.ribbon = self.plan_ribbon()
@@ -459,21 +517,64 @@ class Stage3D:
                                   color=accent if role == 'hero' else ink if role == 'content' else tuple(round(v*.86) for v in ink)))
         return words
 
-    def arrange(self, words, members, pictured=None):
-        """Set the words as a justified block (with a square slot for the picture beside `pictured`);
-        returns the block height. Each word gets its row, size and baseline position."""
-        c = self.c
-        sizes, slot = [], None
-        lengths = [len(c.data[i]['words']) for i in members]
+    def contrast_style(self, words, rng, accent):
+        """The contrast layout's choices for one block: the vertical word (the last word that is not a short
+        function word), the candy word (a hero word), how thin and heavy fonts pair, and the camera's tilt."""
+        content = [w for w in words if w['role'] != 'function' and len(w['bare']) > 2] or words
+        vertical = content[-1]
+        heroes = [w for w in words if w['role'] == 'hero' and w is not vertical]
+        sweet = (heroes or [w for w in content if w is not vertical] or [None])[0]
+        pairing = rng.choice(('roles', 'lines'))
         for word in words:
-            font = role_font(word['font'], REFERENCE)
+            line = sorted({w['line'] for w in words}).index(word['line'])
+            thin = word['role'] == 'function' if pairing == 'roles' else line % 2 == 0 and word['role'] != 'hero'
+            word.update(font='thin' if thin else 'heavy', text=word['text'].upper(), bouncy=True)
+        vertical.update(font='heavy', vertical=True)
+        if sweet is not None:
+            sweet.update(font='sweet', sweet=True, text=sweet['text'].lower(), letter_colors=candy(accent, len(sweet['text'])))
+        return dict(vertical=vertical, side=rng.choice((-1, 1)), reads=rng.choice(('up', 'down')),
+                    roll=rng.choice((-1, 1))*rng.uniform(*ROLL_RANGE), zoom=rng.uniform(*ZOOM_RANGE))
+
+    def arrange_contrast(self, words, members, style, pictured=None):
+        """Rows of the other words beside a column holding the vertical word, which runs the block's full height."""
+        vertical = style['vertical']
+        rest = [w for w in words if w is not vertical]
+        font = stage_font(vertical['font'], REFERENCE)
+        length, cap = max(1., font.getlength(vertical['text'])), -font.getbbox('H', anchor='ls')[1]
+        column = .2*BLOCK_WIDTH
+        for _ in range(4):
+            width = BLOCK_WIDTH-column-COLUMN_GAP*BLOCK_WIDTH
+            left = -BLOCK_WIDTH/2+(column+COLUMN_GAP*BLOCK_WIDTH if style['side'] < 0 else 0.)
+            height = self.arrange(rest, members, pictured, width, left, CONTRAST_LEADING)
+            wanted = min(COLUMN_LIMIT*BLOCK_WIDTH, cap*height/length)
+            if abs(wanted-column) < 1e-3:
+                break
+            column = wanted
+        scale = column/cap
+        span = length*scale
+        edge = -BLOCK_WIDTH/2 if style['side'] < 0 else BLOCK_WIDTH/2-column
+        if style['reads'] == 'up':
+            frame = translation(edge+column, -span/2)@rotation(roll=90)
+        else:
+            frame = translation(edge, span/2)@rotation(roll=-90)
+        vertical.update(row=-1, scale=scale, cap=column, width=span, x=0., baseline=0., slot=None, frame=frame)
+        return height
+
+    def arrange(self, words, members, pictured=None, width=BLOCK_WIDTH, left=-BLOCK_WIDTH/2, leading=None):
+        """Set the words as a justified block (with a square slot for the picture beside `pictured`) of the
+        given width from `left`; returns the block height. Each word gets its row, size and baseline position."""
+        sizes, slot = [], None
+        lengths = [sum(1 for w in words if w['line'] == i) for i in members]
+        for word in words:
+            font = stage_font(word['font'], REFERENCE)
             cap = -font.getbbox('H', anchor='ls')[1]
             sizes.append((max(1., font.getlength(word['text'])), cap))
             if word is pictured:
                 slot = len(sizes)
                 sizes.append((cap*1.15, cap))
                 lengths[members.index(word['line'])] += 1
-        layout = layout_block(sizes, TARGET_RATIO/self.aspect, BLOCK_WIDTH, lengths)
+        layout = layout_block(sizes, TARGET_RATIO/self.aspect*width/BLOCK_WIDTH, width, [n for n in lengths if n],
+                              *(() if leading is None else (leading,)))
         height = layout['height']
         caps = {}
         for size, place in zip(sizes, layout['words']):
@@ -483,12 +584,12 @@ class Stage3D:
         for word, size, place in zip(words, measured, places):
             cap = caps[place['row']]
             word.update(row=place['row'], scale=place['scale'], cap=cap, width=size[0]*place['scale'],
-                        x=place['x']-BLOCK_WIDTH/2, baseline=height/2-(place['y']+cap), slot=None)
+                        x=place['x']+left, baseline=height/2-(place['y']+cap), slot=None, frame=np.identity(4))
         if pictured is not None:
             place = layout['words'][slot]
             cap = caps[place['row']]
             size = min(cap*1.1, sizes[slot][0]*place['scale'])
-            pictured['slot'] = (place['x']-BLOCK_WIDTH/2+sizes[slot][0]*place['scale']/2, height/2-(place['y']+cap)+cap/2, size)
+            pictured['slot'] = (place['x']+left+sizes[slot][0]*place['scale']/2, height/2-(place['y']+cap)+cap/2, size)
         return height
 
     def crown(self, words, effect):
@@ -513,8 +614,13 @@ class Stage3D:
         recipes = [recipe for recipe in recipes if recipe is not None]
         return next((r for r in recipes if r.placement == 'top'), recipes[0] if recipes else None)
 
-    def choose_accent(self, words, ink, color=ACCENT):
-        """All words in ink except one accent below the top row: the first hero there, else the longest-held word."""
+    def choose_accent(self, words, ink, color=ACCENT, style=None):
+        """All words in ink except one accent below the top row: the first hero there, else the longest-held word.
+        In the contrast layout the vertical word carries the accent."""
+        if style is not None:
+            for word in words:
+                word['color'] = color if word is style['vertical'] else ink
+            return
         below = [w for w in words if w['row'] > 0] or words
         accent = next((w for w in below if w['role'] == 'hero'), None) or max(below, key=lambda w: w['end']-w['start'])
         for word in words:
@@ -533,12 +639,17 @@ class Stage3D:
         matching a keyword picture."""
         for word in words:
             word['motion'] = rng.choice(MOTIONS) if word['role'] == 'hero' and not word['effect'] and rng.random() < .6 else None
+            if word.get('sweet'):
+                word['motion'] = 'bounce'
+            elif word.get('bouncy') and word['motion'] == 'tilt':
+                word['motion'] = None
             word['ornament'] = word['letter'] = None
         if directed is None:
             return
         if directed is not False:
             spec = directed
-            word = next((w for w in words if (w['line'], w['index']) == (spec.get('line'), spec.get('word')) and not w['effect']), None)
+            word = next((w for w in words if (w['line'], w['index']) == (spec.get('line'), spec.get('word')) and not w['effect']
+                         and not w.get('vertical') and not w.get('sweet')), None)
             if word is None:
                 return
             word['ornament'] = dict(kind=spec.get('library') if spec.get('source') == 'library' or not spec.get('image') else None,
@@ -549,7 +660,7 @@ class Stage3D:
             letter = word['text'].upper().find('O') if spec.get('placement') == 'letter' else -1
             word['letter'] = letter if letter >= 0 else None
         else:
-            themed = [w for w in words if glyph_art.theme(w['bare']) and not w['effect']]
+            themed = [w for w in words if glyph_art.theme(w['bare']) and not w['effect'] and not w.get('vertical') and not w.get('sweet')]
             themed.sort(key=lambda w: (glyph_art.replaces_letter(glyph_art.theme(w['bare']), w['text']) is None,
                                        w['bare'] != glyph_art.theme(w['bare']), w['role'] != 'hero', w['start']))
             if not themed:
@@ -583,7 +694,7 @@ class Stage3D:
 
         class Path:
             def at(self, t):
-                eye, target, _ = stage.camera(t)
+                eye, target, _, _ = stage.camera(t)
                 return target[0]*stage.backdrop_scale, -target[1]*stage.backdrop_scale
         return WorldCanvas([str(p) for p in paths], spans, c.width, c.height, Path())
 
@@ -679,7 +790,7 @@ class Stage3D:
             for word in block['words']:
                 if word['role'] == 'hero':
                     local = np.array([word['x']+word['width']/2, word['baseline']+word['cap']/2, RIBBON_DEPTH, 1.])
-                    stops.append((word['start'], (block['placement']@local)[:3], word['color'], block['placement'][:3, 2]))
+                    stops.append((word['start'], (block['placement']@word['frame']@local)[:3], word['color'], block['placement'][:3, 2]))
         if len(stops) < 2:
             return None
         stops.sort(key=lambda stop: stop[0])
@@ -740,7 +851,7 @@ class Stage3D:
         start, end = block['hold']
         u = (t-start)/max(1e-3, end-start)
         middle = (block['start']+block['end'])/2
-        target = block['focus']+block['cruise']*CRUISE*(t-middle)
+        target = block['focus']+block['cruise']*(t-middle)
         eye = target+block['view']*block['distance']*(1-HOLD_DOLLY*u)+block['side']*.1*math.sin(t*.4)*block['drift']
         return eye, target
 
@@ -757,7 +868,14 @@ class Stage3D:
             eye = old_eye+(eye-old_eye)*u+np.array([0., 1., 0.])*arc*travel*ARC_LIFT
             eye = eye+normalized(eye-target)*arc*travel*ARC_PULL
             target = old_target+(target-old_target)*u
-        return eye, target, number
+        roll = block['roll']
+        if number and t < block['move']+MOVE:
+            roll = blocks[number-1]['roll']+(roll-blocks[number-1]['roll'])*ease((t-block['move'])/MOVE)
+        forward = normalized(target-eye)
+        angle = math.radians(roll)
+        up = np.array([0., 1., 0.])
+        up = up*math.cos(angle)+np.cross(forward, up)*math.sin(angle)+forward*np.dot(forward, up)*(1-math.cos(angle))
+        return eye, target, number, up
 
     # Drawing.
 
@@ -778,8 +896,8 @@ class Stage3D:
         c = self.c
         blocks = self.plan()
         gl = gl_stage((c.width, c.height))
-        eye, target, current = self.camera(t)
-        view = look_at(eye, target)
+        eye, target, current, up = self.camera(t)
+        view = look_at(eye, target, up)
         camera = self.projection@view
         gl.begin()
         palette = blocks[current]['palette']
@@ -822,6 +940,9 @@ class Stage3D:
         """Local transform of a landing word (or letter) about its baseline anchor."""
         cap = word['cap']
         settled = overshoot(progress)
+        if word.get('bouncy'):
+            s = max(.01, elastic(progress))
+            return translation(0, (1-smooth(progress))*cap*.7)@np.diag((s, s, 1., 1.))
         kind = 'pop' if word['role'] == 'hero' and block['entrance'] in ('rise',) else block['entrance']
         if kind == 'flip':
             return rotation(pitch=-95*(1-smooth(progress)))
@@ -843,7 +964,7 @@ class Stage3D:
             return []
         size = max(FONT_LIMITS[0], min(EFFECT_FONT, round(REFERENCE*word['scale']*self.ppu)))
         k = REFERENCE*word['scale']/size
-        font = role_font(word['font'], size)
+        font = stage_font(word['font'], size)
         ascent, descent = font.getmetrics()
         pad = max(6, round(size*.14))
         side, top, bottom = round(size*.6), round(size*1.1), round(size*.5)
@@ -864,7 +985,7 @@ class Stage3D:
         width, height = texture.size
         middle = font.getlength(word['text'])*k/2
         sway = rotation(yaw=math.sin(t*.7+word['index'])*5*smooth(max(0., t-word['start'])/2))
-        model = (block['placement']@translation(word['x']+middle, word['baseline'], 0.)@sway
+        model = (block['placement']@word['frame']@translation(word['x']+middle, word['baseline'], 0.)@sway
                  @translation((width/2-side-pad)*k-middle, (top+pad+ascent-height/2)*k, 0.)@scaling(width*k, height*k))
         return [(model, texture, opacity, (1., 1., 1.))]
 
@@ -873,20 +994,24 @@ class Stage3D:
             return self.effect_items(gl, block, word, t, opacity)
         size = max(FONT_LIMITS[0], min(FONT_LIMITS[1], round(REFERENCE*word['scale']*self.ppu)))
         k = REFERENCE*word['scale']/size
-        letters = word['motion'] == 'wave' or word['letter'] is not None
+        letters = word['motion'] in ('wave', 'bounce') or word['letter'] is not None or word.get('bouncy')
         pieces = list(enumerate(word['text'])) if letters else [(None, word['text'])]
-        font = role_font(word['font'], size)
+        font = stage_font(word['font'], size)
+        entry, stagger = (BOUNCE_ENTRY, BOUNCE_STAGGER) if word.get('bouncy') else (ENTRY, LETTER_STAGGER)
+        colors = word.get('letter_colors')
         items = []
         for number, text in pieces:
             if number is not None and (number == word['letter'] or not text.strip()):
                 continue
             offset = font.getlength(word['text'][:number])*k if number is not None else 0.
-            delay = (number or 0)*LETTER_STAGGER
-            progress = min(1., (t-word['start']+ENTRY_LEAD-delay)/ENTRY)
+            delay = (number or 0)*stagger
+            progress = min(1., (t-word['start']+ENTRY_LEAD-delay)/entry)
             if progress <= 0:
                 continue
-            key = ('word', text, word['font'], size, word['color'])
-            sprite = gl.texture(key, lambda text=text: text_sprite(text, word['font'], size, word['color'])[0])
+            color = colors[number % len(colors)] if colors and number is not None else word['color']
+            sweet = bool(word.get('sweet'))
+            key = ('word', text, word['font'], size, color, sweet)
+            sprite = gl.texture(key, lambda text=text, color=color: text_sprite(text, word['font'], size, color, sweet)[0])
             pad = max(6, round(size*.14))
             ascent = font.getmetrics()[0]
             width, height = sprite.size
@@ -896,8 +1021,9 @@ class Stage3D:
             local = self.motion(word, t, beat, number, anchor_x=glyph_width/2)
             local = local@self.entrance(block, word, progress, glyph_width/2)
             alpha = smooth(progress*2.2)*opacity
-            base = block['placement']@translation(*anchor, 0.)@local@translation(relative[0]-glyph_width/2, relative[1], 0.)
-            if word['role'] == 'hero':
+            base = (block['placement']@word['frame']@translation(*anchor, 0.)@local
+                    @translation(relative[0]-glyph_width/2, relative[1], 0.))
+            if word['role'] == 'hero' and not sweet:
                 depth = EXTRUDE_DEPTH*word['cap']
                 for layer in range(EXTRUDE_LAYERS, 0, -1):
                     shade = .22+.25*(1-layer/EXTRUDE_LAYERS)
@@ -914,6 +1040,9 @@ class Stage3D:
         settle = smooth(age/.6)
         if word['motion'] == 'wave' and letter is not None:
             return translation(0, math.sin(t*4.2-letter*.7)*cap*.09*settle)
+        if word['motion'] == 'bounce' and letter is not None:
+            hop = abs(math.sin(t*3.2-letter*.55))
+            return translation(0, hop*cap*.14*settle)@rotation(roll=math.sin(t*3.2-letter*.55)*7*settle)
         if word['motion'] == 'pulse':
             s = 1+.09*beat*settle+.03*math.sin(t*3.1)*settle
             return translation(0, cap/2)@np.diag((s, s, 1., 1.))@translation(0, -cap/2)
@@ -940,7 +1069,7 @@ class Stage3D:
             scale = size*pose['scale']*grow
             if scale <= 1e-4:
                 continue
-            model = (block['placement']@translation(*(center+np.array([pose['dx'], pose['dy'], pose['dz']])*size))
+            model = (block['placement']@word['frame']@translation(*(center+np.array([pose['dx'], pose['dy'], pose['dz']])*size))
                      @rotation(roll=pose['angle'])@scaling(scale, scale))
             items.append((model, texture, pose['alpha']*opacity*smooth(progress*2), (1., 1., 1.)))
         return items

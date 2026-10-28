@@ -175,8 +175,10 @@ class SceneMix:
         self.engines = {}
         for camera, only in lines.items():
             if camera == 'blocks':
-                crowns = {i: catalog[f['scene']]['particles'] for f in self.flows if f['camera'] == 'blocks' for i in range(f['start'], f['end'])}
-                self.engines[camera] = Stage3D(c, melody, rhythm, only=only, breaks={f['start'] for f in self.flows}, crowns=crowns)
+                staged = [(i, catalog[f['scene']]) for f in self.flows if f['camera'] == 'blocks' for i in range(f['start'], f['end'])]
+                self.engines[camera] = Stage3D(c, melody, rhythm, only=only, breaks={f['start'] for f in self.flows},
+                                               crowns={i: scene['particles'] for i, scene in staged},
+                                               layouts={i: scene['layout'] for i, scene in staged})
             else:
                 self.engines[camera] = RealtimeTypography(c, melody, speed, rhythm, dict(options, camera=camera), only=only)
         self.stage = self.engines.get('blocks')

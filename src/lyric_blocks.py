@@ -67,7 +67,7 @@ def partitions(widths, rows):
     return cuts[::-1]
 
 
-def justify(sizes, groups, width=1.):
+def justify(sizes, groups, width=1., leading=LEADING):
     """Rows scaled to `width`: [(scale, top, [x of each word])] and the total height.
     `sizes` holds (natural width, cap height) per word at one reference size."""
     rows, top = [], 0.
@@ -82,8 +82,8 @@ def justify(sizes, groups, width=1.):
             xs.append(x*scale)
             x += w+gap
         rows.append((scale, top, xs))
-        top += cap*scale*(1+LEADING)
-    return rows, top-rows[-1][0]*max(h for _, h in sizes[groups[-1][0]:groups[-1][1]])*LEADING
+        top += cap*scale*(1+leading)
+    return rows, top-rows[-1][0]*max(h for _, h in sizes[groups[-1][0]:groups[-1][1]])*leading
 
 
 def line_rows(lines, widths):
@@ -102,8 +102,9 @@ def line_rows(lines, widths):
         yield list(rows)
 
 
-def layout_block(sizes, ratio=TARGET_RATIO, width=1., lines=None):
-    """Row breaks and placement for one block of words; `lines` holds each sung line's word count.
+def layout_block(sizes, ratio=TARGET_RATIO, width=1., lines=None, leading=LEADING):
+    """Row breaks and placement for one block of words; `lines` holds each sung line's word count and
+    `leading` the gap between rows as a share of the taller row's cap height.
 
     Returns dict(rows=[(start, end)], words=[dict(row, x, y, scale)], width, height), where
     y is the top of the word's row and scale multiplies the reference size."""
@@ -117,7 +118,7 @@ def layout_block(sizes, ratio=TARGET_RATIO, width=1., lines=None):
         candidates += list(line_rows(lines, widths))
     best = None
     for groups in candidates:
-        placed, height = justify(sizes, groups, width)
+        placed, height = justify(sizes, groups, width, leading)
         heights = sorted(scale*max(h for _, h in sizes[a:b]) for (scale, _, _), (a, b) in zip(placed, groups))
         middle = heights[len(heights)//2]
         cost = abs(math.log(height/width/ratio))
