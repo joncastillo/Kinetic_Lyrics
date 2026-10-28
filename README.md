@@ -1,97 +1,192 @@
 # Kinetic_Lyrics
 
-Generate a music video directly from audio files (like MP3) through AI capabilities.
+Kinetic Lyrics turns a song (an MP3 or other audio file) into a lyric music video.
 
-Kinetic Lyrics aligns supplied lyrics to a song, plans typography and scene art with a
-local LLM, generates illustrations with a local image model, reviews them with a local
-vision model, and renders a kinetic-typography video with particle transitions.
-Everything runs locally, but requires a capable GPU. The goal of this project is to 
-achieve visually rich kinetic typography comparable to those manually done using graphic
-design tools such as Adobe After Effects.
+It lines your lyrics up with the singing, asks a local language model to plan the
+typography and scenes, paints illustrations with a local image model, has a vision
+model check the artwork, and then renders a kinetic-typography video with particle
+transitions. Everything runs on your own machine, so you will need a capable GPU. The
+aim is to reach the kind of rich, hand-crafted motion type that designers usually
+build by hand in tools such as Adobe After Effects.
+
+## How a video is made
+
+```mermaid
+flowchart TD
+    A[Audio file] --> B[Align lyrics to the vocals]
+    L[Lyrics, optional] --> B
+    B --> C[Measure vocal onsets,<br/>melody and rhythm]
+    C --> D[Turn lyrics into<br/>illustration subjects]
+    D --> E[Generate illustrations<br/>with the image model]
+    S[Style references] --> E
+    E --> F[Remove backgrounds<br/>to make cutouts]
+    F --> G{You review<br/>the artwork}
+    G -- replace or regenerate --> E
+    G -- approve --> H[Plan typography<br/>and motion]
+    H --> I[Render frames and<br/>encode the video]
+    I --> V[Finished MP4]
+```
+
+If you leave the lyrics out, the first step transcribes them from the audio instead.
+Timings, audio analysis and artwork are saved in the project folder, so a rebuild
+after you swap an image reuses them instead of starting again from scratch.
 
 ## Requirements
 
-- Windows with an NVIDIA CUDA GPU (24 GB VRAM recommended)
-- Python 3.12
-- FFmpeg on `PATH` (NVENC is used when available)
-- [Ollama](https://ollama.com) with a text model, plus a vision model for artwork review
+- Windows with an NVIDIA CUDA GPU. 24 GB of VRAM is recommended.
+- Python 3.12.
+- FFmpeg on your `PATH`. NVENC hardware encoding is used when it is available.
+- [Ollama](https://ollama.com) with a text model, plus a vision model for reviewing
+  the artwork.
 
 ## Setup
+
+Run the setup script once from the project folder:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File setup.ps1
 ```
 
-This creates `.venv`, installs CUDA PyTorch and the dependencies in
-`requirements.txt`. Model weights download on first use into
-`KINETIC_LYRICS_MODEL_CACHE` (default `~/.cache/kinetic-lyrics`). Set
-`KINETIC_LYRICS_OUTPUT` to choose where projects are written.
+The script creates a `.venv` folder, installs the CUDA build of PyTorch, and then
+installs everything listed in `requirements.txt`. Model weights are not downloaded
+during setup. They download the first time each model is used, and they are stored
+in Ollama's model folder: the one named by `OLLAMA_MODELS`, or `~/.ollama/models`
+if that variable is not set. If you would rather keep them somewhere else, set
+`KINETIC_LYRICS_MODEL_CACHE` to that folder. To choose where your projects are
+written, set `KINETIC_LYRICS_OUTPUT`.
+
+## Hugging Face
+
+The image and speech models come from [Hugging Face](https://huggingface.co). The
+default models are public, so you do not need an account to get started. A few of
+the optional image models are **gated**, which means you have to accept their terms
+on the model page and give the app an access token before they will download.
+
+| Model | Used for | Access |
+|---|---|---|
+| `Qwen/Qwen-Image-2512` (default) | Illustrations | Public |
+| `black-forest-labs/FLUX.2-klein-4B` | Illustrations | Public |
+| `Tongyi-MAI/Z-Image-Turbo` | Illustrations | Public |
+| [`black-forest-labs/FLUX.2-klein-9B`](https://huggingface.co/black-forest-labs/FLUX.2-klein-9B) | Illustrations | **Gated**, non-commercial licence |
+| [`black-forest-labs/FLUX.1-schnell`](https://huggingface.co/black-forest-labs/FLUX.1-schnell) | Illustrations | **Gated** |
+| [`black-forest-labs/FLUX.2-dev`](https://huggingface.co/black-forest-labs/FLUX.2-dev) | Illustrations | **Gated**, non-commercial licence |
+| `Qwen/Qwen3-ASR-1.7B-hf`, `Qwen/Qwen3-ASR-0.6B-hf` | Transcription | Public |
+| `Qwen/Qwen3-ForcedAligner-0.6B-hf` | Word timing | Public |
+| `nvidia/parakeet-tdt-0.6b-v3` | Transcription | Public |
+| Whisper large-v3 / turbo | Transcription and word timing | Public |
+
+To use a gated model:
+
+1. Sign in at huggingface.co, open the model page linked above and accept the terms.
+   Access is granted straight away.
+2. Create a token with **Read** access at https://huggingface.co/settings/tokens.
+3. Save the token in the `HF_TOKEN` user environment variable, then open a new
+   terminal so that it is picked up:
+
+   ```powershell
+   [Environment]::SetEnvironmentVariable('HF_TOKEN', 'hf_...', 'User')
+   ```
+
+Please use `HF_TOKEN` rather than `hf auth login`. The app points `HF_HOME` at the
+model folder, so it cannot see a token that `hf auth login` saved in its default
+location. If a gated model fails with an "Access required" message, make sure you
+accepted its terms with the same account that owns the token.
 
 ## Project layout
 
-- `src/` — Python implementation (CLI, Studio server, renderer, model workers)
-- `ui/` — Studio web front end (HTML, CSS, JS)
-- `tests/` — run with `python -m unittest discover -s tests`
-- `assets/`, `particles/`, `shaders/` — images, effect recipes and GLSL shaders
+- `src/` holds the Python code: the command line, the Studio server, the renderer
+  and the model workers.
+- `ui/` holds the Studio web front end (HTML, CSS and JavaScript).
+- `tests/` holds the test suite, which you can run with
+  `python -m unittest discover -s tests`.
+- `assets/`, `particles/` and `shaders/` hold images, effect recipes and GLSL shaders.
 
 ## Studio
+
+Studio is the easiest way to make a video. Start it with:
 
 ```powershell
 kinetic-studio.cmd
 ```
 
-Opens a local web UI at http://127.0.0.1:8765. Upload audio, paste lyrics (or leave
-them blank to transcribe), pick style references, models and effects, then review,
-replace or regenerate artwork before the video renders. Finished videos can be
-partially rebuilt after swapping an image, and earlier exports stay available.
+This opens a web page on your own computer at http://127.0.0.1:8765. Upload your
+audio and paste the lyrics, or leave the lyrics blank and let Studio transcribe them.
+Then pick your style references, models and effects. Before the video renders, you
+can review each illustration and replace or regenerate any you do not like. After a
+video is finished you can swap a single image and rebuild only the parts that
+changed, and your earlier exports remain available.
 
 ## Command line
+
+You can also make a video without opening Studio:
 
 ```powershell
 kinetic-lyrics.cmd song.mp3 lyrics.txt --theme "bright, uplifting" -o output\song.mp4
 ```
 
-Useful options: `--style-reference a.png b.png`, `--illustrations art.png ...`,
-`--no-illustrations`, `--illustration-lines N`, `--language tl`, `--encoder libx264`,
-`--render-workers N`, `--reading-flow realtime|preview`, `--kinetic '{...}'`,
-`--effect-speeds '{"glass-shatter": 0.5}'`. Run with `--help` for the full list.
+Some options you may find useful:
+
+- `--style-reference a.png b.png` gives the image model pictures to match the style of.
+- `--illustrations art.png ...` uses your own artwork, and `--no-illustrations`
+  makes a typography-only video.
+- `--illustration-lines N` sets how many lyric lines share each illustration.
+- `--language tl` sets the lyric language.
+- `--encoder libx264` and `--render-workers N` control encoding and how many CPU
+  workers render frames.
+- `--reading-flow realtime|preview` chooses how words appear (see below).
+- `--kinetic '{...}'` and `--effect-speeds '{"glass-shatter": 0.5}'` fine-tune the
+  motion and set the speed of individual effects.
+
+Run `kinetic-lyrics.cmd --help` to see every option.
 
 ## Real-time kinetic flow
 
-The default reading flow writes each word exactly as it is sung:
+By default, each word appears at the moment it is sung.
 
-- **Panning or still camera.** By default every illustration is stitched into one seamless
-  collage and the camera glides through it at constant speed, writing each line where the
-  camera is heading. The still camera instead frames each line in a shape and plays the
-  exit animation when its space is needed again.
-- **Font mix by role.** Small typewriter function words, heavy content words and huge
-  condensed hero words. Hero words can form through particle and material lettering.
-- **Melody and instruments.** Demucs separates the vocals and instruments. Line starts snap to
-  the measured vocal onset, high notes turn hero words hot, fast passages snap in, and some
-  lines pulse with their dominant instrument (never the voice).
-- **Backdrops and traces.** Whole-line marquees, echo and giant words, glowing underlines,
-  a ribbon of translucent wavy bands flowing from hero word to hero word, translucent shapes
-  fading in behind hero words, and words that glow in time with an instrument.
-- **Readable colour.** Each entrance recipe's main lettering colours are measured, and the
-  backdrop actually behind each line is checked so lettering never blends into it. Material
-  lettering (oak, maple, gold filigree, pearl lace, embroidery) carries a black outline.
-- **AI effect choice.** Optionally a local model picks each line's entrance from a shortlist
-  retrieved for readability on that line's backdrop and relevance to its meaning and scene.
+```mermaid
+flowchart LR
+    S[Song] --> D[Demucs splits<br/>vocals and instruments]
+    D --> O[Vocal onsets] --> T[Line start times]
+    D --> M[Melody] --> H[Hero word colour<br/>and pace]
+    D --> I[Instruments] --> P[Pulses and glows]
+    T & H & P --> R[Each frame]
+```
 
-Everything is adjustable in Studio's **Kinetic effects** panel and saved in profiles,
-including a separate particle speed for each effect. `--reading-flow preview` keeps the
-earlier style where the whole line appears before it is sung.
+- **Panning or still camera.** By default, all the illustrations are stitched into
+  one seamless collage, and the camera glides through it at a steady speed. Each line
+  is written where the camera is heading. If you choose the still camera instead, each
+  line is framed in a shape, and it plays its exit animation when that space is needed
+  again.
+- **Fonts chosen by role.** Small function words are set in a typewriter face, content
+  words are heavy, and the most important "hero" words are huge and condensed. Hero
+  words can also form out of particles or materials.
+- **Melody and instruments.** Demucs separates the vocals from the instruments. Each
+  line starts exactly when the voice comes in, high notes make hero words glow hot,
+  fast passages snap into place, and some lines pulse with their main instrument. The
+  voice itself never drives these pulses.
+- **Backdrops and traces.** Whole lines can scroll past as marquees, and words can
+  echo or grow giant behind the text. Glowing underlines, a ribbon of translucent wavy
+  bands that flows from one hero word to the next, soft shapes behind hero words, and
+  words that glow in time with an instrument all add depth.
+- **Readable colour.** The renderer measures the colours of each entrance effect and
+  checks the backdrop behind each line, so the lettering never blends into the
+  background. Material lettering, such as oak, maple, gold filigree, pearl lace and
+  embroidery, always gets a black outline.
+- **AI effect choice.** If you turn this on, a local model picks each line's entrance
+  effect. It chooses from a shortlist of effects that stay readable on that line's
+  backdrop and suit its meaning and scene.
 
-Exports are encoded and tagged as BT.709, and each frame is a pure function of time, so
-renders split across CPU workers are identical to single-core output.
+You can adjust all of this in Studio's **Kinetic effects** panel and save your
+settings as profiles, including a separate particle speed for each effect. If you
+prefer the earlier style, where the whole line appears before it is sung, use
+`--reading-flow preview`.
 
-## Style reference
-
-`assets/default-style-reference.jpg` is the bundled default art style
-reference. Studio preloads it for new sessions and the command line uses it when no
-`--style-reference` is given. Pass `--no-default-style-references` to disable it.
+Videos are encoded and tagged as BT.709. Every frame depends only on its timestamp,
+so a video rendered across several CPU workers is identical to one rendered on a
+single core.
 
 ## Particle effects
 
-Entrance and exit effects are JSON recipes in `particles/`. See
-[`particles/README.md`](particles/README.md) for the format.
+The entrance and exit effects are small JSON recipes stored in `particles/`. The
+[`particles/README.md`](particles/README.md) guide explains how they work and how to
+add your own.
