@@ -4,10 +4,8 @@ Lines that are sung together form a squarish justified block (see lyric_blocks).
 block stands somewhere in a 3D space, turned a little towards or away from the viewer.
 The camera never stops: it cruises across the current block while it is sung, then
 speeds up along an arc to the next one, pulling back on the way so earlier blocks (which
-stay where they were written) come back into view. Behind everything lies one continuous
-collage of every illustration, stitched along the camera's path like the 2D panning
-canvas and bent like a sheet of curved paper: gentle folds fixed in the world, shaded on
-their slopes, that turn and shift with parallax as the camera glides past.
+stay where they were written) come back into view. A flat screen aligned backdrop
+joins adjacent paintings only at a narrow moving seam, without folded surfaces.
 Words fly into their slots as they are sung (flipping up, swinging in, rising or
 dropping), hero words are extruded with a few stacked layers, some words keep moving
 (a letter wave, a beat pulse, a slow tilt), and themed words get a small animated
@@ -27,8 +25,7 @@ rolls into a tilt. Which side, which way the vertical word reads, how the fonts 
 tilt and the zoom vary from block to block. A scene effect
 can own the block's particle effects (`crowns`, such as maple and oak for the tree canopy);
 the block director then picks one of them per block. When the video mixes scenes, `only` limits
-the stage to the lines of the song sections it films. Illustrations hang far behind as planes
-that shift with parallax. Every frame is a pure function of time, so renders split
+the stage to the lines of the song sections it films. Every frame is a pure function of time, so renders split
 across processes exactly.
 """
 from __future__ import annotations
@@ -43,7 +40,7 @@ import random
 import threading
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 import glyph_art
 from lyric_blocks import TARGET_RATIO, group_lines, layout_block
@@ -82,9 +79,7 @@ DRAW_REACH = 3.
 EXTRUDE_LAYERS, EXTRUDE_DEPTH = 7, .07
 ORNAMENT_SIZE, FLOAT_SIZE = 1.12, .9
 SLOT_PICTURE = 1.45  # a picture beside a word is drawn larger than its slot, overlapping its neighbours a little
-BACKDROP_DEPTH, BACKDROP_TINT = 8., .62
-CHUNK, CHUNK_LIMIT = 1024, 16
-PAPER_STRIPS, PAPER_DEPTH, PAPER_FOLD, PAPER_SHADE = 14, 1.1, .16, .55
+BACKDROP_TINT = .62
 MOTES = 36
 SHAPE_DEPTHS = (-3.2, -.6)
 SHAPE_REACH = 1.5
@@ -841,29 +836,23 @@ class Stage3D:
                  rng.uniform(.025, .07), rng.uniform(0, math.tau), rng.uniform(.4, 1.2)) for _ in range(MOTES)]
 
     def plan_world(self):
-        """Screen aligned art behind the 3D lettering; one painting owns each frame."""
+        """Whether the screen aligned artwork backdrop is active behind the 3D lettering."""
         c = self.c
         paths = list(getattr(c, 'illustration_paths', None) or [])
         if not paths or c.artwork_mode not in ('fullscreen', 'verse'):
             return None
         return [str(p) for p in paths]
 
-    def backdrop_image(self, index):
-        """A little overscan allows a restrained pan without exposing an image edge."""
-        with Image.open(self.world[index]) as source:
-            return ImageOps.fit(source.convert('RGB'),
-                                (round(self.c.width*1.12), round(self.c.height*1.12)),
-                                Image.Resampling.LANCZOS).convert('RGBA')
-
     def backdrop(self, gl, t):
-        starts = list(getattr(self.c, 'art_starts', None) or [0.])
-        index = max(0, min(len(self.world)-1, bisect.bisect_right(starts, t)-1))
-        texture = gl.texture(('backdrop', index), lambda: self.backdrop_image(index))
-        # Gentle opposite motion to the foreground suggests depth; there is no world plane to fold or overlap.
-        pan = .025*math.sin(t*.16+index)
-        tilt = .025*math.sin(t*.12+index*1.7)
-        gl.quad(texture, scaling(2., 2.), 1., (BACKDROP_TINT,)*3,
-                (.055+pan, .055+tilt, .89, .89))
+        # The shared compositor stitches adjacent paintings at one narrow seam. The flat texture
+        # sits behind the perspective lettering, so no folded 3D surfaces can double-expose it.
+        starts = self.c.art_starts
+        current = max(0, min(len(self.c.art)-1, bisect.bisect_right(starts, t)-1))
+        if current and t < starts[current]+self.c.art_crossing(current):
+            texture = gl.transient(self.c.background(0, t, veil=False).convert('RGBA'))
+        else:
+            texture = gl.texture(('backdrop', current), lambda: self.c.art[current].convert('RGBA'))
+        gl.quad(texture, scaling(2., 2.), 1., (BACKDROP_TINT,)*3)
 
     def plan_shapes(self):
         """Outlined or translucent shapes around the blocks on strong bass notes (or block starts without
@@ -1022,24 +1011,27 @@ class Stage3D:
             return []
         return [band for run in self.ribbon for band in self.run_bands(run, t, eye)]
 
-    def ribbon_heads(self, t):
-        """The white point at the leading end of each active ribbon run."""
+    def ribbon_heads(self, t, eye):
+        """Each visible wisp has its own head at the leading end of the ribbon."""
         if not self.options['traces'] and self.options['geometry'] <= 0:
             return []
         result = []
-        for run in self.ribbon:
+        energy, clock, tune = self.pulse(t)
+        presence = self.partner_presence(t)
+        for number, run in enumerate(self.ribbon):
             if t > run['keys'][0][-1]+.3:
                 continue
-            head = thread_distance(run['keys'], t)
+            head = self.head_at(number, t)
             if head is None:
                 continue
-            travelled = 0.
-            for p, q in run['segments']:
-                length = float(np.linalg.norm(q-p))
-                if travelled+length >= head and length > 1e-6:
-                    result.append(p+(q-p)*max(0., min(1., (head-travelled)/length)))
-                    break
-                travelled += length
+            point, tangent = head
+            side = normalized(np.cross(tangent, eye-point))
+            up = normalized(np.cross(side, tangent))
+            for wisp, opacity in ((0, 1.), (1, presence)):
+                if opacity <= .001:
+                    continue
+                position = point+self.wisp_offset(0., t, wisp, side, up, clock, self.dance(t, energy))
+                result.append((position, opacity, shifted((1., .96, .82), (tune-.5)*.16+wisp*.28)))
         return result
 
     # The two wisps: they dance to the stems.
@@ -1062,13 +1054,13 @@ class Stage3D:
         return self._music
 
     def pulse(self, t):
-        """(energy 0..1.5 from recent hits, a clock that jumps ahead on every hit, pitch rank 0..1 of the tune)."""
+        """(soft hit glow, continuous motion clock, pitch rank of the vocal melody)."""
         music = self.music()
         before = music['times'] <= t
         ages = t-music['times'][before]
         strengths = music['strengths'][before]
-        energy = float(np.sum(strengths*np.exp(-ages/.18)))
-        clock = t*.5+float(np.sum(strengths*.45*(1-np.exp(-ages/.3))))
+        energy = float(np.sum(strengths*np.minimum(1., np.maximum(0., ages)/.16)*np.exp(-ages/.55)))
+        clock = t*.7
         index = bisect.bisect_right(music['tune_times'], t)-1
         if index < 0:
             tune = .5
@@ -1078,9 +1070,46 @@ class Stage3D:
             tune = previous+(here-previous)*smooth((t-music['tune_times'][index])/.4)
         return min(1.5, energy), clock, tune
 
+    def duet_windows(self):
+        """Short visits start and end on vocal notes or rhythm hits within an active ribbon run."""
+        if getattr(self, '_duet_windows', None) is not None:
+            return self._duet_windows
+        music = self.music()
+        hits = [(float(t), float(s)) for t, s in zip(music['times'], music['strengths']) if s >= .55]
+        notes = music['tune_times']
+        events = []
+        for i, note in enumerate(notes):
+            change = abs(music['tune'][i]-music['tune'][i-1]) if i else 0.
+            accent = max((strength for time, strength in hits if abs(time-note) <= .22), default=0.)
+            if change >= .07 or accent >= .6:
+                events.append((float(note), change+accent*.5))
+        if not events:
+            events = hits
+        windows = []
+        for run in self.ribbon:
+            first, last = run['keys'][0][0], run['keys'][0][-1]
+            local = [(time, strength) for time, strength in events if first+.6 <= time <= last-2.7]
+            for start, strength in local:
+                if strength < .08 or (windows and start-windows[-1][1] < 6.):
+                    continue
+                ends = [time for time, _ in events if start+2.5 <= time <= min(last, start+4.8)]
+                if not ends:
+                    ends = [time for time, _ in hits if start+2.5 <= time <= min(last, start+4.8)]
+                if not ends:
+                    continue
+                windows.append((start, ends[0]))
+        self._duet_windows = windows
+        return windows
+
+    def partner_presence(self, t):
+        for start, end in self.duet_windows():
+            if start <= t <= end:
+                return smooth((t-start)/.35)*smooth((end-t)/.5)
+        return 0.
+
     def dance(self, t, energy):
-        """How tightly the two wisps braid: a slow recurring duet, drawn tighter by strong hits."""
-        return min(1., .25+.45*(.5+.5*math.sin(t*.42))**3+.5*energy)
+        """The two smooth paths draw closer through the partner's gradual arrival."""
+        return .18+.62*self.partner_presence(t)
 
     def wisp_offset(self, distance, t, wisp, side, up, clock, dance):
         """Where a wisp sits around the shared path: the pair circle each other in a helix whose twist
@@ -1116,12 +1145,16 @@ class Stage3D:
             groups.append(samples)
         energy, clock, tune = self.pulse(t)
         dance = self.dance(t, energy)
+        presence = self.partner_presence(t)
         bands = []
         for samples in groups:
             begin, finish = samples[0][1], samples[-1][1]
             for wisp in (0, 1):
+                opacity = 1. if wisp == 0 else presence
+                if opacity <= .001:
+                    continue
                 lag = BAND_WIDTH*6*wisp  # the partner follows a moment behind
-                hue = (tune-.5)*.12+wisp*.06
+                hue = (tune-.5)*.18+wisp*.2
                 for band in range(BANDS if wisp == 0 else BANDS-1):
                     rows = []
                     for number, (point, distance, color) in enumerate(samples):
@@ -1135,12 +1168,12 @@ class Stage3D:
                         phase = distance/(BAND_WIDTH*16)+clock+band*1.7
                         centre = point+self.wisp_offset(distance, t, wisp, side, up, clock, dance)*pinch
                         offset = ((band-(BANDS-1)/2)*1.2+math.sin(phase)*1.)*BAND_WIDTH*pinch*.8
-                        width = (1.+.8*math.sin(phase*.6+band))*BAND_WIDTH*1.7*pinch*(1+.35*energy)
+                        width = (1.+.8*math.sin(phase*.6+band))*BAND_WIDTH*1.7*pinch
                         tint = shifted(color, hue)
                         rows.append((*(centre+side*(offset-width/2)), 0., *tint))
                         rows.append((*(centre+side*(offset+width/2)), 1., *tint))
                     if len(rows) >= 4:
-                        bands.append(np.array(rows))
+                        bands.append((np.array(rows), opacity))
         return bands
 
     def wisp_particles(self, t):
@@ -1168,20 +1201,24 @@ class Stage3D:
                 burst = 5 if len(hits) else 1
                 b_energy, b_clock, _ = self.pulse(born)
                 b_dance = self.dance(born, b_energy)
+                presence = self.partner_presence(born)
                 for j in range(burst*2):
                     rng = random.Random(round(born*30)*97+j*13+number)
                     wisp = j % 2
+                    if wisp and presence <= .001:
+                        continue
                     side = normalized(np.cross(tangent, np.array([0., 0., 1.])))
                     up = normalized(np.cross(side, tangent))
                     origin = point+self.wisp_offset(0., born, wisp, side, up, b_clock, b_dance)
                     velocity = np.array([rng.uniform(-1, 1), rng.uniform(-.4, 1.), rng.uniform(-1, 1)])*(.3+.9*(burst > 1))
                     position = origin+velocity*age-np.array([0., .12, 0.])*age*age
                     fade = (1-smooth(age/1.2))*smooth(age/.05)
-                    tint = shifted(colour*.6+.4, (tune-.5)*.12+wisp*.06)
-                    result.append((position, BAND_WIDTH*(2.6 if burst > 1 else 1.5)*(1-.5*age), fade, tint))
+                    tint = shifted(colour*.6+.4, (tune-.5)*.18+wisp*.2)
+                    result.append((position, BAND_WIDTH*(2.6 if burst > 1 else 1.5)*(1-.5*age),
+                                   fade*(presence if wisp else 1.), tint))
             # Where the two wisps cross on the head's stretch of path, a spark flares.
             head = self.head_at(number, t)
-            if head is not None and self.dance(t, energy) > .6 and math.cos(clock*1.6) > .96:
+            if head is not None and self.partner_presence(t) > .6 and energy > .35 and math.cos(clock*1.6) > .8:
                 point, _ = head
                 result.append((point, BAND_WIDTH*5, .9, (1., 1., 1.)))
         return result
@@ -1215,13 +1252,14 @@ class Stage3D:
         block = blocks[number]
         eye, target = self.hold_pose(block, t)
         if number and t < block['move']+MOVE:
-            u = ease((t-block['move'])/MOVE)
-            old_eye, old_target = self.hold_pose(blocks[number-1], t)
-            eye = old_eye+(eye-old_eye)*u
-            target = old_target+(target-old_target)*u
+            u = max(0., min(1., (t-block['move'])/MOVE))
+            old_eye, old_target = self.hold_pose(blocks[number-1], block['move'])
+            next_eye, next_target = self.hold_pose(block, block['move']+MOVE)
+            eye = old_eye+(next_eye-old_eye)*u
+            target = old_target+(next_target-old_target)*u
         roll = block['shot_roll']
         if number and t < block['move']+MOVE:
-            roll = blocks[number-1]['shot_roll']+(roll-blocks[number-1]['shot_roll'])*ease((t-block['move'])/MOVE)
+            roll = blocks[number-1]['shot_roll']+(roll-blocks[number-1]['shot_roll'])*u
         forward = normalized(target-eye)
         angle = math.radians(roll)
         up = np.array([0., 1., 0.])
@@ -1259,13 +1297,13 @@ class Stage3D:
         for model, texture, opacity, tint in self.shape_fill_items(gl, t):
             gl.quad(texture, camera@model, opacity, tint)
         band = gl.texture('band', band_image)
-        for rows in self.ribbon_bands(t, eye):
-            gl.strip(band, camera, rows, BAND_OPACITY)
+        for rows, opacity in self.ribbon_bands(t, eye):
+            gl.strip(band, camera, rows, BAND_OPACITY*opacity)
         items = []
         beat = self.beat(t)
         dot = gl.texture('dot', soft_dot)
-        for position in self.ribbon_heads(t):
-            items.append((self.billboard(position, view, BAND_WIDTH*4), dot, .95, (1., 1., 1.)))
+        for position, opacity, tint in self.ribbon_heads(t, eye):
+            items.append((self.billboard(position, view, BAND_WIDTH*4), dot, .95*opacity, tint))
         for position, size, opacity, tint in self.wisp_particles(t):
             items.append((self.billboard(position, view, size), dot, opacity, tuple(tint)))
         reach = DRAW_REACH*blocks[current]['distance']

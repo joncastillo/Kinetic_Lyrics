@@ -1,9 +1,9 @@
-"""Real-time kinetic typography on a continuously panning, stitched canvas.
+"""Real-time kinetic typography over one full-frame illustration at a time.
 
-The camera glides across one panorama of every illustration at a constant speed, from the
-first frame to the last. Each line is written onto the canvas ahead of the camera as it is
-sung, sized so it stays fully on screen until its last word, then drifts away with the
-picture. Words use a role-based font mix (small typewriter function words, heavy content
+The typography camera glides at a constant speed from the first frame to the last. Each
+line is written onto its path ahead of the camera as it is sung, sized so it stays fully
+on screen until its last word, then drifts away. Background illustrations remain screen
+aligned so adjacent paintings cannot overlap. Words use a role-based font mix (small typewriter function words, heavy content
 words, huge condensed hero words); hero words form through the line's particle entrance;
 melody drives colour and pace. A per-line backdrop (marquee, echo, giant word...) adds
 variety. Every frame is a pure function of time, so renders split across processes exactly.
@@ -221,7 +221,7 @@ class RealtimeTypography:
         if self.lines is not None:
             return self.lines
         from kinetic_director import PALETTES
-        from world_canvas import CameraPath, WorldCanvas
+        from world_canvas import CameraPath
         c = self.c
         paths = getattr(c, 'illustration_paths', [])
         starts = list(getattr(c, 'art_starts', None) or [0.])
@@ -231,8 +231,6 @@ class RealtimeTypography:
         spans = [(s, starts[i+1] if i+1 < len(starts) else c.duration) for i, s in enumerate(starts)]
         self.still = self.options['camera'] == 'still'
         self.path = CameraPath(spans, 0. if self.still else max(1e-3, self.options['pan_speed'])*c.width, c.duration)
-        if c.artwork_mode in ('fullscreen', 'verse') and paths and not self.still:
-            self.world = WorldCanvas(paths[:len(spans)], spans, c.width, c.height, self.path)
         margin = c.width*MARGIN
         self.lines, previous = [], None
         for index, line in enumerate(c.data):
@@ -365,16 +363,11 @@ class RealtimeTypography:
         left, top = center[0]-c.width/2, center[1]-c.height/2
         base = (math.floor(left), math.floor(top))
         fraction = (left-base[0], top-base[1])
-        if self.world:
-            far = self.world.at(t)  # the picture drifts slower than the text, as a distant layer
-            canvas = self.world.view(round(far[0]-c.width/2-fraction[0]), round(far[1]-c.height/2-fraction[1]),
-                                     c.width+2, c.height+2)
-        else:
-            index = max(0, sum(1 for line in c.data if line['words'][0]['start'] <= t)-1)
-            screen = c.background(index, t, veil=False).convert('RGBA')
-            c.illustration(screen, index, t)
-            canvas = Image.new('RGBA', (c.width+2, c.height+2))
-            canvas.paste(screen, (0, 0))
+        index = max(0, sum(1 for line in c.data if line['words'][0]['start'] <= t)-1)
+        screen = c.background(index, t, veil=False).convert('RGBA')
+        c.illustration(screen, index, t)
+        canvas = Image.new('RGBA', (c.width+2, c.height+2))
+        canvas.paste(screen, (0, 0))
         visible = self.visible(t)
         if visible:
             newest = visible[0][0]

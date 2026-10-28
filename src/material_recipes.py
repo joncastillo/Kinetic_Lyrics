@@ -288,6 +288,14 @@ def lava(F, canvas, t, intensity):
 
 SILK_SHADOW, SILK_BASE, SILK_LIGHT = rgb(140, 78, 84), rgb(228, 196, 150), rgb(255, 247, 228)
 MUCHA_INK = rgb(66, 42, 36)
+MUCHA_SILKS = (
+    (rgb(88, 37, 62), rgb(188, 98, 125), rgb(250, 200, 198)),
+    (rgb(24, 65, 73), rgb(76, 158, 157), rgb(192, 233, 214)),
+    (rgb(93, 57, 33), rgb(202, 146, 77), rgb(255, 226, 157)),
+    (rgb(38, 56, 98), rgb(103, 137, 192), rgb(211, 225, 252)),
+    (rgb(55, 73, 42), rgb(130, 162, 95), rgb(225, 231, 171)),
+    (rgb(79, 47, 86), rgb(168, 112, 170), rgb(238, 207, 235)),
+)
 
 
 def fold(u):
@@ -310,6 +318,18 @@ def silk_pins(F, spacing=.42):
         sag = .35*fold(r*9-np.abs(dx)/F.u*3)
         return hang+sag*.4
     return F.memo('silk-pins', build)
+
+
+def silk_letter_spans(F):
+    """Separate ink columns into glyph slots, including detached dots over i and j."""
+    def build():
+        columns = np.flatnonzero(np.any(F.ink > .35, axis=0))
+        if not len(columns):
+            return [(F.box[0], F.box[2])]
+        cuts = np.flatnonzero(np.diff(columns) > 1)+1
+        groups = [part for part in np.split(columns, cuts) if len(part)]
+        return [(int(part[0]), int(part[-1]+1)) for part in groups]
+    return F.memo('silk-letter-spans', build)
 
 
 def silk_band(F, t, lead, tail=-1e9, amplitude=.3, width=.62, phase=0., offset=0.):
@@ -366,27 +386,76 @@ def paint_silk(F, canvas, t, sdf, height, folds, alpha=1., hem=True, side=None):
 
 
 def mucha_silk(F, canvas, t, intensity):
-    x0, _, x1, _ = F.box
-    lead = x0-F.u*.4+(x1-x0+F.u*1.2)*sm(t, 0, .96)
-    band_sdf, band_folds, band_side = silk_band(F, t, lead, tail=lead-F.u*1.45, amplitude=.32, width=.65)
-    age = (lead-F.px)/F.u
-    enter_letters = smooth(F.px, x0-F.u*.12, x0+F.u*.18)
-    settle = np.maximum(smooth(age, .05, 1.9)*enter_letters, sm(t, .72, .98))
-    arrive = smooth(age, -.08, .08)
-    # The same cloth surface changes from a broad ribbon into the glyph contour as its leading
-    # fold passes. Its hem and creases follow that changing contour rather than appearing later.
-    sdf = mix(band_sdf, F.sdf, settle)
-    pins = silk_pins(F)
-    folds = mix(band_folds, pins*.85+.4*fold(F.X*16-F.Y*5+pins*.7), settle)
-    height = F.u*(.11*folds+.08*np.sqrt(np.clip(-sdf/(F.u*.075), 0, 1)))
-    cov = coverage(sdf)*arrive
-    face = mix(band_side, .7+.3*smooth(np.sin(F.X*11+F.Y*3+pins), -.4, .4), settle)
-    colour, n = satin(F, height, cov, sheen=1.4, side=face)
-    canvas.over(rgb(73, 36, 48), shadow(cov, F, .045, .07, .05, .35))
-    canvas.over(colour, cov)
-    hem = smooth(-sdf, 0, 1.)*(1-smooth(-sdf, F.u*.014, F.u*.028))
-    canvas.over(np.clip(metal(n, rgb(228, 176, 91)), 0, 1), hem*arrive*.85)
-    mucha_lines(F, canvas, sdf, folds, arrive*.6, width=.012)
+    spans = silk_letter_spans(F)
+    for i, (left, right) in enumerate(spans):
+        start = .025+.1*i/max(1, len(spans)-1)
+        progress = sm(t, start, start+.76)
+        if progress <= 0:
+            continue
+        palette = MUCHA_SILKS[i % len(MUCHA_SILKS)]
+        lo = (spans[i-1][1]+left)/2 if i else left-F.u*.42
+        hi = (right+spans[i+1][0])/2 if i+1 < len(spans) else right+F.u*.42
+        # The moving scarf hands its pigment to the glyph along its windward front. Both
+        # surfaces share the same travelling fold phase and palette, so the formed letter
+        # remains chiffon rather than hardening into a bevelled shape.
+        front = left-F.u*.25+(right-left+F.u*.5)*sm(progress, 0, .82)
+        handoff = smooth(front-F.px, F.u*.01, F.u*.22)*sm(progress, .13, .75)
+        scarf_colour, scarf_alpha = letter_scarf(F, t, i, left, right, progress, palette)
+        canvas.over(scarf_colour, scarf_alpha*(1-handoff*.85)*(1-sm(progress, .78, 1)))
+        phase = (F.px-left)/F.u*12-(F.py-F.cy)/F.u*5-t*6+i*1.7
+        folds = .5+.5*np.sin(phase)+.16*np.sin(phase*2.2+1.3)
+        shade = np.clip(folds, 0, 1)
+        cloth = mix(palette[0], palette[1], .45+.45*shade)
+        cloth = mix(cloth, palette[2], .18*smooth(np.sin(phase*1.4), .65, 1.))
+        ink = coverage(F.sdf)*((F.px >= lo) & (F.px < hi))
+        alpha = ink*handoff*(.48+.18*shade)
+        canvas.over(np.clip(cloth, 0, 1), alpha)
+        hem = smooth(-F.sdf, 0, 1.)*(1-smooth(-F.sdf, F.u*.012, F.u*.022))
+        canvas.over(palette[2], hem*handoff*.14*((F.px >= lo) & (F.px < hi)))
+
+
+def letter_scarf(F, t, index, left, right, progress, palette):
+    """The same fine shaded polygon strips used by silk unfurl, scaled to one letter."""
+    from PIL import Image, ImageDraw
+    scale = 2
+    colour_image = Image.new('RGB', (F.W*scale, F.H*scale))
+    alpha_image = Image.new('L', (F.W*scale, F.H*scale))
+    colour_draw, alpha_draw = ImageDraw.Draw(colour_image), ImageDraw.Draw(alpha_image)
+    sections = []
+    head = progress*1.04
+    for step in range(101):
+        along = step/100
+        tau = head-.85*along
+        if tau < -.03:
+            break
+        x = left-F.u*.5+(right-left+F.u)*tau
+        y = F.cy+F.u*(.27*math.sin(tau*5.6+t*4.5+index*1.4)
+                      +.07*math.sin(tau*13-t*6+index*.8))
+        sections.append((x, y, along))
+    for (xa, ya, ua), (xb, yb, ub) in zip(sections, sections[1:]):
+        dx, dy = xb-xa, yb-ya
+        length = math.hypot(dx, dy) or 1.
+        nx, ny = -dy/length, dx/length
+        twist = math.cos((ua*1.5+t*.9+index*.29)*math.pi)
+        taper = math.sin(math.pi*min(1., ua*1.02))**.5*(1-.28*ua)
+        half = F.u*.29*taper*(.16+.84*abs(twist))
+        face = palette[1] if twist > 0 else mix(palette[0], palette[1], .5)
+        sheen = math.exp(-((abs(twist)-.38)/.2)**2)
+        opacity = min(.68, .4/(abs(twist)+.32))*(1-ua**3)
+        for strip in range(6):
+            va, vb = -1+strip/3, -1+(strip+1)/3
+            pleat = .8+.2*math.sin((strip+.5)*2.1+ua*3+t*2+index)
+            color = mix(face, palette[2], .18*sheen)*pleat
+            fill = tuple(int(np.clip(channel*255, 0, 255)) for channel in color)
+            quad = [((xa+nx*half*va)*scale, (ya+ny*half*va)*scale),
+                    ((xa+nx*half*vb)*scale, (ya+ny*half*vb)*scale),
+                    ((xb+nx*half*vb)*scale, (yb+ny*half*vb)*scale),
+                    ((xb+nx*half*va)*scale, (yb+ny*half*va)*scale)]
+            colour_draw.polygon(quad, fill=fill, outline=fill)
+            alpha_draw.polygon(quad, fill=round(255*opacity*pleat), outline=round(255*opacity*pleat))
+    colour = blur(np.asarray(colour_image.resize((F.W, F.H), Image.LANCZOS), dtype=float)/255, .8)
+    alpha = gaussian_filter(np.asarray(alpha_image.resize((F.W, F.H), Image.LANCZOS), dtype=float)/255, .8)
+    return np.clip(colour, 0, 1), np.clip(alpha, 0, 1)
 
 
 @recipe('mucha-silk-unfurl', 'exit', pad=1.1)
@@ -403,26 +472,10 @@ def mucha_unfurl(F, canvas, t, intensity):
 
 @recipe('silk-veil-unveil', 'exit', pad=1.5)
 def silk_unveil(F, canvas, t, intensity):
-    x0, _, x1, _ = F.box
-    lead = x0-F.u*.45+(x1-x0+F.u*1.85)*sm(t, .03, .94)
-    age = (lead-F.px)/F.u
-    unwrap = smooth(age, .03, 1.35)*sm(t, .02, .12)
-    top, top_folds, top_side = silk_band(F, t, lead, lead-F.u*1.65, .32, .39, .2, -.22)
-    bottom, bottom_folds, bottom_side = silk_band(F, t, lead, lead-F.u*1.65, -.29, .39, 2.4, .22)
-    upper = top < bottom
-    ribbon = np.minimum(top, bottom)
-    folds = mix(silk_pins(F), np.where(upper, top_folds, bottom_folds), unwrap)
-    side = mix(np.ones_like(F.sdf), np.where(upper, top_side, bottom_side), unwrap)
-    sdf = mix(F.sdf, ribbon, unwrap)
-    height = F.u*(.11*folds+.075*np.sqrt(np.clip(-sdf/(F.u*.07), 0, 1)))
-    cov = coverage(sdf)*(1-sm(t, .82, 1))
-    satin_colour, n = satin(F, height, cov, sheen=1.35, side=side)
-    colour = mix(F.source, satin_colour, sm(t, .02, .18))
-    canvas.over(rgb(65, 32, 43), shadow(cov, F, .045, .08, .05, .35))
-    canvas.over(colour, cov)
-    hem = smooth(-sdf, 0, 1.)*(1-smooth(-sdf, F.u*.012, F.u*.027))
-    canvas.over(np.clip(metal(n, rgb(232, 182, 92)), 0, 1), hem*sm(t, .06, .2)*cov*.85)
-    mucha_lines(F, canvas, sdf, folds, sm(t, .06, .2)*(1-sm(t, .8, 1))*.5, width=.012)
+    # Reverse the same per-letter fabric surface: the glyphs open back into their own
+    # wind-borne ribbons. The original ink hands off to the coloured silk at the start.
+    mucha_silk(F, canvas, 1-t, intensity)
+    canvas.over(F.source, F.ink*(1-sm(t, 0, .18)))
 
 
 # ---------------------------------------------------------------- liquids that morph
@@ -1266,9 +1319,9 @@ def bamboo(F, canvas, t, intensity):
     height = height+F.u*.012*ring*np.clip(-F.sdf/(F.u*.02), 0, 1)
     n = normals(height)
     # The letters are older, darker culm than the fresh stalks around them, so they stand out from the grove.
-    colour = mix(rgb(30, 62, 26), rgb(70, 104, 40), .45+.3*F.fbm(.25, 2, 611))*(1+.1*fibres)[..., None]
-    colour = mix(colour, rgb(150, 170, 110), np.exp(-((ring_d-.07)/.05)**2)*.3)
-    letter = lit(colour, n, light, ambient=.3)+specular(n, light, 36)[..., None]*.3
+    colour = mix(rgb(7, 28, 13), rgb(19, 47, 22), .45+.3*F.fbm(.25, 2, 611))*(1+.06*fibres)[..., None]
+    colour = mix(colour, rgb(36, 66, 30), np.exp(-((ring_d-.07)/.05)**2)*.22)
+    letter = lit(colour, n, light, ambient=.24)+specular(n, light, 36)[..., None]*.08
     reveal = np.zeros_like(F.yn)
     for k in range(count):
         level = telescope(sm(t, .12+.4*k/max(1, count), .62+.4*k/max(1, count)), 4)

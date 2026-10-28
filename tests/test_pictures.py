@@ -27,6 +27,7 @@ class PictureTest(unittest.TestCase):
             path = Path(folder)/'portrait.png'
             image = Image.new('RGBA', (128, 128), (224, 224, 224, 255))
             draw = ImageDraw.Draw(image)
+            draw.ellipse((18, 18, 110, 110), fill='#aaaaaa')  # model-made shadow separates the outline from the matte
             draw.ellipse((24, 24, 104, 104), fill='white')
             draw.ellipse((34, 34, 94, 94), fill='#c86a32')
             image.save(path)
