@@ -1,4 +1,4 @@
-"""Lyric-grounded full-frame paintings with quiet areas for typography."""
+"""Lyric-grounded full-frame paintings."""
 import json
 
 DIRECTOR_PROMPT = (
@@ -13,7 +13,6 @@ DIRECTOR_PROMPT = (
     'Do not invent extra people or supernatural events that the supplied meaning does not support. '
     'Use painterly simplification to unify the scene, without losing the lyric-specific anchors. '
     'Keep a coherent rendering style across the song while allowing each lyric to determine its imagery. '
-    'Respect the assigned quiet area for the lyrics by reducing detail there; the scene should still fill the frame. '
     'Describe only what the illustrator should draw. Do not explain the interpretation or quote the lyrics. '
     'When the lyric refers to writing, suggest its physical setting through unlettered marks, blank notices or worn surfaces; '
     'do not request readable words. No captions, logos, frames or borders. '
@@ -56,7 +55,6 @@ def image_prompt(subject, layout, style_prompt):
         +layout['visual_prompt']+' '
         'Use the following only for color, brushwork and mood, never to replace the scene: '+style_prompt+'. '
         'Use painterly simplification without obscuring the story or turning concrete objects into unrelated shapes. '
-        'Keep the reserved lyric area quiet and low-contrast while the environment continues through it. '
         'No lettering, written numbers, captions, logos or watermarks. '
         'No frame or border. Smooth clean pigment, no grain or noisy texture.'
     )

@@ -2,7 +2,7 @@
 from dataclasses import dataclass,replace
 import math,random
 import numpy as np
-from PIL import Image,ImageDraw,ImageChops,ImageEnhance
+from PIL import Image,ImageDraw,ImageChops,ImageEnhance,ImageFilter
 from growth_assets import asset,sized_asset,glyph_ranges
 from particle_cache import sprite_key
 from particle_choreography import entrance_opacity
@@ -21,6 +21,11 @@ class Foliage:
     size:int
     angle:float
     index:int
+
+
+OAK_TONE,MAPLE_TONE=(150,112,70,255),(170,104,58,255)
+WOOD_RIM,WOOD_LIGHT=(28,20,14,255),(236,214,170,255)
+RIM_SIZE=7
 
 
 def ease(v):v=max(0.,min(1.,v));return v*v*(3-2*v)
@@ -48,7 +53,7 @@ def geometry(sprite,effect,seed,glyph_spans=None):
         if not len(xx):continue
         xx=xx+left;chosen=int(np.argmin((xx-(left+right)/2)**2+(yy-h*.2)**2))
         root=(float(xx[chosen]),float(yy[chosen]),0.)
-        foliage.append(Foliage(root,.12,round(min(58,h*.32)),0.,8 if oak else 9))
+        foliage.append(Foliage(root,.12,round(min(58,h*(.18 if oak else .32))),0.,8 if oak else 9))
         branch(root,-math.pi/2+rng.uniform(-.30,.30),h*(.5 if oak else .55),.03+(number%3)*.035,0)
     final=max([b.birth+b.duration for b in boughs]+[leaf.birth+.2 for leaf in foliage]+[1.])
     scale=.95/final
@@ -57,13 +62,15 @@ def geometry(sprite,effect,seed,glyph_spans=None):
     bark=asset(6 if oak else 7);tile=bark.resize((max(20,round(h*.85)),h),Image.Resampling.LANCZOS)
     texture=Image.new('RGBA',sprite.size)
     for x in range(0,w,tile.width):texture.alpha_composite(tile,(x,0))
-    texture=ImageEnhance.Brightness(texture).enhance(1.15 if oak else 1.25);texture.putalpha(sprite.getchannel('A'))
+    texture=ImageEnhance.Contrast(texture).enhance(.55 if oak else .65)
+    texture=Image.blend(texture,Image.new('RGBA',texture.size,OAK_TONE if oak else MAPLE_TONE),.35 if oak else .25)
+    texture=ImageEnhance.Brightness(texture).enhance(1.2 if oak else 1.25);texture.putalpha(sprite.getchannel('A'))
     return texture,tuple(boughs),tuple(foliage)
 
 
 def paint_growth(layer,sprite,x,y,progress,effect,seed,intensity=1.,cache=None,glyph_spans=None):
     if progress<=0:return
-    key=('tree-growth-v2',sprite_key(sprite),effect,seed,tuple(glyph_spans or ()))
+    key=('tree-growth-v4',sprite_key(sprite),effect,seed,tuple(glyph_spans or ()))
     if cache is None:parts=geometry(sprite,effect,seed,glyph_spans)
     else:
         if key not in cache:cache[key]=geometry(sprite,effect,seed,glyph_spans)
@@ -97,4 +104,10 @@ def paint_growth(layer,sprite,x,y,progress,effect,seed,intensity=1.,cache=None,g
     yy,xx=np.indices((sprite.height,sprite.width));born=.04+(1-yy/max(1,sprite.height))*.31+xx/max(1,sprite.width)*.12
     reveal=np.clip((progress-born)/.52,0,1);reveal=reveal*reveal*(3-2*reveal)*fade
     body=texture.copy();body.putalpha(Image.fromarray((np.asarray(body.getchannel('A'))*reveal).astype('uint8')))
-    layer.alpha_composite(body,(round(x),round(y)));layer.alpha_composite(front)
+    rim_color=(0,0,0,255) if effect.id=='autumn-maple-lettering' else WOOD_RIM
+    alpha=body.getchannel('A');rim=Image.new('RGBA',body.size,rim_color)
+    rim.putalpha(alpha.filter(ImageFilter.MaxFilter(RIM_SIZE)))
+    light=Image.new('RGBA',body.size,WOOD_LIGHT);light.putalpha(ImageChops.subtract(alpha,ImageChops.offset(alpha,2,2)).point(lambda a:a*.7))
+    layer.alpha_composite(rim,(round(x),round(y)));layer.alpha_composite(body,(round(x),round(y)))
+    layer.alpha_composite(light,(round(x),round(y)))
+    layer.alpha_composite(front)

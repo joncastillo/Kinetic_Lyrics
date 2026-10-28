@@ -135,7 +135,8 @@ def _render_text(animation,font_family="auto",font_style="auto",font_scale=1.25,
 
 _POOL = None
 PREVIEW_SOURCES = ('particle_preview.py', 'kinetic_director.py', 'kinetic_effects.py', 'particle_motion.py', 'line_arrival.py',
-                   'typography_settings.py', 'cinematic_particles.py', 'material_growth.py', 'botanical_growth.py', 'petal_formation.py')
+                   'typography_settings.py', 'cinematic_particles.py', 'material_growth.py', 'botanical_growth.py', 'arboreal_growth.py',
+                   'ornate_growth.py', 'mechanical_growth.py', 'petal_formation.py')
 
 
 def _pool():

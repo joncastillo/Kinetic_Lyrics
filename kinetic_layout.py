@@ -11,17 +11,11 @@ def illustration_layout(number, width, height, cinematic=False, artwork_mode="cu
         x = .06 if side == 'left' else .94-tw if side == 'right' else rng.uniform(.06, .94-tw)
         y = .06 if side == 'top' else .94-th if side == 'bottom' else rng.uniform(.06, .94-th)
         text_box = tuple(round(v*s) for v,s in zip((x,y,tw,th),(width,height,width,height)))
-        visual = (f'Full-bleed painting covering the entire canvas, with coherent scenery and atmospheric depth. '
-                  f'Reserve a quiet low-detail area at the {side}: from {x:.0%} to {x+tw:.0%} across and '
-                  f'{y:.0%} to {y+th:.0%} down the image. Keep this area softly shaded with simple colors. '
-                  'Place the main subject and all important faces, hands and focal details outside that area. '
-                  'Continue natural scenery through the quiet area; no blank panel, border, lettering or typography.')
+        visual = ('Full-bleed painting covering the entire canvas, with coherent scenery and atmospheric depth. '
+                  'No blank panel, border, lettering or typography.')
         if artwork_mode == 'verse':
-            visual = (f'Full-bleed painted scene covering the entire canvas, with a coherent setting and recognizable subjects. '
-                      f'Reserve a quiet low-detail area at the {side}: from {x:.0%} to {x+tw:.0%} across and '
-                      f'{y:.0%} to {y+th:.0%} down the image. Keep this area softly shaded with simple colors. '
-                      'Place important subjects, actions and distinctive story details outside that area. '
-                      'Continue the same physical environment naturally through it; no blank panel, border or typography.')
+            visual = ('Full-bleed painted scene covering the entire canvas, with a coherent setting and recognizable subjects. '
+                      'No blank panel, border or typography.')
         scale = 1344/max(width,height)
         return dict(position=side, orientation='landscape' if landscape else 'portrait',
                     art_box=(0,0,width,height), text_box=text_box, prompt=visual, visual_prompt=visual,

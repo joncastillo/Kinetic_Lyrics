@@ -46,12 +46,6 @@ def remaining_changes(folder, dirty, revisions, indices=None):
     from active_artwork import select_manifest
     try:manifest=select_manifest(folder)
     except ValueError:return list(dirty)
-    from lyric_placement import cached_placement, revision_matches
-    try:
-        config = json.loads((folder / "config.json").read_text(encoding="utf-8"))
-        canvas = config["width"], config["height"]
-    except (OSError, ValueError, KeyError):
-        canvas = None
     remaining = []
     for index in dirty:
         if indices is not None and index not in indices:
@@ -59,12 +53,8 @@ def remaining_changes(folder, dirty, revisions, indices=None):
             continue
         image = manifest.parent / f"{index:03d}.png"
         try:
-            placement = cached_placement(image, *canvas) if canvas else None
-            matches = revision_matches(
-                revisions.get(str(index)),
-                hashlib.sha256(image.read_bytes()).hexdigest(),
-                placement,
-            )
+            recorded = str(revisions.get(str(index)) or '').split('@')[0]
+            matches = recorded == hashlib.sha256(image.read_bytes()).hexdigest()
         except OSError:
             matches = False
         if not matches:

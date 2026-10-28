@@ -35,7 +35,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = studio_output(HERE,'lyric-studio')
 STAGES = {'alignment': (0, 10), 'subjects': (10, 15), 'model': (15, 20),
           'illustrations': (20, 70), 'cutouts': (70, 80), 'review': (80, 80),
-          'dimensions': (80, 83), 'direction': (83, 86), 'render': (86, 99), 'complete': (100, 100)}
+          'direction': (80, 85), 'render': (85, 99), 'complete': (100, 100)}
 TOKEN = secrets.token_urlsafe(32)
 AUTO_RESUMES = 2
 AUTO_RESUME_DELAY = 20
@@ -96,7 +96,7 @@ class Job:
                 self.state['action_stage']=event['stage']
                 if event['stage']=='candidate' and 'index' in event:
                     self.state['active_images']=[i for i in self.state.get('active_images',[]) if i!=event['index']]
-                weights = ({'dimensions':(0,5),'render':(5,85),'merge':(85,100),'complete':(100,100)} if self.state['action'] in ('patch','rerender')
+                weights = ({'render':(0,85),'merge':(85,100),'complete':(100,100)} if self.state['action'] in ('patch','rerender')
                            else {'model':(0,10),'illustrations':(10,80),'cutouts':(80,100),'candidate':(100,100)}
                            if self.state['action'] in ('regenerate','reprompt') else {})
                 lo,hi=weights.get(event['stage'],(0,100))
@@ -275,7 +275,7 @@ class Job:
 
     def resume_command(self, command):
         """The same run, resumed from saved work: timings, artwork, approval and a plan made by this run."""
-        command=[part for part in command if part not in ('--redo-dimensions','--overwrite')]+['--overwrite']
+        command=[part for part in command if part != '--overwrite']+['--overwrite']
         for flag in ('--timings','--plan'):
             if flag in command:
                 at=command.index(flag);del command[at:at+2]
@@ -283,7 +283,7 @@ class Job:
         if timings.exists():command+=['--timings',str(timings)]
         design=self.folder/'video.design.json'
         if design.exists() and design.stat().st_mtime>=self.state.get('started',0):command+=['--plan',str(design)]
-        if self.state.get('stage') in ('dimensions','direction','render') and '--review-artwork' in command:
+        if self.state.get('stage') in ('direction','render') and '--review-artwork' in command:
             command.remove('--review-artwork')
         return command
 
@@ -370,10 +370,8 @@ class Job:
                         pass
                 from artwork_metadata import variant_metadata
                 metadata=variant_metadata(path,job,i)
-                from lyric_placement import text_area
-                area=text_area(path,self.config.get('width',1280),self.config.get('height',720),fingerprint) if path == current else None
                 entries.append(dict(prompt=metadata.get('prompt',prompt),subject=metadata.get('subject',''),path=path.relative_to(self.folder).as_posix(), url=self.url(path),
-                    current=path == current, raw=path == raw, text_area=area, fresh=path.is_relative_to(self.folder/'candidates') and stat.st_mtime>=self.state['started'], review=review))
+                    current=path == current, raw=path == raw, fresh=path.is_relative_to(self.folder/'candidates') and stat.st_mtime>=self.state['started'], review=review))
             queued=next((q for q in self.state.get('queued_actions',[]) if q.get('index')==i and q.get('action','regenerate') in ('regenerate','reprompt')),None)
             pending=('Prompt queued' if queued.get('action')=='reprompt' else 'Image queued') if queued else ''
             if i in self.state.get('active_images',[]) :
@@ -487,7 +485,7 @@ def start_job(fields, files):
         (folder/'lyrics.txt').write_text(lyrics, encoding='utf-8')
         refs = [store_image(folder/'references', name, content) for name, content in files.get('references', [])]
         image_seed=secrets.randbelow(2**31)
-        if is_restart and start_step in ('images','review','dimensions','render'):
+        if is_restart and start_step in ('images','review','render'):
             try:image_seed=json.loads((folder/'config.json').read_text(encoding='utf-8')).get('image_seed',image_seed)
             except (OSError,ValueError):pass
         config = dict(name=Path(filename).stem, audio=str(audio), width=width, height=height, fps=30,
@@ -539,8 +537,6 @@ def start_job(fields, files):
                 pass
             elif start_step == 'review':
                 pass
-            elif start_step == 'dimensions':
-                (folder/'video.dimensions.json').unlink(missing_ok=True)
             elif start_step == 'render':
                 pass
 
@@ -569,10 +565,8 @@ def start_job(fields, files):
             command += ['--ai-model', ai_model]
         if is_restart:
             command.append('--overwrite')
-            if start_step == 'dimensions':
-                command.append('--redo-dimensions')
             design_path = folder/'video.design.json'
-            if start_step in ('dimensions', 'render') and design_path.exists():
+            if start_step == 'render' and design_path.exists():
                 try:
                     scenes = json.loads(design_path.read_text(encoding='utf-8')).get('scenes')
                     lines = json.loads((folder/'video.timings.json').read_text(encoding='utf-8'))
@@ -580,7 +574,7 @@ def start_job(fields, files):
                         command += ['--plan', str(design_path)]
                 except (OSError, ValueError, AttributeError):
                     pass
-            if start_step in ('prompts', 'images', 'review', 'dimensions', 'render'):
+            if start_step in ('prompts', 'images', 'review', 'render'):
                 timings_path = folder/'video.timings.json'
                 if timings_path.exists():
                     command += ['--timings', str(timings_path)]
@@ -706,8 +700,7 @@ class Handler(BaseHTTPRequestHandler):
                 has_timings = (folder / 'video.timings.json').exists()
                 has_prompts = bool(manifest and manifest.exists())
                 has_video = (folder / 'video.mp4').exists()
-                has_dimensions = (folder / 'video.dimensions.json').exists()
-                current_step = 6 if has_video else 5 if has_dimensions else 4 if reviews else 3 if images else 2 if has_prompts else 1 if has_timings else 0
+                current_step = 5 if has_video else 4 if reviews else 3 if images else 2 if has_prompts else 1 if has_timings else 0
                 return self.respond(dict(
                     exists=True, id=project_id,
                     has_audio=bool(list(folder.glob('audio.*'))),
@@ -717,7 +710,6 @@ class Handler(BaseHTTPRequestHandler):
                     has_images=bool(images),
                     image_count=len(images),
                     has_reviews=bool(reviews),
-                    has_dimensions=has_dimensions,
                     has_video=has_video,
                     current_step=current_step
                 ))
@@ -811,8 +803,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self.respond(dict(ok=True, queued=True))
                 if job.state['action'] and not (operation in ('select','replace') and job.state['action'] in ('verify','regenerate')):
                     raise ValueError('Wait for the current image operation to finish')
-                live_selection = (operation in ('select', 'replace', 'text-area') and job.state['status'] == 'running'
-                                  and job.state['stage'] in ('illustrations','cutouts','verification','repair','repair-complete','dimensions','direction','render'))
+                live_selection = (operation in ('select', 'replace') and job.state['status'] == 'running'
+                                  and job.state['stage'] in ('illustrations','cutouts','verification','repair','repair-complete','direction','render'))
                 if job.state['status'] not in ('review', 'complete') and not live_selection:
                     raise ValueError('Images can be changed at artwork review or after the video completes')
                 if any(other is not job and (other.state['status'] in ('queued', 'running', 'review') or other.state['action']) for other in JOBS.values()):
@@ -893,16 +885,6 @@ class Handler(BaseHTTPRequestHandler):
                 if not 0 <= index < count:
                     raise ValueError('Invalid illustration index')
                 target = manifest.parent/f'{index:03d}.png'
-                if operation == 'text-area':
-                    from lyric_placement import save_manual_area
-                    if not target.exists():
-                        raise ValueError('Select an image before drawing its text area')
-                    save_manual_area(target,args.get('box'),job.config.get('width',1280),job.config.get('height',720))
-                    if (job.folder/'video.mp4').exists() and index not in job.state['dirty']:
-                        job.state['dirty'].append(index)
-                    job.log(f'Illustration {index+1} text area drawn manually. '+('Rebuild this section to update the video.' if (job.folder/'video.mp4').exists() else 'It will be used in the render.'))
-                    job.save()
-                    return self.respond(dict(ok=True))
                 if operation in ('select', 'replace'):
                     if operation == 'replace':
                         name, content = files['replacement'][0]

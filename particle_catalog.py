@@ -133,7 +133,7 @@ def catalog_choices(catalog=None):
 def validate_choice(value, phase, catalog):
     if value is not None and not isinstance(value, str):
         raise ValueError(f"{phase.title()} effect must be an effect ID")
-    if value not in (None, "legacy", "none", "mixed") and value not in catalog[phase]:
+    if value not in (None, "legacy", "none", "mixed", "ai") and value not in catalog[phase]:
         raise ValueError(f"Unknown {phase} effect: {value}")
     return value
 

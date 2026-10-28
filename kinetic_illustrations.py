@@ -131,7 +131,7 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
             'Each visual description must differ; no repeated scenes, lettering, flowers or surrealism. '
             'Match the assigned orientation and placement. Direct gestures, gaze or an object diagonal '
             'toward the available space. Do not require a person for a compositional direction. '
-            + ('Describe coherent scenery while respecting the reserved quiet area. ' if artwork_mode=='fullscreen' else 'Do not specify a background. ')+'Return only JSON with a subjects array in input order.'))),
+            + ('Describe coherent scenery. ' if artwork_mode=='fullscreen' else 'Do not specify a background. ')+'Return only JSON with a subjects array in input order.'))),
             dict(role='user', content=json.dumps([dict(lyrics=group, layout=layout['prompt'])
                  for group, layout in zip(groups, layouts)]))])
     from subject_director import request_subjects, repair_duplicate_subjects

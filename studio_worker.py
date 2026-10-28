@@ -239,8 +239,6 @@ def main():
         from kinetic_director import Compositor, render
         data = json.loads((args.folder/'video.timings.json').read_text(encoding='utf-8'))
         plan = json.loads((args.folder/'video.design.json').read_text(encoding='utf-8'))
-        from lyric_placement import run_dimensions
-        run_dimensions([manifest.parent/f'{i:03d}.png' for i in range(len(job['prompts']))],config,args.folder/'video.mp4')
         if config.get('text_animation')=='ai':
             from animation_director import ensure_word_direction
             plan=ensure_word_direction(data,plan,dict(config,_artwork_manifest=str(manifest)))
