@@ -1,6 +1,5 @@
-"""Schedule glyph formation before a line, using the aligned vocal pace."""
+"""Schedule glyph formation before a line with one consistent arrival length."""
 from dataclasses import dataclass
-from statistics import median
 
 
 @dataclass(frozen=True)
@@ -17,22 +16,30 @@ class Arrival:
         return fraction*fraction*(3-2*fraction)
 
 
-def line_arrivals(data,pairs,catalog,speed,intensity,lead_in):
+MOTION_ARRIVAL={'directed':.9,'slide':.9,'fade':.9,'highlight':.9,'karaoke':.9,'none':0.}
+PARTICLE_ARRIVAL=.9
+MAX_LEAD=2.
+
+
+def line_arrivals(data,pairs,catalog,speed,intensity,lead_in,motions=None):
     """Enter together within the requested lead-in, never extend it for speed.
 
     Slow particle motion may use the full entrance window. It must not bring
     future lyrics on screen several seconds earlier or reorder line starts.
+    Every particle recipe gets the same window (audited pacing aligns their
+    milestones inside it); without one, the line's word motion sets the length.
     """
     arrivals=[]
-    for line,(entrance,_) in zip(data,pairs):
+    for index,(line,(entrance,_)) in enumerate(zip(data,pairs)):
         effect=catalog['entrance'].get(entrance) if intensity>0 else None
-        words=line['words'];cue=words[0]['start']
-        spacings=[b['start']-a['start'] for a,b in zip(words,words[1:]) if .12<=b['start']-a['start']<=2.]
-        pace=median(spacings or [max(.12,words[0]['end']-cue)])
-        scale=max(.8,min(1.8,pace/.5))
-        base=(1.8 if effect and effect.trajectory=='grow' else .8 if effect else .24)
-        duration=base*scale/max(.2,speed)
-        start=max(0.,cue-lead_in)
+        cue=line['words'][0]['start']
+        motion=max((MOTION_ARRIVAL.get(m,.24) for m in motions[index]),default=.24) if motions else .24
+        line_speed=speed[index] if isinstance(speed,(list,tuple)) else speed
+        duration=(PARTICLE_ARRIVAL if effect else motion)/max(.2,line_speed)
+        previous_end=data[index-1]['words'][-1]['end'] if index else 0.
+        allowance=max(lead_in,min(MAX_LEAD,duration+.04)) if lead_in>0 else 0.
+        start=max(0.,cue-allowance)
+        if allowance>lead_in:start=max(start,min(previous_end,cue-lead_in))
         available=max(0.,cue-.04-start)
         arrivals.append(Arrival(start,start+min(duration,available)))
     return arrivals
@@ -88,7 +95,8 @@ def reading_regions(starts,ends,boxes):
             active={i:b for i,b in active.items() if ends[i]>starts[index]}
             for box in candidates(boxes[index]):
                 if any(overlaps(box,other) for other in active.values()):continue
-                cost=score+math.log(box[2]*box[3]/max(1,boxes[index][2]*boxes[index][3]))
+                behind=sum(1 for other in active.values() if not (box[1]>=other[1]+other[3]-4 or box[0]>=other[0]+other[2]-4))
+                cost=score+math.log(box[2]*box[3]/max(1,boxes[index][2]*boxes[index][3]))-.6*behind
                 current=dict(active);current[index]=box
                 positions=assigned.copy();positions[index]=box
                 key=tuple(sorted(current.items()))

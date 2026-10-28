@@ -2,17 +2,17 @@
 
 from functools import lru_cache
 from io import BytesIO
+import os
 from threading import Semaphore
 
 from PIL import Image, ImageDraw, ImageFont
 
 from kinetic_effects import paint_word
 
-_RENDER_SLOTS = Semaphore(2)
+_RENDER_SLOTS = Semaphore(1)
 
 
-@lru_cache(maxsize=16)
-def render_preview(effect, phase, intensity=1.0, speed=1.0,font_family="auto",font_style="auto",font_scale=1.25):
+def _render_effect(effect, phase, intensity=1.0, speed=1.0,font_family="auto",font_style="auto",font_scale=1.25):
     with _RENDER_SLOTS:
         growing=effect.trajectory=='grow'
         detailed=growing or effect.family=='cinematic'
@@ -92,8 +92,7 @@ def render_preview(effect, phase, intensity=1.0, speed=1.0,font_family="auto",fo
         return result.getvalue()
 
 
-@lru_cache(maxsize=24)
-def render_text_preview(animation,font_family="auto",font_style="auto",font_scale=1.25,speed=1.):
+def _render_text(animation,font_family="auto",font_style="auto",font_scale=1.25,speed=1.):
     from kinetic_director import Compositor, rules_plan
     from kinetic_lyrics import theme_for
 
@@ -132,3 +131,55 @@ def render_text_preview(animation,font_family="auto",font_style="auto",font_scal
             disposal=2,
         )
         return result.getvalue()
+
+
+_POOL = None
+PREVIEW_SOURCES = ('particle_preview.py', 'kinetic_director.py', 'kinetic_effects.py', 'particle_motion.py', 'line_arrival.py',
+                   'typography_settings.py', 'cinematic_particles.py', 'material_growth.py', 'botanical_growth.py', 'petal_formation.py')
+
+
+def _pool():
+    """Persistent worker processes, so many samples render at once without holding the server's GIL."""
+    global _POOL
+    if _POOL is None:
+        import multiprocessing
+        from concurrent.futures import ProcessPoolExecutor
+        from parallel_render import hardware
+        _POOL = ProcessPoolExecutor(max_workers=max(2, min(12, hardware()[0]-2)), mp_context=multiprocessing.get_context('spawn'))
+    return _POOL
+
+
+def _source_version():
+    from pathlib import Path
+    root = Path(__file__).parent
+    paths = [root/name for name in PREVIEW_SOURCES]+sorted((root/'particles').rglob('*.json'))
+    return max((path.stat().st_mtime_ns for path in paths if path.exists()), default=0)
+
+
+def _cached(kind, args, renderer):
+    """Disk-cached sample, invalidated whenever the renderer or recipes change."""
+    import hashlib
+    from pathlib import Path
+    folder = Path(__file__).parent/'.preview-cache'
+    key = hashlib.sha256(repr((kind, args, _source_version())).encode()).hexdigest()[:32]
+    target = folder/f'{key}.gif'
+    try:
+        return target.read_bytes()
+    except OSError:
+        pass
+    data = _pool().submit(renderer, *args).result()
+    folder.mkdir(exist_ok=True)
+    temporary = target.with_suffix(f'.{os.getpid()}.tmp')
+    temporary.write_bytes(data)
+    temporary.replace(target)
+    return data
+
+
+@lru_cache(maxsize=96)
+def render_preview(effect, phase, intensity=1.0, speed=1.0, font_family="auto", font_style="auto", font_scale=1.25):
+    return _cached('effect', (effect, phase, intensity, speed, font_family, font_style, font_scale), _render_effect)
+
+
+@lru_cache(maxsize=48)
+def render_text_preview(animation, font_family="auto", font_style="auto", font_scale=1.25, speed=1.):
+    return _cached('text', (animation, font_family, font_style, font_scale, speed), _render_text)

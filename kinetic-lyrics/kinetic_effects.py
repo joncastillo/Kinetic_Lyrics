@@ -29,6 +29,19 @@ def highlight_word(sprite, color, fraction, glyph_mask=None):
     return result
 
 
+def highlight_overlay(size, color, fraction, glyph_mask, strength=0.85):
+    """Accent ink shaped like the glyphs, revealed left to right, to lay over material lettering."""
+    bounds = glyph_mask.getbbox()
+    if fraction <= 0 or not bounds:
+        return None
+    right = round(bounds[0] + (bounds[2] - bounds[0]) * min(1.0, fraction))
+    region = Image.new("L", size)
+    ImageDraw.Draw(region).rectangle((0, 0, right - 1, size[1]), fill=255)
+    overlay = Image.new("RGBA", size, color)
+    overlay.putalpha(ImageChops.multiply(glyph_mask, region).point(lambda a: round(a * strength)))
+    return overlay
+
+
 def selected_effect(choice, scene):
     return (
         LETTER_MIX[scene.get("effect_index", 0) % len(LETTER_MIX)]

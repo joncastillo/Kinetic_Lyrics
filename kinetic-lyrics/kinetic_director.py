@@ -14,17 +14,19 @@ import urllib.request
 
 from kinetic_progress import emit
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageFilter
+from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageOps, ImageFilter
 from kinetic_layout import illustration_layout
-from kinetic_effects import EFFECTS, TEXT_ANIMATIONS, paint_word, highlight_word
+from kinetic_effects import EFFECTS, TEXT_ANIMATIONS, paint_word, highlight_word, highlight_overlay
 from particle_catalog import discover_effects, resolve_effect, parse_pool
 from line_arrival import line_arrivals, reading_lanes, reading_regions
 from typography_settings import KINETIC_TEXT_SCALE, typography_options, selected_font, selected_word_animation
 
+READING_HOLD = 0.
+
 
 MODES = ('push', 'drop', 'zoom', 'blocks', 'marquee', 'stack')
 CAMERAS = ('push-in', 'pull-out', 'pan-left', 'pan-right', 'hold')
-STYLES = ('poster', 'swiss', 'outline', 'cutout')
+STYLES = ('poster', 'swiss', 'outline', 'cutout', 'neon', 'extrude', 'split')
 PALETTES = {
     'midnight': ('#101725', '#223348', '#EEE9DE', '#D29A80'),
     'paper': ('#EAE3D5', '#CDC2B3', '#20252C', '#923F48'),
@@ -33,6 +35,13 @@ PALETTES = {
     'electric': ('#121522', '#283348', '#F8F5EC', '#CDFA55'),
     'violet': ('#291F3D', '#4D365B', '#FAF0E5', '#FFB9AA'),
 }
+LIGHT_INK = {'paper': 'midnight'}
+SIZE_SPREAD = (.85, 1.15)
+HIGHLIGHT_COLORS = {'midnight': '#FFD23F', 'paper': '#C2185B', 'wine': '#FFD23F', 'slate': '#FF6B6B',
+                    'electric': '#FF5DA2', 'violet': '#FFD23F'}
+READING_FLOOR = .075
+RISE_COLORS = {'midnight': '#8FC1E3', 'paper': '#2F6F8F', 'wine': '#C6A6E8', 'slate': '#9FD8C8',
+               'electric': '#7FD8FF', 'violet': '#9FE3D2'}
 FONTS = {'condensed': ['impact.ttf', 'DejaVuSansCondensed-Bold.ttf'],
          'grotesk': ['bahnschrift.ttf', 'DejaVuSans-Bold.ttf'],
          'heavy': ['seguibl.ttf', 'arialbd.ttf', 'DejaVuSans-Bold.ttf']}
@@ -78,85 +87,143 @@ def validate_plan(plan, data):
     return plan
 
 
+DIRECTION_RETRY_DELAY = 10.
+DIRECTION_ATTEMPTS = ((None, 16384, 12000), (None, 16384, 12000), (12, 8192, 6000))
+
+
+def direction_schema(count):
+    return {'type': 'object', 'properties': {
+        'concept': {'type': 'string'},
+        'scenes': {'type': 'array', 'minItems': count, 'maxItems': count,
+            'items': {'type': 'object', 'properties': {
+                'camera': {'type': 'string', 'enum': list(CAMERAS)},
+                'mode': {'type': 'string', 'enum': list(MODES)},
+                'style': {'type': 'string', 'enum': list(STYLES)},
+                'palette': {'type': 'string', 'enum': list(PALETTES)},
+                'font': {'type': 'string', 'enum': list(FONTS)},
+                'align': {'type': 'string', 'enum': ['left', 'center', 'right']},
+                'background': {'type': 'string', 'enum': ['glow', 'diagonal', 'rings']},
+                'emphasis': {'type': 'integer', 'minimum': 0},
+                'energy': {'type': 'number', 'minimum': 0, 'maximum': 1}},
+                'required': ['camera', 'mode', 'style', 'palette', 'font', 'align', 'background', 'emphasis', 'energy'],
+                'additionalProperties': False}}},
+        'required': ['concept', 'scenes'], 'additionalProperties': False}
+
+
+def direction_brief(prompt):
+    return ('Act as a motion design art director for a polished lyric video. '
+            'Return JSON, one scene per input line in the same order. Choose a coherent visual arc, '
+            'not random effects. Hold palettes and fonts across related lines; change at section shifts. '
+            'Repeat visual motifs for repeated lyrics. Mostly condensed bold text. '
+            'Mix distinct visual styles deliberately: poster is huge uppercase condensed type; '
+            'swiss is calmer, lighter editorial capitals; neon is glowing letters for night or electric moods; '
+            'extrude is bold 3D block letters for impact; split is two-tone letters for contrast and duality; '
+            'outline is hollow display lettering '
+            'with a solid emphasis word; cutout is colored paper-like word tiles. '
+            'Use at least three styles across a full song. Avoid keeping any one treatment throughout. '
+            'Use quiet swiss scenes as breathing space between dramatic poster and cutout sections. '
+            'Use push for building phrases, drop for impact, zoom for emotional emphasis, '
+            'blocks for graphic contrast, marquee sparingly for repetition, stack for quiet holds. '
+            'Emphasis is a zero-based index into each line word array. '
+            'Energy is a JSON number between 0 and 1 inclusive (for example 0.35), never a percentage. '
+            'It controls motion strength; keep solemn songs restrained but visually bold. '
+            'Choose camera push-in for emphasis, pull-out for release, pan-left or pan-right for movement, hold for stillness. '
+            'Keep camera choices coherent over related lines. '
+            'Backgrounds are subtle animated gradients: glow, diagonal or rings. '
+            f'Palette colors (background, gradient, ink, accent): {json.dumps(PALETTES)}. '
+            'You only have lyrics and word timing, not audio analysis; use phrasing and text meaning. '
+            f'User direction: {prompt}')
+
+
+def request_direction(data, prompt, model, num_ctx, num_predict, chunk=None):
+    """One schema-bound plan, optionally requested in consecutive line chunks."""
+    from ollama_gpu import gpu_chat
+    size = chunk or len(data)
+    concept, scenes = None, []
+    for first in range(0, len(data), size):
+        part = data[first:first+size]
+        brief = direction_brief(prompt)
+        if chunk:
+            brief += f' This request covers lines {first} to {first+len(part)-1} of {len(data)}; keep the arc consistent with a full song.'
+        response = gpu_chat('chat', dict(model=model, stream=False, think=False,
+            keep_alive=0, format=direction_schema(len(part)), options=dict(temperature=.55, num_ctx=num_ctx, num_predict=num_predict),
+            messages=[dict(role='system', content=brief), dict(role='user', content=json.dumps([
+                dict(line=first+i, words=[w['text'] for w in line['words']],
+                     start=line['words'][0]['start'], end=line['words'][-1]['end'])
+                for i, line in enumerate(part)]))]), timeout=900)
+        result = json.loads(response['message']['content'])
+        if not isinstance(result, dict) or not isinstance(result.get('scenes'), list) or len(result['scenes']) != len(part):
+            raise ValueError('Art direction must contain exactly one scene per lyric line.')
+        concept = concept or result.get('concept')
+        scenes += result['scenes']
+    return dict(concept=concept or 'Editorial lyric arc', scenes=scenes)
+
+
+def bounded_plan(plan, data):
+    adjusted = energy_adjusted = 0
+    for scene, line in zip(plan['scenes'], data):
+        if isinstance(scene, dict) and type(scene.get('emphasis')) is int:
+            original = scene['emphasis']
+            scene['emphasis'] = max(0, min(len(line['words'])-1, original))
+            adjusted += original != scene['emphasis']
+        if isinstance(scene, dict):
+            energy = scene.get('energy')
+            if type(energy) in (int, float) and math.isfinite(energy):
+                scene['energy'] = max(0., min(1., energy))
+                energy_adjusted += energy != scene['energy']
+    if adjusted:
+        print(f'Bound {adjusted} AI emphasis selection(s) to their lyric lines.', flush=True)
+    if energy_adjusted:
+        print(f'Bound {energy_adjusted} AI energy value(s) to the supported 0–1 range.', flush=True)
+    return validate_plan(plan, data)
+
+
 def direct(data, theme, prompt, model='auto', director='ollama'):
+    """AI art direction that recovers from runner crashes and bad output without a human."""
     if director == 'rules':
         return rules_plan(data, theme)
+    failure = None
     try:
         from gpu_models import resolve_prompt_model
         model = resolve_prompt_model(local_json, model)
+    except (urllib.error.URLError, OSError, KeyError, ValueError, json.JSONDecodeError) as exc:
+        failure = exc
+    if failure is None:
         print(f'AI art direction: {model}; planning {len(data)} scenes locally...', flush=True)
-        schema = {'type': 'object', 'properties': {
-            'concept': {'type': 'string'},
-            'scenes': {'type': 'array', 'minItems': len(data), 'maxItems': len(data),
-                'items': {'type': 'object', 'properties': {
-                    'camera': {'type': 'string', 'enum': list(CAMERAS)},
-                    'mode': {'type': 'string', 'enum': list(MODES)},
-                    'style': {'type': 'string', 'enum': list(STYLES)},
-                    'palette': {'type': 'string', 'enum': list(PALETTES)},
-                    'font': {'type': 'string', 'enum': list(FONTS)},
-                    'align': {'type': 'string', 'enum': ['left', 'center', 'right']},
-                    'background': {'type': 'string', 'enum': ['glow', 'diagonal', 'rings']},
-                    'emphasis': {'type': 'integer', 'minimum': 0},
-                    'energy': {'type': 'number', 'minimum': 0, 'maximum': 1}},
-                    'required': ['camera', 'mode', 'style', 'palette', 'font', 'align', 'background', 'emphasis', 'energy'],
-                    'additionalProperties': False}}},
-            'required': ['concept', 'scenes'], 'additionalProperties': False}
-        brief = ('Act as a motion design art director for a polished lyric video. '
-                 'Return JSON, one scene per input line in the same order. Choose a coherent visual arc, '
-                 'not random effects. Hold palettes and fonts across related lines; change at section shifts. '
-                 'Repeat visual motifs for repeated lyrics. Mostly condensed bold text. '
-                 'Mix distinct visual styles deliberately: poster is huge uppercase condensed type; '
-                 'swiss is calmer mixed-case editorial typography; outline is hollow display lettering '
-                 'with a solid emphasis word; cutout is colored paper-like word tiles. '
-                 'Use at least three styles across a full song. Avoid keeping any one treatment throughout. '
-                 'Use quiet swiss scenes as breathing space between dramatic poster and cutout sections. '
-                 'Use push for building phrases, drop for impact, zoom for emotional emphasis, '
-                 'blocks for graphic contrast, marquee sparingly for repetition, stack for quiet holds. '
-                 'Emphasis is a zero-based index into each line word array. '
-                 'Energy is a JSON number between 0 and 1 inclusive (for example 0.35), never a percentage. '
-                 'It controls motion strength; keep solemn songs restrained but visually bold. '
-                 'Choose camera push-in for emphasis, pull-out for release, pan-left or pan-right for movement, hold for stillness. '
-                 'Keep camera choices coherent over related lines. '
-                 'Backgrounds are subtle animated gradients: glow, diagonal or rings. '
-                 f'Palette colors (background, gradient, ink, accent): {json.dumps(PALETTES)}. '
-                 'You only have lyrics and word timing, not audio analysis; use phrasing and text meaning. '
-                 f'User direction: {prompt}')
-        from ollama_gpu import gpu_chat
-        response = gpu_chat('chat', dict(model=model, stream=False, think=False,
-            keep_alive=0, format=schema, options=dict(temperature=.55, num_ctx=16384, num_predict=12000),
-            messages=[dict(role='system', content=brief), dict(role='user', content=json.dumps([
-                dict(line=i, words=[w['text'] for w in line['words']],
-                     start=line['words'][0]['start'], end=line['words'][-1]['end'])
-                for i, line in enumerate(data)]))]), timeout=900)
-        plan = json.loads(response['message']['content'])
-        adjusted = 0
-        energy_adjusted = 0
-        if isinstance(plan, dict) and isinstance(plan.get('scenes'), list):
-            for scene, line in zip(plan['scenes'], data):
-                if isinstance(scene, dict) and type(scene.get('emphasis')) is int:
-                    original = scene['emphasis']
-                    scene['emphasis'] = max(0, min(len(line['words'])-1, original))
-                    adjusted += original != scene['emphasis']
-                if isinstance(scene, dict):
-                    energy = scene.get('energy')
-                    if type(energy) in (int, float) and math.isfinite(energy):
-                        scene['energy'] = max(0., min(1., energy))
-                        energy_adjusted += energy != scene['energy']
-        if adjusted:
-            print(f'Bound {adjusted} AI emphasis selection(s) to their lyric lines.', flush=True)
-        if energy_adjusted:
-            print(f'Bound {energy_adjusted} AI energy value(s) to the supported 0–1 range.', flush=True)
-        plan = validate_plan(plan, data)
-        plan.update(version=1, director='ollama', model=model)
-        return plan
-    except (urllib.error.URLError, OSError, KeyError, json.JSONDecodeError) as exc:
-        raise ValueError(f'Local AI art direction failed: {exc}. Start Ollama with a text model, '
-                         'or use --director rules for the explicit offline alternative.') from exc
+        for attempt, (chunk, num_ctx, num_predict) in enumerate(DIRECTION_ATTEMPTS, 1):
+            try:
+                plan = bounded_plan(request_direction(data, prompt, model, num_ctx, num_predict, chunk), data)
+                plan.update(version=1, director='ollama', model=model)
+                return plan
+            except (urllib.error.URLError, OSError, KeyError, ValueError, json.JSONDecodeError) as exc:
+                failure = exc
+                print(f'Warning: AI art direction attempt {attempt}/{len(DIRECTION_ATTEMPTS)} failed: {exc}', flush=True)
+                try:
+                    from ollama_gpu import unload_model
+                    unload_model(model)
+                except (urllib.error.URLError, OSError, ValueError) as cleanup:
+                    print(f'Warning: could not unload {model} before retrying: {cleanup}', flush=True)
+                if attempt < len(DIRECTION_ATTEMPTS):
+                    import time
+                    time.sleep(DIRECTION_RETRY_DELAY)
+    print(f'Warning: AI art direction unavailable ({failure}); continuing with the offline rules plan so the video can finish.', flush=True)
+    plan = rules_plan(data, theme)
+    plan.update(director='rules-fallback', fallback_reason=str(failure)[:500])
+    return plan
 
 
 def ease(value):
     value = max(0., min(1., value))
     return 1 - (1 - value) ** 3
+
+
+SLIDE_DIRECTIONS = ((1, 0), (0, -1), (-1, 0), (0, 1))
+
+
+def settle(value):
+    """Ease out with a small overshoot, so a sliding word lands and settles."""
+    value = max(0., min(1., value))-1
+    return 1+2.2*value**3+1.2*value**2
 
 
 def word_progress(t, cue, scene_start, lead_in, duration=.24):
@@ -192,7 +259,7 @@ class Compositor:
                  background=None, lead_in=1., illustrations=None, illustration_lines=2,
                  cinematic=False, preserve_art_slots=False, type_effect='none',
                  particle_intensity=1., artwork_mode='cutout', layout_seed=42,
-                 particle_speed=1., entrance_effect=None, exit_effect=None, entrance_pool=None, exit_pool=None, text_animation='directed', font_family='auto', font_style='auto', font_scale=1.25, text_pool=None):
+                 particle_speed=1., entrance_effect=None, exit_effect=None, entrance_pool=None, exit_pool=None, text_animation='directed', font_family='auto', font_style='auto', font_scale=1.25, text_pool=None, lettering_styles=None, reading_flow='preview', melody=None, rhythm=None, kinetic=None, effect_speeds=None):
         self.source_cues=[line['words'][0]['start'] for line in data]
         self.focused_words=False
         self.data, self.plan = data, validate_plan(plan, data)
@@ -200,18 +267,21 @@ class Compositor:
         if not math.isfinite(lead_in) or not 0 <= lead_in <= 5:
             raise ValueError('Lead-in must be finite and between 0 and 5 seconds.')
         self.artwork_mode, self.layout_seed = artwork_mode, layout_seed
+        if artwork_mode in ('fullscreen', 'verse'):
+            self.plan = dict(self.plan, scenes=[dict(scene, palette=LIGHT_INK.get(scene['palette'], scene['palette'])) for scene in self.plan['scenes']])
+        allowed = typography_options(dict(lettering_styles=lettering_styles))['lettering_styles']
+        if set(allowed) != set(STYLES):
+            self.plan = dict(self.plan, scenes=[scene if scene['style'] in allowed else dict(scene, style=allowed[number % len(allowed)])
+                                                for number, scene in enumerate(self.plan['scenes'])])
         self.cinematic = cinematic
         if type_effect not in EFFECTS:
             raise ValueError('Unknown typography effect: '+str(type_effect))
         if text_animation not in TEXT_ANIMATIONS:
             raise ValueError('Unknown word animation: '+str(text_animation))
         self.text_animation = text_animation
-        self.typography = typography_options(dict(font_family=font_family,font_style=font_style,font_scale=font_scale,text_pool=text_pool))
-        total=0
-        self.word_animations=[]
-        for line in data:
-            self.word_animations.append([selected_word_animation(text_animation,self.typography['text_pool'],total+j) for j in range(len(line['words']))])
-            total+=len(line['words'])
+        self.typography = typography_options(dict(font_family=font_family,font_style=font_style,font_scale=font_scale,text_pool=text_pool,lettering_styles=lettering_styles,reading_flow=reading_flow,kinetic=kinetic,effect_speeds=effect_speeds))
+        self.word_animations=[[selected_word_animation(text_animation,self.typography['text_pool'],index)]*len(line['words'])
+                              for index,line in enumerate(data)]
         self.text_animations=[motions[0] for motions in self.word_animations]
         self.type_effect = type_effect
         self.particle_intensity = float(particle_intensity)
@@ -249,12 +319,13 @@ class Compositor:
         self.lead_in = lead_in
         self.cues = [line['words'][0]['start'] for line in data]
         self.exit_lengths = [
-            (.8 if effect != 'none' and self.particle_intensity > 0 else .22) / self.particle_speed
+            (.8 if effect != 'none' and self.particle_intensity > 0 else .22) / self.effect_speed(effect)
             for _, effect in self.effect_pairs]
         self.arrivals = line_arrivals(data,self.effect_pairs,self.effect_catalog,
-                                      self.particle_speed,self.particle_intensity,lead_in)
+                                      [self.effect_speed(entrance) for entrance,_ in self.effect_pairs],
+                                      self.particle_intensity,lead_in,self.word_animations)
         self.starts=[arrival.start for arrival in self.arrivals]
-        self.exit_starts = [line['words'][-1]['end'] + 1. for line in data]
+        self.exit_starts = [line['words'][-1]['end'] + READING_HOLD for line in data]
         self.effect_end_times = [min(duration,start+self.exit_lengths[index])
                                  for index,start in enumerate(self.exit_starts)]
         self.ends = [min(end,self.starts[index+1] if index+1 < len(data) else duration)
@@ -263,10 +334,13 @@ class Compositor:
         self._arrival_compositors = {}
         visible_starts = [arrival.start if arrival is not None else start
                           for arrival,start in zip(self.arrivals,self.starts)]
-        reading_ends=[line['words'][-1]['end']+1. for line in data] if self.focused_words else self.effect_end_times
+        reading_ends=[line['words'][-1]['end']+READING_HOLD for line in data] if self.focused_words else self.effect_end_times
         self.line_lanes,self.lane_count = reading_lanes(visible_starts,reading_ends)
         self.reading_band = self.lane_count > 1
         self.custom_font = custom_font or selected_font(font_family,font_style)
+        from realtime_typography import RealtimeTypography
+        self.realtime = (RealtimeTypography(self, melody, particle_speed, rhythm, self.typography['kinetic'])
+                         if self.typography['reading_flow'] == 'realtime' else None)
         self.cache_index, self.layout = None, None
         self.photo = (ImageOps.fit(Image.open(background).convert('RGB'), (width, height))
                       if background else None)
@@ -275,6 +349,7 @@ class Compositor:
         if type(illustration_lines) is not int or illustration_lines < 1:
             raise ValueError('Illustration line count must be a positive integer.')
         self.art = []
+        self.illustration_paths = [Path(p) for p in (illustrations or [])]
         self.safe_text_boxes=[]
         self.artwork_revisions = {}
         self.text_box = (0, 0, width, height)
@@ -289,8 +364,9 @@ class Compositor:
                 if fingerprint in seen and not preserve_art_slots:
                     continue
                 seen.add(fingerprint)
-                from lyric_placement import cached_placement
+                from lyric_placement import cached_placement,revision_key
                 placement=cached_placement(path,width,height)
+                self.artwork_revisions[str(slot)]=revision_key(fingerprint.hex(),placement)
                 box=placement['chosen'] if placement else None
                 self.safe_text_boxes.append(tuple(round(v*d/1000) for v,d in zip((box[0],box[1],box[2]-box[0],box[3]-box[1]),(width,height,width,height))) if box else None)
                 with Image.open(BytesIO(source_bytes)) as source:
@@ -327,6 +403,37 @@ class Compositor:
             artwork=max(0,bisect.bisect_right(self.art_starts,cue)-1) if self.art_starts else None
             base_boxes.append(self.composition(artwork)[1] if artwork is not None else self.default_text_box)
         self.line_regions=reading_regions(self.starts,self.effect_end_times,base_boxes)
+        self.keep_effects_readable(entrance_effect, entrance_pool)
+
+    def effect_speed(self, effect_id):
+        """An effect's own particle speed from the profile, or the global speed."""
+        return self.typography['effect_speeds'].get(effect_id, self.particle_speed)
+
+    def line_background(self, index, box=None):
+        """Average colour behind a line's reading area: its artwork, or the scene's backdrop colour."""
+        x, y, w, h = box or self.line_box(index)
+        if self.art and self.artwork_mode in ('fullscreen', 'verse'):
+            artwork = max(0, bisect.bisect_right(self.art_starts, self.cues[index])-1) if self.art_starts else 0
+            region = self.art[min(artwork, len(self.art)-1)].convert('RGB').crop((max(0, x), max(0, y), max(1, x+w), max(1, y+h)))
+            pixels = list(region.resize((8, 8)).getdata())
+            return tuple(round(sum(p[i] for p in pixels)/len(pixels)) for i in range(3))
+        return rgb(PALETTES[self.plan['scenes'][index]['palette']][0])
+
+    def keep_effects_readable(self, entrance_effect, entrance_pool):
+        """Mixed entrances never pair lettering with a background of the same colour."""
+        if entrance_effect != 'mixed' or self.particle_intensity <= 0:
+            return
+        from effect_colors import readable_effect
+        candidates = [e for e in (entrance_pool or list(self.effect_catalog['entrance'])) if e in self.effect_catalog['entrance']]
+        for index, (entrance, exit_effect) in enumerate(self.effect_pairs):
+            if entrance not in self.effect_catalog['entrance']:
+                continue
+            ink = rgb(PALETTES[self.plan['scenes'][index]['palette']][2])
+            neighbours = {self.effect_pairs[i][0] for i in (index-1, index+1) if 0 <= i < len(self.effect_pairs)}
+            chosen = readable_effect(entrance, candidates, ink, self.line_background(index), neighbours)
+            if chosen != entrance:
+                self.effect_pairs[index] = (chosen, exit_effect)
+                self.word_effect_pairs[index] = [(chosen if a == entrance else a, b) for a, b in self.word_effect_pairs[index]]
 
     def composition(self, artwork):
         """A stable reading area for each drawing; change only with new art."""
@@ -357,7 +464,7 @@ class Compositor:
             draw_art(current-1, (1-progress)*opacity)
         draw_art(current, progress*opacity)
 
-    def background(self, index, t):
+    def background(self, index, t, veil=True):
         scene = self.plan['scenes'][max(0, index)]
         if self.artwork_mode in ('fullscreen', 'verse') and self.art_starts:
             current = max(0, bisect.bisect_right(self.art_starts,t)-1)
@@ -366,6 +473,8 @@ class Compositor:
                 blend = ease(min(1.,max(0.,(t-self.art_starts[current])/.9)))
                 if blend < 1:
                     frame = Image.blend(self.art[current-1].convert('RGB'),frame,blend)
+            if not veil:
+                return frame
             _, (x,y,w,h) = self.composition(current)
             if self.reading_band:
                 x,y,w,h = self.default_text_box
@@ -436,9 +545,101 @@ class Compositor:
                 child.reading_band = self.reading_band
                 child.default_text_box = self.line_box(index)
                 child.line_regions = [self.line_box(index)]
+                child._reading_size = self.reading_size()
                 self._arrival_compositors[index] = child
             layer = self._arrival_compositors[index].frame(t,text_only=True)
             frame.paste(layer,(0,0),layer)
+
+    def rises_into_place(self, index, position, particle_entry):
+        """Words that slide up from below during the staggered entrance."""
+        motion = self.word_animations[index][position]
+        if particle_entry or self.plan.get('word_layouts') or motion in ('fade', 'none'):
+            return False
+        if motion == 'slide':
+            return SLIDE_DIRECTIONS[position % len(SLIDE_DIRECTIONS)][1] > 0
+        return self.plan['scenes'][index]['mode'] == 'stack'
+
+    def word_arrival(self, index, position, count, t):
+        """Stagger words inside the line's arrival window; the last one still lands before the vocal."""
+        arrival = self.arrivals[index]
+        if arrival.finish <= arrival.start:
+            return 1. if t >= arrival.start else 0.
+        raw = max(0., min(1., (t-arrival.start)/(arrival.finish-arrival.start)))
+        step = min(.16, .55/max(1, count-1)) if count > 1 else 0.
+        return max(0., min(1., (raw-step*position)/max(.2, 1-step*(count-1))))
+
+    def growth_extent(self, index, family, word):
+        """How far grown lettering reaches above and below a word, as fractions of the font size."""
+        effect = self.effect_catalog['entrance'].get(self.effect_pairs[index][0])
+        if effect is None or effect.trajectory != 'grow' or self.particle_intensity <= 0:
+            return 0., 0.
+        extents = self.__dict__.setdefault('_growth_extents', {})
+        key = (effect.id, family, self.particle_intensity)
+        if key not in extents:
+            if effect.family == 'petals':
+                from botanical_growth import grown_sprite
+            else:
+                from material_growth import grown_sprite
+            size = 120
+            font = font_at(family, size, self.custom_font)
+            pad = max(4, round(size*.08))
+            bbox = font.getbbox(word)
+            sprite = Image.new('RGBA', (math.ceil(font.getlength(word))+pad*2, size+pad*2))
+            ImageDraw.Draw(sprite).text((pad-bbox[0], pad-bbox[1]), word, font=font, fill=(255, 255, 255, 255))
+            boundaries = [0]+[max(0, min(sprite.width, round(pad+font.getlength(word[:k])))) for k in range(1, len(word))]+[sprite.width]
+            above = below = 0.
+            for seed in range(4):
+                extra = {'glyph_spans': list(zip(boundaries, boundaries[1:]))} if effect.family == 'trees' else {}
+                held, padding = grown_sprite(sprite, effect, seed, self.particle_intensity, None, **extra)
+                box = held.getchannel('A').getbbox()
+                if box:
+                    above = max(above, (padding-box[1])/size)
+                    below = max(below, (box[3]-padding-sprite.height)/size)
+            extents[key] = (max(0., above), max(0., below))
+        return extents[key]
+
+    def fit_line(self, index, w, h, start=None, floor=10):
+        """Largest size (from `start`, never below `floor`) whose rows fit the reading area."""
+        scene, line = self.plan['scenes'][index], self.data[index]
+        style = scene['style']
+        size = max(12, round(min(h*(.22 if style == 'swiss' else .27), w*.15)))
+        if self.reading_band or (self.cinematic and h < self.height*.4):
+            size = max(12, round(min(h*.55, self.height*.14, w*.15)))
+        botanical=self.effect_catalog['entrance'].get(self.effect_pairs[index][0]) is not None and self.effect_catalog['entrance'][self.effect_pairs[index][0]].family=='petals'
+        size = max(12,round(size*self.typography['font_scale']*KINETIC_TEXT_SCALE*(3 if botanical else 1)))
+        if start is not None:
+            size = min(size, start)
+        max_width = w * .92
+        family = 'grotesk' if style == 'swiss' and scene['font'] == 'condensed' else scene['font']
+        longest = max((word['text'].upper() for word in line['words']), key=len)
+        above, below = self.growth_extent(index, family, longest)
+        while True:
+            font = font_at(family, size, self.custom_font)
+            pitch = size*(1.17+above+below)
+            gap = size * .22
+            rows, row, used = [], [], 0
+            for i, word in enumerate(line['words']):
+                length = font.getlength(word['text'].upper())
+                if row and used + gap + length > max_width:
+                    rows.append(row)
+                    row, used = [], 0
+                row.append((i, length))
+                used += length + (gap if len(row) > 1 else 0)
+            if row:
+                rows.append(row)
+            fits = len(rows) * pitch <= h*.92 and all(length <= max_width for row in rows for _, length in row)
+            if fits or size <= max(floor, 10):
+                break
+            size -= 2
+        return dict(style=style, family=family, size=size, rows=rows, font=font, gap=gap, pitch=pitch, above=above)
+
+    def reading_size(self):
+        """One song-wide lyric size; every line stays within SIZE_SPREAD of it."""
+        if getattr(self, '_reading_size', None) is None:
+            sizes = [self.fit_line(i, *self.line_box(i)[2:])['size'] for i in range(len(self.data))]
+            floor = round(self.height*READING_FLOOR*self.typography['font_scale'])
+            self._reading_size = max(floor, sorted(sizes)[len(sizes)//2] if sizes else floor)
+        return self._reading_size
 
     def prepare(self, index):
         scene, line = self.plan['scenes'][index], self.data[index]
@@ -454,55 +655,46 @@ class Compositor:
                 lambda size:font_at(scene['font'],size,self.custom_font),self.typography['font_scale'],botanical)
             self.cache_index=index;self.effect_cache.clear()
             return
-        style = 'swiss' if any(motion in ('highlight','karaoke') for motion in self.word_animations[index]) else scene['style']
-        size = max(12, round(min(h*(.22 if style == 'swiss' else .27), w*.15)))
-        if self.reading_band or (self.cinematic and h < self.height*.4):
-            size = max(12, round(min(h*.55, self.height*.14, w*.15)))
-        botanical=self.effect_catalog['entrance'].get(self.effect_pairs[index][0]) is not None and self.effect_catalog['entrance'][self.effect_pairs[index][0]].family=='petals'
-        size = max(12,round(size*self.typography['font_scale']*KINETIC_TEXT_SCALE*(3 if botanical else 1)))
+        fit = self.fit_line(index, w, h)
+        base = self.reading_size()
+        if fit['size'] > base*SIZE_SPREAD[1]:
+            fit = self.fit_line(index, w, h, start=round(base*SIZE_SPREAD[1]))
+        elif fit['size'] < base*SIZE_SPREAD[0]:
+            x0, y0, _, _ = self.text_box
+            w2, h2 = min(self.width*.94, max(w, w*base/max(1, fit['size']))), min(self.height*.9, max(h, h*1.15))
+            x2 = round(min(max(0, x0+w/2-w2/2), self.width-w2)); y2 = round(min(max(0, y0+h/2-h2/2), self.height-h2))
+            self.text_box = (x2, y2, round(w2), round(h2))
+            _, _, w, h = self.text_box
+            fit = self.fit_line(index, w, h, floor=round(base*SIZE_SPREAD[0]))
+        style, family, size, rows, font, gap, pitch, above = (fit[key] for key in ('style', 'family', 'size', 'rows', 'font', 'gap', 'pitch', 'above'))
         def display(word):
-            return word if style == 'swiss' else word.upper()
-        max_width = w * .92
-        while True:
-            family = 'grotesk' if style == 'swiss' and scene['font'] == 'condensed' else scene['font']
-            font = font_at(family, size, self.custom_font)
-            gap = size * .22
-            rows, row, used = [], [], 0
-            for i, word in enumerate(line['words']):
-                length = font.getlength(display(word['text']))
-                if row and used + gap + length > max_width:
-                    rows.append(row)
-                    row, used = [], 0
-                row.append((i, length))
-                used += length + (gap if len(row) > 1 else 0)
-            if row:
-                rows.append(row)
-            if (len(rows) * size * 1.17 <= h*.92 and
-                all(length <= max_width for row in rows for _, length in row)):
-                break
-            size -= 2
-            if size < 10:
-                raise ValueError('Lyric line is too long for block typography. Split it into shorter lines.')
-        top = (h - len(rows)*size*1.17) / 2
+            return word.upper()
+        top = (h - len(rows)*pitch) / 2 + size*above
+        center = (self.text_box[0]+w/2)/self.width
+        align = 'left' if center < 1/3 else 'right' if center > 2/3 else 'center'
         ink, accent = PALETTES[scene['palette']][2:]
         words = []
         for r, row in enumerate(rows):
             row_width = sum(length for _, length in row) + gap * (len(row)-1)
-            x = w*.04 if scene['align'] == 'left' else w*.96-row_width if scene['align'] == 'right' else (w-row_width)/2
+            x = w*.04 if align == 'left' else w*.96-row_width if align == 'right' else (w-row_width)/2
             for i, length in row:
                 word = line['words'][i]
                 color = ink if text_animation in ('highlight','karaoke') else accent if i == scene['emphasis'] else ink
+                if self.rises_into_place(index, i, particle_entry):
+                    color = RISE_COLORS.get(scene['palette'], accent)
                 pad = max(4, round(size*.08))
                 label = display(word['text'])
                 bbox = font.getbbox(label)
                 sprite = Image.new('RGBA', (math.ceil(length)+pad*2, size+pad*2))
                 draw = ImageDraw.Draw(sprite)
-                boxed = not particle_entry and (style == 'cutout' or (scene['mode'] == 'blocks' and i == scene['emphasis']))
+                boxed = style == 'cutout' or (i == scene['emphasis'] and (scene['mode'] == 'blocks' or style == 'outline'))
+                backdrop = None
                 if boxed:
-                    if i != scene['emphasis']:
-                        draw.rectangle((0, 0, sprite.width, sprite.height), fill=ink)
+                    fill = accent if i == scene['emphasis'] else ink
+                    if particle_entry:
+                        backdrop = Image.new('L', sprite.size, 255)
                     else:
-                        draw.rectangle((0, 0, sprite.width, sprite.height), fill=accent)
+                        draw.rectangle((0, 0, sprite.width, sprite.height), fill=fill)
                     color = PALETTES[scene['palette']][0]
                 glyph_mask = Image.new('L',sprite.size)
                 mask_draw = ImageDraw.Draw(glyph_mask)
@@ -510,19 +702,45 @@ class Compositor:
                     mask_draw.text((pad-bbox[0],pad-bbox[1]),label,font=font,fill=0,
                                    stroke_width=max(2,round(size*.025)),stroke_fill=255)
                     draw.text((pad-bbox[0], pad-bbox[1]), label, font=font, fill=(0,0,0,0),
-                              stroke_width=max(2, round(size*.025)), stroke_fill=ink)
+                              stroke_width=max(2, round(size*.025)), stroke_fill=color)
                 else:
                     mask_draw.text((pad-bbox[0],pad-bbox[1]),label,font=font,fill=255)
-                    draw.text((pad-bbox[0], pad-bbox[1]), label, font=font, fill=color)
+                    origin = (pad-bbox[0], pad-bbox[1])
+                    if style == 'extrude' and not boxed:
+                        depth = max(2, round(size*.05))
+                        shade = tuple(round(v*.45) for v in rgb(accent))
+                        for step in range(depth, 0, -1):
+                            draw.text((origin[0]+step, origin[1]+step), label, font=font, fill=shade)
+                        draw.text(origin, label, font=font, fill=color)
+                    elif style == 'neon' and not boxed:
+                        glow = Image.new('RGBA', sprite.size)
+                        ImageDraw.Draw(glow).text(origin, label, font=font, fill=(0, 0, 0, 0),
+                                                  stroke_width=max(2, round(size*.04)), stroke_fill=accent)
+                        sprite.alpha_composite(glow.filter(ImageFilter.GaussianBlur(max(1, size*.05))))
+                        sprite.alpha_composite(glow.filter(ImageFilter.GaussianBlur(max(1, size*.02))))
+                        draw.text(origin, label, font=font, fill=color, stroke_width=max(1, round(size*.012)), stroke_fill=accent)
+                    elif style == 'split' and not boxed:
+                        draw.text(origin, label, font=font, fill=color)
+                        lower = Image.new('RGBA', sprite.size)
+                        ImageDraw.Draw(lower).text(origin, label, font=font, fill=accent)
+                        half = Image.new('L', sprite.size)
+                        ImageDraw.Draw(half).rectangle((0, pad+size*.52, sprite.width, sprite.height), fill=255)
+                        lower.putalpha(ImageChops.multiply(lower.getchannel('A'), half))
+                        sprite.alpha_composite(lower)
+                    else:
+                        draw.text(origin, label, font=font, fill=color)
                 if style == 'cutout':
                     glyph_mask = glyph_mask.rotate((-1 if i % 2 else 1)*1.1,
                                                   resample=Image.Resampling.BICUBIC,expand=False)
                     sprite = sprite.rotate((-1 if i % 2 else 1)*1.1,
                                            resample=Image.Resampling.BICUBIC, expand=False)
+                    if backdrop is not None:
+                        backdrop = backdrop.rotate((-1 if i % 2 else 1)*1.1, resample=Image.Resampling.BICUBIC, expand=False)
                 boundaries = [0]+[max(0,min(sprite.width,round(pad+font.getlength(label[:k])))) for k in range(1,len(label))]+[sprite.width]
-                words.append(dict(index=i, row=r, x=x-pad, y=top+r*size*1.17,
+                words.append(dict(index=i, row=r, x=x-pad, y=top+r*pitch,
                                   glyph_spans=list(zip(boundaries,boundaries[1:])),
-                                  sprite=sprite, glyph_mask=glyph_mask, boxed=boxed, start=word['start'], length=length))
+                                  sprite=sprite, glyph_mask=glyph_mask, boxed=boxed, start=word['start'], length=length,
+                                  backdrop=(rgb(fill), rgb(ink if fill == accent else accent), backdrop) if backdrop is not None else None))
                 x += length + gap
         self.layout = dict(words=words, size=size, gap=gap)
         self.cache_index = index
@@ -549,12 +767,15 @@ class Compositor:
                 child.reading_band = self.reading_band
                 child.default_text_box = self.line_box(previous)
                 child.line_regions = [self.line_box(previous)]
+                child._reading_size = self.reading_size()
                 child.ends = [self.effect_end_times[previous]]
                 self._tail_compositors[previous] = child
             tail = self._tail_compositors[previous].frame(t, text_only=True)
             frame.paste(tail,(0,0),tail)
 
     def frame(self, t, *, text_only=False):
+        if self.realtime is not None and not text_only:
+            return self.realtime.frame(t)
         index = bisect.bisect_right(self.starts, t) - 1
         frame = Image.new('RGBA',(self.width,self.height)) if text_only else self.background(index,t)
         if index < 0 or t >= self.ends[index]:
@@ -577,6 +798,9 @@ class Compositor:
             mode = 'slide'
         elif text_animation in ('fade','none','highlight','karaoke'):
             mode = 'letters'
+        fade_end = self.effect_end_times[index] if exit_effect != 'none' and self.particle_intensity > 0 else self.ends[index]
+        exit_start = self.exit_starts[index]
+        fade_end-exit_start
         line_fade=min(1.,max(0.,(self.effect_end_times[index]-t)/self.exit_lengths[index]))
         fade=line_fade
         line_entrance,line_exit=self.effect_pairs[index]
@@ -601,51 +825,79 @@ class Compositor:
                 for item in items:
                     positions[item['index']] = x
                     x += item['length'] + self.layout['gap']
+        ease((t - self.starts[index]) / .18)
         for item in self.layout['words']:
             word = self.data[index]['words'][item['index']]
             entrance,exit_effect=line_entrance,'none'
             text_animation=self.word_animations[index][item['index']]
-            mode='letters' if entrance!='none' or line_exit!='none' else scene['mode']
-            if self.plan.get('word_layouts'):mode='letters'
-            if text_animation=='slide':mode='slide'
-            elif text_animation in ('fade','none','highlight','karaoke'):mode='letters'
-            progress=self.arrivals[index].progress(t)
-            if self.text_animation=='none' and entrance=='none':progress=1. if t>=self.arrivals[index].start else 0.
-            fade=1.
-            if progress<=0:continue
+            particle_in = entrance in self.effect_catalog['entrance'] and self.particle_intensity > 0
+            mode = 'letters' if particle_in or self.plan.get('word_layouts') else scene['mode']
+            if text_animation == 'slide':mode = 'slide'
+            elif text_animation in ('fade','none'):mode = 'letters'
+            if particle_in:
+                progress = self.arrivals[index].progress(t)
+            else:
+                progress = self.word_arrival(index, item['index'], len(self.layout['words']), t)
+            if text_animation == 'none' and not particle_in:progress = 1. if t >= self.arrivals[index].start else 0.
+            fade = 1.
+            if progress <= 0:continue
+            motion = settle(progress)
             x, y = item['x'], item['y']
             scale = 1.
+            size = self.layout['size']
             if mode == 'drop':
-                y -= (1-progress)*h*(.15+energy*.12)
-                y += math.sin(progress*math.pi)*h*.015*energy
+                y -= (1-motion)*size*1.6
             elif mode == 'push':
-                x = positions[item['index']]
-                scale = .75+.25*progress
+                x = positions[item['index']]+(1-motion)*size*1.2
+                scale = .8+.2*motion
             elif mode == 'zoom':
-                scale = 1+(.18+energy*.25)*(1-progress)
+                scale = 1+(.35+energy*.25)*(1-motion)
             elif mode == 'blocks':
-                x -= (1-progress)*w*.08
+                x -= (1-motion)*size*1.4
             elif mode == 'stack':
-                y += (1-progress)*self.layout['size']*.5
+                y += (1-motion)*size*1.4
             elif mode == 'slide':
-                x -= (1-progress)*w*.14
+                dx, dy = SLIDE_DIRECTIONS[item['index'] % len(SLIDE_DIRECTIONS)]
+                x += dx*(1-motion)*size*1.8
+                y += dy*(1-motion)*size*1.2
             elif mode != 'letters':
-                x += (1-progress)*w*.10
+                x += (1-motion)*size*1.2
             sprite = item['sprite']
+            overlay = None
+            box_fraction = 0.
             if text_animation in ('highlight','karaoke') and progress >= 1:
                 fraction = 1. if text_animation == 'highlight' and word['start']<=t<word['end'] else 0.
                 if text_animation == 'karaoke':
                     fraction = max(0., min(1., (t-word['start']) / max(.001, word['end']-word['start'])))
                 if self.plan.get('word_layouts') and t>=word['end']:fraction=0.
-                highlight_color = item.get('highlight_color',rgb(PALETTES[scene['palette']][0 if item['boxed'] else 3]))
-                sprite = highlight_word(sprite,highlight_color,fraction,glyph_mask=item['glyph_mask'])
+                highlight_color = item.get('highlight_color',rgb(PALETTES[scene['palette']][0] if item['boxed'] else HIGHLIGHT_COLORS.get(scene['palette'],PALETTES[scene['palette']][3])))
+                held = self.effect_catalog['entrance'].get(entrance)
+                if item.get('backdrop'):
+                    box_fraction = fraction
+                elif held is not None and self.particle_intensity > 0 and (held.trajectory == 'grow' or getattr(held, 'hold', 'solid') == 'particles'):
+                    overlay = highlight_overlay(sprite.size, highlight_color, fraction, item['glyph_mask'])
+                else:
+                    sprite = highlight_word(sprite,highlight_color,fraction,glyph_mask=item['glyph_mask'])
             if abs(scale-1) > .005:
                 sprite = sprite.resize((max(1, round(sprite.width*scale)), max(1, round(sprite.height*scale))), Image.Resampling.BICUBIC)
+                if overlay is not None:
+                    overlay = overlay.resize(sprite.size, Image.Resampling.BICUBIC)
             spans = item['glyph_spans']
             if scale != 1:
                 spans = [(round(a*scale),round(b*scale)) for a,b in spans]
-            paint_word(text_layer, sprite, x+tx if full_screen else x, y+ty if full_screen else y, progress, 1., t-self.arrivals[index].start, item['index'], 'none', energy, spans, intensity=self.particle_intensity, speed=self.particle_speed,
+            if item.get('backdrop'):
+                fill, accent_ink, box_mask = item['backdrop']
+                box = Image.new('RGBA', box_mask.size, fill)
+                if box_fraction > 0:
+                    ImageDraw.Draw(box).rectangle((0, 0, round(box.width*box_fraction)-1, box.height), fill=accent_ink)
+                box.putalpha(box_mask.point(lambda a: round(a*min(1., progress))))
+                if box.size != sprite.size:
+                    box = box.resize(sprite.size, Image.Resampling.BICUBIC)
+                text_layer.alpha_composite(box, (round(x+tx if full_screen else x), round(y+ty if full_screen else y)))
+            paint_word(text_layer, sprite, x+tx if full_screen else x, y+ty if full_screen else y, progress, 1., t-self.arrivals[index].start, item['index'], 'none', energy, spans, intensity=self.particle_intensity, speed=self.effect_speed(entrance),
                        entrance_effect=entrance, exit_effect=exit_effect, effect_catalog=self.effect_catalog, cache=self.effect_cache)
+            if overlay is not None:
+                text_layer.alpha_composite(overlay, (round(x+tx if full_screen else x), round(y+ty if full_screen else y)))
         if mode == 'marquee':
             font = font_at(scene['font'], max(10, round(h*.065)), self.custom_font)
             text = '  /  ' * 24
@@ -675,6 +927,21 @@ class Compositor:
         return frame
 
 
+BT709_OUTPUT = ['-vf', 'scale=out_color_matrix=bt709:out_range=tv', '-colorspace', 'bt709',
+                '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv',
+                '-bsf:v', 'h264_metadata=colour_primaries=1:transfer_characteristics=1:matrix_coefficients=1']
+
+
+def video_color(path):
+    """'bt709' for tagged exports; 'legacy' for older untagged ones, so section rebuilds match them."""
+    try:
+        tag = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=color_space',
+                              '-of', 'default=nw=1:nk=1', str(path)], capture_output=True, text=True).stdout.strip()
+    except OSError:
+        return 'legacy'
+    return 'bt709' if tag == 'bt709' else 'legacy'
+
+
 def render(audio, output, data, plan, duration, args):
     try:
         return _render_video(audio, output, data, plan, duration, args)
@@ -683,9 +950,31 @@ def render(audio, output, data, plan, duration, args):
         close_particle_renderer()
 
 
+def tighten_line_starts(data):
+    """Aligners stretch a line's first word back over the silence before it. Start it near its sung length.
+
+    The song's own seconds-per-character rate (from non-initial words) bounds the first word; ends never move.
+    Applying it twice changes nothing.
+    """
+    from statistics import median
+    import string
+    rates = [(w['end']-w['start'])/max(1, len(w['text'].strip())) for line in data for w in line['words'][1:] if w['end'] > w['start']]
+    if not rates:
+        return data
+    rate = median(rates)
+    for line in data:
+        word = line['words'][0]
+        if word.get('onset'):
+            continue
+        limit = max(.35, rate*len(word['text'].strip(string.punctuation+' '))*1.6)
+        if word['end']-word['start'] > limit:
+            word['start'] = round(word['end']-limit, 3)
+    return data
+
+
 def render_compositor(data,plan,duration,args):
     return Compositor(
-        data, plan, args.width, args.height, duration,
+        tighten_line_starts(data), plan, args.width, args.height, duration,
         custom_font=args.font, background=args.background,
         lead_in=getattr(args, 'lead_in', 1.), illustrations=getattr(args, 'illustrations', None),
         illustration_lines=getattr(args, 'illustration_lines', 2),
@@ -697,7 +986,7 @@ def render_compositor(data,plan,duration,args):
         particle_speed=getattr(args, 'particle_speed', 1.),
         entrance_effect=getattr(args, 'entrance_effect', None), exit_effect=getattr(args, 'exit_effect', None),
         entrance_pool=getattr(args, 'entrance_pool', None), exit_pool=getattr(args, 'exit_pool', None),
-        text_animation=getattr(args, 'text_animation', 'directed'),
+        text_animation=getattr(args, 'text_animation', 'directed'), melody=getattr(args, 'melody', None), rhythm=getattr(args, 'rhythm', None),
         **typography_options(vars(args)))
 
 
@@ -718,6 +1007,7 @@ def _render_video(audio, output, data, plan, duration, args):
                    '-framerate', str(args.fps), '-i', 'pipe:0', '-ss', str(start), '-i', str(audio),
                    '-map', '0:v:0', '-map', '1:a:0', '-t', str(span), *encoding,
                    '-force_key_frames', 'expr:gte(t,n_forced*1)',
+                   *(BT709_OUTPUT if getattr(args, 'color', 'bt709') == 'bt709' else []),
                    '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', str(target)]
         emit('render', 0, message='Compositing frames and encoding video')
         print(f'Rendering {"cinematic" if compositor.cinematic else "editorial"} typography with {args.encoder}...', flush=True)

@@ -9,7 +9,7 @@ def build_layout(line,choices,scene,width,height,font_loader,font_scale=1.25,bot
     base=max(18,min(height*.11,width*.07))*font_scale*KINETIC_TEXT_SCALE
     for index,(word,choice) in enumerate(zip(line['words'],choices)):
         size=max(10,round(base*choice['scale']))
-        label=word['text'];color={'base':palette[0],'accent':palette[1],'red':'#ef4c54'}[choice['color']]
+        label=word['text'].upper();color={'base':palette[0],'accent':palette[1],'red':'#ef4c54'}[choice['color']]
         while True:
             font=font_loader(size);bounds=font.getbbox(label);pad=max(4,round(size*.06))
             span=(bounds[2]-bounds[0]+2*pad,bounds[3]-bounds[1]+2*pad)

@@ -239,8 +239,8 @@ def main():
         from kinetic_director import Compositor, render
         data = json.loads((args.folder/'video.timings.json').read_text(encoding='utf-8'))
         plan = json.loads((args.folder/'video.design.json').read_text(encoding='utf-8'))
-        from lyric_placement import ensure_placements
-        ensure_placements([manifest.parent/f'{i:03d}.png' for i in range(len(job['prompts']))],config,args.folder/'video.mp4')
+        from lyric_placement import run_dimensions
+        run_dimensions([manifest.parent/f'{i:03d}.png' for i in range(len(job['prompts']))],config,args.folder/'video.mp4')
         if config.get('text_animation')=='ai':
             from animation_director import ensure_word_direction
             plan=ensure_word_direction(data,plan,dict(config,_artwork_manifest=str(manifest)))
@@ -249,7 +249,9 @@ def main():
         duration = float(subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries',
             'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', str(video)], text=True))
         illustrations = [manifest.parent/f'{i:03d}.png' for i in range(len(job['prompts']))]
-        options = SimpleNamespace(width=config['width'], height=config['height'], fps=config['fps'],
+        from realtime_typography import melody_for
+        from rhythm import rhythm_for
+        options = SimpleNamespace(width=config['width'], height=config['height'], fps=config['fps'], melody=melody_for(args.folder), rhythm=rhythm_for(args.folder),
             font=None, background=None, lead_in=1., illustrations=illustrations, **typography_options(config),
             artwork_mode=config.get('artwork_mode','cutout'), image_seed=config.get('image_seed',42),
             illustration_lines=config['illustration_lines'], cinematic=config['cinematic'], encoder=config['encoder'], preserve_art_slots=True,
@@ -265,7 +267,10 @@ def main():
             promote_render_metadata(updated, video)
             emit('complete', 1, message='Video rebuilt with updated letter effects and selected images')
             return
-        c = Compositor(data, plan, options.width, options.height, duration,
+        from kinetic_director import tighten_line_starts
+        from realtime_typography import melody_for
+        from rhythm import rhythm_for
+        c = Compositor(tighten_line_starts(data), plan, options.width, options.height, duration, melody=melody_for(args.folder), rhythm=rhythm_for(args.folder),
             illustrations=illustrations, illustration_lines=options.illustration_lines, cinematic=options.cinematic, preserve_art_slots=True, artwork_mode=options.artwork_mode, layout_seed=options.image_seed,
             type_effect=options.type_effect, entrance_effect=options.entrance_effect, exit_effect=options.exit_effect,
             particle_intensity=options.particle_intensity, particle_speed=options.particle_speed,
@@ -280,6 +285,8 @@ def main():
             start=math.floor(start*options.fps)/options.fps
             end=min(duration,math.ceil(end*options.fps)/options.fps)
         options.render_start, options.render_end = start, end
+        from kinetic_director import video_color
+        options.color = video_color(video)
         patch = args.folder/'patch.mp4'
         emit('render', 0, message=f'Rebuilding affected section {start:.2f}–{end:.2f}s')
         render(Path(config['audio']), patch, data, plan, duration, options)
