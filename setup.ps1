@@ -6,7 +6,7 @@ $environmentPython = Join-Path $environmentFolder 'Scripts\python.exe'
 if ([IO.DriveInfo]::new([IO.Path]::GetPathRoot($PSScriptRoot)).AvailableFreeSpace -lt 8GB) {
     throw 'Free at least 8 GiB on the project drive first.'
 }
-$modelRoot = if ($env:KINETIC_LYRICS_MODEL_CACHE) { $env:KINETIC_LYRICS_MODEL_CACHE } elseif (Test-Path 'D:\AI_Models') { 'D:\AI_Models' } else { Join-Path $HOME '.cache\kinetic-lyrics' }
+$modelRoot = if ($env:KINETIC_LYRICS_MODEL_CACHE) { $env:KINETIC_LYRICS_MODEL_CACHE } elseif ($env:OLLAMA_MODELS) { $env:OLLAMA_MODELS } else { Join-Path $HOME '.ollama\models' }
 $env:HF_HOME = Join-Path $modelRoot 'huggingface'
 $env:HF_HUB_CACHE = Join-Path $env:HF_HOME 'hub'
 $env:HUGGINGFACE_HUB_CACHE = $env:HF_HUB_CACHE

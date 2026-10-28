@@ -1,6 +1,6 @@
 """Shared background model downloads with progress visible to the studio UI."""
 from collections import OrderedDict
-from project_paths import default_model_cache
+from project_paths import default_model_cache, ollama_models_dir
 import hashlib
 import json
 import os
@@ -56,7 +56,7 @@ def _ollama_store(installed,request):
             if line.startswith('FROM '):
                 path=Path(line[5:].strip().strip('"'))
                 if path.parent.name=='blobs':return path.parent.parent
-    return Path(os.environ.get('OLLAMA_MODELS',Path.home()/'.ollama'/'models'))
+    return ollama_models_dir()
 
 
 def _pull_ollama(task):
