@@ -7,6 +7,7 @@ import os
 from types import SimpleNamespace
 
 _COMPOSITOR=None
+IN_FLIGHT=2
 
 
 def initialize(module,data,plan,duration,options):
@@ -19,11 +20,33 @@ def render_batch(task):
     return first,count,b''.join(_COMPOSITOR.frame(start+i/fps).tobytes() for i in range(first,first+count))
 
 
+WORKER_MEMORY=.35*2**30
+REALTIME_WORKER_MEMORY=.6*2**30
+MAX_AUTO_WORKERS=16
+MEMORY_RESERVE=3*2**30
+
+
+def hardware():
+    """Physical cores and currently available RAM, falling back to logical CPUs when psutil is absent."""
+    logical=os.cpu_count() or 1
+    try:
+        import psutil
+        return psutil.cpu_count(logical=False) or logical,psutil.virtual_memory().available
+    except ImportError:
+        return logical,None
+
+
 def worker_count(args,count):
     selected=int(getattr(args,'render_workers',0))
-    if not 0<=selected<=8:raise ValueError('Render workers must be between 0 (auto) and 8')
+    limit=os.cpu_count() or 1
+    if not 0<=selected<=limit:raise ValueError(f'Render workers must be between 0 (auto) and {limit}')
     if selected:return selected
-    return min(4,max(1,(os.cpu_count() or 2)//2)) if count>=args.fps*10 else 1
+    if count<args.fps*10:return 1
+    cores,available=hardware()
+    scale=max(1.,args.width*args.height/(1280*720))
+    budget=REALTIME_WORKER_MEMORY if getattr(args,'reading_flow','preview')=='realtime' else WORKER_MEMORY
+    by_memory=int((available-MEMORY_RESERVE)//(budget*scale)) if available else cores
+    return max(1,min(cores-1,MAX_AUTO_WORKERS,by_memory))
 
 
 def frame_batches(module,data,plan,duration,args,compositor,start,count,workers):
@@ -36,7 +59,7 @@ def frame_batches(module,data,plan,duration,args,compositor,start,count,workers)
     with ProcessPoolExecutor(max_workers=workers,mp_context=multiprocessing.get_context('spawn'),
             initializer=initialize,initargs=(module,data,plan,duration,vars(args))) as pool:
         pending=deque()
-        for _ in range(workers):
+        for _ in range(workers*IN_FLIGHT):
             task=next(tasks,None)
             if task is not None:pending.append(pool.submit(render_batch,task))
         try:

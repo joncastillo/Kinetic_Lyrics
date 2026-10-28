@@ -363,6 +363,10 @@ def main(argv=None):
     parser.add_argument('--type-effect', choices=EFFECTS, default='none', help='Typography effect: mixed, shatter, melt, slime or liquid')
     from typography_settings import FONT_FAMILIES,FONT_STYLES,typography_options
     parser.add_argument('--font-family',choices=FONT_FAMILIES,default='auto')
+    parser.add_argument('--reading-flow',choices=('realtime','preview'),default='realtime',help='realtime: words land as sung; preview: whole line before the vocal')
+    parser.add_argument('--effect-speeds',default=None,help='JSON per-effect particle speeds, e.g. {"glass-shatter": 0.5}')
+    parser.add_argument('--kinetic',default=None,help='JSON real-time effect settings (pan_speed, backdrop_rate, backdrops, traces, geometry, frames, glows, glow_strength, glitch)')
+    parser.add_argument('--lettering-styles',default=None,help='JSON list of allowed text styles: swiss, poster, outline, cutout (default: all, as planned)')
     parser.add_argument('--font-style',choices=FONT_STYLES,default='auto')
     parser.add_argument('--font-scale',type=float,default=1.25,help='Relative font size, 0.6 to 2; long lines still fit the reading area')
     parser.add_argument('--text-pool',default=None,help='JSON list of word animations enabled in mixed mode')
@@ -380,7 +384,7 @@ def main(argv=None):
     parser.add_argument('--width', type=int, default=1920)
     parser.add_argument('--height', type=int, default=1080)
     parser.add_argument('--fps', type=int, default=30)
-    parser.add_argument('--render-workers',type=int,default=0,help='CPU frame workers: 0 auto, 1 sequential, up to 8')
+    parser.add_argument('--render-workers',type=int,default=0,help='CPU frame workers: 0 auto (physical cores and free memory), 1 sequential, up to the logical CPU count')
     parser.add_argument('--font', type=Path, help='Optional TTF/OTF font')
     parser.add_argument('--background', type=Path, help='Optional still image, including AI artwork')
     art_options = parser.add_mutually_exclusive_group()
@@ -398,6 +402,7 @@ def main(argv=None):
     parser.add_argument('--overwrite', action='store_true')
     parser.add_argument('--review-artwork', action='store_true', help='Wait for studio approval before rendering')
     parser.add_argument('--preserve-art-slots', action='store_true', help='Keep illustration group positions even when image pixels repeat')
+    parser.add_argument('--redo-dimensions', action='store_true', help='Measure text areas on the artwork again instead of reusing saved dimensions')
     parser.add_argument('--no-default-style-references', action='store_true', help='Use only explicitly supplied style references')
     args = parser.parse_args(argv)
     args.preserve_art_slots = args.preserve_art_slots or args.review_artwork
@@ -481,6 +486,16 @@ def main(argv=None):
         if not args.timings:
             repair_zero_durations(data, duration)
         validate(data, lines, duration)
+        from vocal_onsets import refine_line_starts
+        emit('alignment', .95, message='Measuring where each line is sung')
+        moved = refine_line_starts(data, audio, output.parent)
+        from melody import ensure_melody
+        args.melody = ensure_melody(data, output.parent)
+        from rhythm import ensure_rhythm
+        args.rhythm = ensure_rhythm(audio, output.parent)
+        if moved:
+            print(f'Moved {moved} line start(s) to the measured vocal onset.', flush=True)
+            timing_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
         from song_structure import annotate_sections
         annotate_sections(data,args.lyrics)
         emit('alignment', 1, message='Lyric timing validated')
@@ -509,8 +524,8 @@ def main(argv=None):
                         time.sleep(.5)
             else:
                 print('Illustration panels: none (typography only).', flush=True)
-            from lyric_placement import ensure_placements
-            ensure_placements(args.illustrations,vars(args),output)
+            from lyric_placement import run_dimensions
+            run_dimensions(args.illustrations,vars(args),output,force=args.redo_dimensions)
             emit('direction', 0, message='Planning typography and motion')
             plan = (validate_plan(json.loads(args.plan.read_text(encoding='utf-8-sig')), data)
                     if args.plan else direct(data, theme, args.theme, args.ai_model, args.director))
@@ -557,8 +572,8 @@ def main(argv=None):
                         ['-c:v', 'libx264', '-preset', 'medium', '-crf', '18'])
             command = ['ffmpeg', '-hide_banner', '-loglevel', 'warning', '-y', *source,
                        '-i', str(audio), '-map', '0:v:0', '-map', '1:a:0',
-                       '-vf', base_filter + 'ass=lyrics.ass' + fonts, '-t', str(duration),
-                       *encoding, '-pix_fmt', 'yuv420p',
+                       '-vf', base_filter + 'ass=lyrics.ass' + fonts + ',scale=out_color_matrix=bt709:out_range=tv', '-t', str(duration),
+                       *encoding, '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv', '-pix_fmt', 'yuv420p',
                        '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', str(temp / 'video.mp4')]
             print(f'Rendering moving typography with {args.encoder}...', flush=True)
             subprocess.run(command, cwd=temp, check=True)

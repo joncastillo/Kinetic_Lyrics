@@ -196,7 +196,7 @@ async function updateProjectPipelineStatus(projId,options={}){
    s.onclick=null;
    const icon=s.querySelector('.step-icon');
    if(icon)icon.textContent='○';
-   const label=s.querySelector('.step-name');if(label)label.textContent=['Timing','Prompts','Images','Review','Video'][+s.dataset.step-1];
+   const label=s.querySelector('.step-name');if(label)label.textContent=['Timing','Prompts','Images','Review','Dimensions','Video'][+s.dataset.step-1];
   });
  };
 
@@ -258,24 +258,28 @@ async function updateProjectPipelineStatus(projId,options={}){
    const o2=startSelect.querySelector('option[value="prompts"]');if(o2)o2.disabled=!st.has_timings;
    const o3=startSelect.querySelector('option[value="images"]');if(o3)o3.disabled=!(st.has_prompts&&st.has_timings);
    const o4=startSelect.querySelector('option[value="review"]');if(o4)o4.disabled=!st.has_images;
-   const o5=startSelect.querySelector('option[value="render"]');if(o5)o5.disabled=!st.has_images;
+   const o5=startSelect.querySelector('option[value="dimensions"]');if(o5)o5.disabled=!st.has_images;
+   const o6=startSelect.querySelector('option[value="render"]');if(o6)o6.disabled=!st.has_images;
   }
 
   if(st.has_timings)setStepDone(1,'Timing');
   if(st.has_prompts)setStepDone(2,'Prompts');
   if(st.has_images)setStepDone(3,st.image_count?`${st.image_count} Imgs`:'Images');
   if(st.has_reviews)setStepDone(4,'Review');
-  if(st.has_video)setStepDone(5,'Video');
+  if(st.has_dimensions)setStepDone(5,'Dimensions');
+  if(st.has_video)setStepDone(6,'Video');
 
   if(badge){
-   badge.textContent=`Step ${st.current_step}/5`;
-   badge.style.color=st.current_step===5?'#9bf5b8':'var(--lime)';
+   badge.textContent=`Step ${st.current_step}/6`;
+   badge.style.color=st.current_step===6?'#9bf5b8':'var(--lime)';
   }
 
   if(startSelect){
    let defaultStep='beginning';
-   if(st.has_video||st.has_reviews){
+   if(st.has_video||st.has_dimensions){
     defaultStep='render';
+   }else if(st.has_reviews){
+    defaultStep='dimensions';
    }else if(st.has_images){
     defaultStep='review';
    }else if(st.has_prompts){
@@ -295,7 +299,7 @@ async function updateProjectPipelineStatus(projId,options={}){
   }
 
   if(card&&startSelect){
-   const stepMap={1:'timing',2:'prompts',3:'images',4:'review',5:'render'};
+   const stepMap={1:'timing',2:'prompts',3:'images',4:'review',5:'dimensions',6:'render'};
    card.querySelectorAll('.pipe-step').forEach(s=>{
     const num=+s.getAttribute('data-step');
     const val=stepMap[num];
@@ -332,7 +336,8 @@ function updateStepHelp(){
   prompts:'Reuses existing word timings; regenerates visual scene plan and prompts.',
   images:'Reuses existing word timings and prompts; regenerates illustration images.',
   review:'Reuses existing illustrations and timings; re-runs vision validation.',
-  render:'Reuses existing approved artwork and timings; compiles and renders video MP4.'
+  dimensions:'Reuses approved artwork; measures where lyrics fit on each image and saves the text areas.',
+  render:'Reuses approved artwork and saved text areas; compiles and renders video MP4.'
  };
  help.textContent=msgs[sel.value]||'Choose where to begin execution.';
  if($('audio')){
@@ -341,7 +346,7 @@ function updateStepHelp(){
  }
  const card=$('projectPipelineCard');
  if(card){
-  const stepMap={'timing':1,'prompts':2,'images':3,'review':4,'render':5};
+  const stepMap={'timing':1,'prompts':2,'images':3,'review':4,'dimensions':5,'render':6};
   const activeNum=stepMap[sel.value];
   card.querySelectorAll('.pipe-step').forEach(s=>{
    const num=+s.getAttribute('data-step');

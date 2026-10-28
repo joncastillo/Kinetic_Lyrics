@@ -3,7 +3,9 @@ from particle_cache import sprite_key
 
 
 from dataclasses import dataclass
+import json
 import math
+from pathlib import Path
 import random
 
 from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFilter
@@ -328,6 +330,29 @@ def _cracked(sprite, fragments, amount):
     return result
 
 
+READABLE_AT = 0.85
+GONE_AT = 0.25
+_PACING = None
+
+
+def measured_pacing(phase, effect):
+    """Audited progress at which a recipe's word is readable (entrance) or mostly gone (exit)."""
+    global _PACING
+    if _PACING is None:
+        try:
+            _PACING = json.loads((Path(__file__).with_name('particles')/'pacing.json').read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            _PACING = {}
+    return _PACING.get(f'{phase}/{getattr(effect, "id", "")}')
+
+
+def warp(progress, measured, target):
+    """Piecewise-linear retiming that moves `measured` to `target` and keeps both endpoints."""
+    if progress <= target:
+        return progress*measured/target
+    return measured+(progress-target)*(1-measured)/(1-target)
+
+
 def paint_transition(
     layer,
     sprite,
@@ -341,9 +366,13 @@ def paint_transition(
     energy=0.5,
     cache=None,
     glyph_spans=None,
+    paced=True,
 ):
     """amount=0 is intact; amount=1 is dispersed. No frame-history state."""
     amount = max(0.0, min(1.0, amount))
+    measured = measured_pacing(phase, effect) if paced else None
+    if measured:
+        amount = 1-warp(1-amount, measured, READABLE_AT) if phase == 'entrance' else warp(amount, measured, GONE_AT)
     if phase=='entrance' and effect.trajectory=='grow' and intensity>0:
         if effect.family=='petals':
             from botanical_growth import paint_growth,grown_sprite

@@ -98,15 +98,21 @@ function initParticleEffects(cfg) {
     });
     particlePreviewControlsBound=true;
     const speed=document.createElement('div');speed.id='particlePreviewSpeedControl';speed.className='effect-preview-speed';
-    speed.innerHTML='<label for="particlePreviewSpeed">Particle speed <output id="particlePreviewSpeedValue"></output></label><input id="particlePreviewSpeed" type="range" min="0.2" max="3" step="0.1" value="1">';
+    speed.innerHTML='<label for="particlePreviewSpeed">Speed for this effect <output id="particlePreviewSpeedValue"></output></label><input id="particlePreviewSpeed" type="range" min="0.2" max="3" step="0.1" value="1"><button type="button" id="particlePreviewSpeedReset">Use global speed</button>';
     $('particleSampleDescription').after(speed);
     $('particlePreviewSpeed').addEventListener('input',()=>{
-      $('particleSpeed').value=$('particlePreviewSpeed').value;
-      $('particleSpeed').dispatchEvent(new Event('input',{bubbles:true}));
+      if(!currentParticleSample)return;
+      const speeds=effectSpeeds();speeds[currentParticleSample[1]]=+$('particlePreviewSpeed').value;
+      $('effectSpeeds').value=JSON.stringify(speeds);
+      showParticleSample(...currentParticleSample);
+    });
+    $('particlePreviewSpeedReset').addEventListener('click',()=>{
+      if(!currentParticleSample)return;
+      const speeds=effectSpeeds();delete speeds[currentParticleSample[1]];
+      $('effectSpeeds').value=JSON.stringify(speeds);
+      showParticleSample(...currentParticleSample);
     });
     for(const id of ['particleSpeed','particleIntensity'])$(id).addEventListener('input',()=>{
-      $('particlePreviewSpeed').value=$('particleSpeed').value;
-      $('particlePreviewSpeedValue').value=Number($('particleSpeed').value).toFixed(1)+'×';
       if($('effectBrowser').open && currentParticleSample && currentParticleSample[0])showParticleSample(...currentParticleSample);
     });
   }
@@ -157,6 +163,11 @@ function initParticleEffects(cfg) {
       preview.setAttribute('aria-label', 'Preview ' + effect.name + ' ' + phase);
       const title = document.createElement('span'); title.textContent = effect.name;
       const detail = document.createElement('small'); detail.textContent = effect.description || effect.family;
+      if (effect.base_color && effect.base_color !== 'ink') {
+        const swatch = document.createElement('span'); swatch.className = 'base-swatch';
+        swatch.style.background = effect.base_color; swatch.title = 'Base colour ' + effect.base_color;
+        detail.prepend(swatch);
+      }
       preview.append(title, detail);
       preview.onclick = () => showParticleSample(phase, effect.id);
       row.append(checkbox, preview); list.append(row);
@@ -219,7 +230,7 @@ function showParticleSample(phase, id) {
   const effect = particleChoices[phase].find(item => item.id === id);
   if (!effect) return;
   currentParticleSample = [phase, id];
-  if($('particlePreviewSpeedControl')){ $('particlePreviewSpeedControl').hidden=false;$('particlePreviewSpeed').value=$('particleSpeed').value;$('particlePreviewSpeedValue').value=Number($('particleSpeed').value).toFixed(1)+'×'; }
+  if($('particlePreviewSpeedControl')){ const own=effectSpeeds()[id];const value=own??+$('particleSpeed').value;$('particlePreviewSpeedControl').hidden=false;$('particlePreviewSpeed').value=value;$('particlePreviewSpeedValue').value=Number(value).toFixed(1)+'×'+(own==null?' (global)':''); }
   const controller = particlePreviewController = new AbortController();
   $('particleSampleTitle').textContent = effect.name;
   $('particleSamplePhase').textContent = phase + ' / ' + effect.family;
@@ -400,9 +411,10 @@ function updateVideoHistory(s) {
 function refreshTypographyLabels(){
   if($('fontScaleValue'))$('fontScaleValue').value=Math.round(+$('fontScale').value*100)+'%';
 }
+function effectSpeeds(){try{return JSON.parse($('effectSpeeds')?.value||'{}')||{}}catch{return {}}}
 function sampleQuery(phase,id){
-  return new URLSearchParams({phase,effect:id,intensity:$('particleIntensity').value,speed:$('particleSpeed').value,
-    font_family:$('fontFamily').value,font_style:$('fontStyle').value,font_scale:$('fontScale').value,v:'word-materials-13'});
+  return new URLSearchParams({phase,effect:id,intensity:$('particleIntensity').value,speed:(phase==='text'?null:effectSpeeds()[id])??$('particleSpeed').value,
+    font_family:$('fontFamily').value,font_style:$('fontStyle').value,font_scale:$('fontScale').value,v:'word-materials-14'});
 }
 function refreshWordSamples(){
   document.querySelectorAll('.word-motion-thumbnail').forEach(img=>{img.src='/api/particle-preview?'+sampleQuery('text',img.dataset.animation);});

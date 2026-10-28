@@ -46,6 +46,7 @@ class Effect:
     density: float = 1.0
     hold: str = "solid"
     description: str = ""
+    base_color: str = "ink"
 
 
 def read_effect(path):
@@ -55,6 +56,9 @@ def read_effect(path):
     if 'description' not in data and metadata_path.is_file():
         metadata=json.loads(metadata_path.read_text(encoding='utf-8-sig'))
         data['description']=metadata.get(path.parent.name,{}).get(path.stem,'')
+    colors_path=path.parent.parent/'colors.json'
+    if path.parent.name=='entrance' and 'base_color' not in data and colors_path.is_file():
+        data['base_color']=json.loads(colors_path.read_text(encoding='utf-8-sig')).get(path.stem,'ink')
     allowed = {field.name for field in fields(Effect)} - {"id"}
     if not isinstance(data, dict) or data.keys() - allowed:
         raise ValueError("Unknown effect fields")
@@ -118,7 +122,8 @@ def catalog_choices(catalog=None):
     catalog = discover_effects() if catalog is None else catalog
     return {
         phase: [
-            dict(id=effect.id, name=effect.name, family=effect.family, hold=effect.hold, description=effect.description)
+            dict(id=effect.id, name=effect.name, family=effect.family, hold=effect.hold, description=effect.description,
+                 base_color=effect.base_color)
             for effect in effects.values()
         ]
         for phase, effects in catalog.items()
