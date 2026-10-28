@@ -84,6 +84,7 @@ Here is `exit/glass-shatter.json`:
 | `density` | How many fragments there are |
 | `hold: "particles"` | Optional. The word stays made of particles at rest instead of turning back into solid type |
 | `description` | Optional. Overrides the entry in `descriptions.json` |
+| `placement: "top"` | Optional. Marks an effect that grows above the word, such as maple trees or gold filigree. The 3D stage uses it only on the top row of a block, where nothing sits above it. The default is `"any"` |
 
 The allowed range of each number is defined in `src/particle_catalog.py`. New looks
 can be built by combining these settings, but a brand-new material or simulation
