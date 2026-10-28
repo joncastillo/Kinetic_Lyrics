@@ -190,6 +190,89 @@ Videos are encoded and tagged as BT.709. Every frame depends only on its timesta
 so a video rendered across several CPU workers is identical to one rendered on a
 single core.
 
+## Scene mix
+
+With the scene mix reading flow (`--reading-flow mixed`), the video changes its look
+with the song. Each verse, chorus and bridge is filmed in one scene effect, and long
+sections are split at their longest pauses. A local model picks the scene for each
+section from the ones the user ticked, matching it to what the section says. A
+repeated chorus always keeps the same scene, and the choices are saved in
+`video.scenes.json`. Where the scene changes, the old picture pushes in and fades as
+the new one settles, just before the first word of the new section.
+
+```mermaid
+flowchart LR
+    S([Sections]) --> A[AI picks scenes]
+    A --> P[Panning canvas]
+    A --> F[Framed lines]
+    A --> B[3D blocks]
+    P & F & B --> V([Frames])
+```
+
+Scene effects are small JSON recipes in `scenes/`, like the particle recipes. The
+file name is the scene's ID, and `camera` picks how the scene is filmed:
+
+| Field | What it controls |
+|---|---|
+| `name`, `description` | What Studio shows, and what the model reads when it picks scenes |
+| `camera` | `pan` for the panning canvas, `still` for framed lines, or `blocks` for the 3D stage |
+| `particles` | For a `blocks` scene, the particle effects that the scene owns, such as maple and oak for **Tree canopy**. Use an empty list for plain blocks. Pan and still scenes keep the per-line entrance effects, so it is `null` for them |
+
+The panning canvas and framed lines keep all their effects, including the flowing
+bands, the drifting shapes, the highlighting and the backdrops.
+
+## 3D stage
+
+The 3D stage groups the lines that are sung together into blocks and sets each block
+as a rectangle of justified words. It is used by the 3D scene effects, and also on
+its own with `--reading-flow stage`. Each row is scaled to fill the same width, so a
+short row of big words can sit above a long row of small ones. Each block stands
+somewhere in a 3D space. The camera never stops. It cruises across the current block
+while it is sung, then speeds up along an arc to the next block and pulls back on
+the way, so the earlier blocks, which stay where they were written, come back into
+view. Behind everything lies one continuous collage of the illustrations, stitched
+along the camera's path like the panning canvas and bent like a sheet of curved
+paper. Its gentle folds are shaded and shift with parallax.
+
+```mermaid
+flowchart LR
+    L([Lines]) --> B[Blocks]
+    B --> W[Justified rows]
+    B --> A[AI pictures]
+    W & A --> C[3D camera]
+    C --> F([Frames])
+```
+
+- **Top row effects.** Particle effects tagged as top only, such as the maple trees,
+  grow only on a block's top row, so they never cover the words below. The other
+  rows stay plain, with one accent word picked out in colour.
+- **Matched choices.** For each block, a local model picks the entry motion, the
+  accent colour (only from colours that stay readable on that background), which of
+  the scene's own particle effects grows on the top row, and the picture, so that
+  they all suit each other and the lyric. The choices are saved in
+  `video.blocks.json`.
+- **Bands and shapes.** As in the panning canvas, translucent bands flow from hero
+  word to hero word, here through 3D space between blocks, and outlined shapes drift
+  and turn on strong bass notes at different depths around the blocks.
+- **Moving words.** Words flip, swing, rise or drop into place as they are sung, hero
+  words are extruded for depth, and some words keep moving with a letter wave, a beat
+  pulse or a slow tilt.
+- **Small animated pictures.** A local model reads each block's lyrics and decides
+  whether it gets a small picture, which word carries it, what it shows and how it
+  moves. A round picture can replace the word's letter O, so MOON can show a moon
+  with clouds drifting across it. Any other picture takes its own slot in the word's
+  row, so the words and pictures share one rectangle. The picture comes from the library when one fits,
+  and otherwise the image model paints it as a transparent cutout. The library is
+  made up of built-in drawings plus any animated GIF, WebP or PNG that the user puts
+  in `assets/ornaments/`, named after its subject (for example `moon.webp`). Google's
+  Noto Animated Emoji are a good free source, licensed CC BY 4.0. Painted pictures
+  are asked for in the block's accent colour. The user picks AI pictures,
+  library-only AI pictures, keyword pictures or no pictures with `--stage-pictures`
+  or in Studio.
+
+The stage is drawn on the GPU with ModernGL and renders at about 50 frames per second
+on a single process at 720p.
+
 ## Particle effects
 
 The entrance and exit effects are small JSON recipes stored in `particles/`. The

@@ -1,0 +1,10 @@
+{
+  "name": "Crystal and coral",
+  "camera": "blocks",
+  "particles": [
+    "frost-crystal-lettering",
+    "luminous-coral-lettering",
+    "obsidian-lattice-lettering"
+  ],
+  "description": "3D blocks crowned with frost crystal, glowing coral or obsidian lattice."
+}

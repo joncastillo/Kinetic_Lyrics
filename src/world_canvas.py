@@ -94,7 +94,8 @@ class WorldCanvas:
             inside = (gx >= spec['x']) & (gx < spec['x']+spec['width']) & (gy >= spec['y']) & (gy < spec['y']+spec['height'])
             distances.append(np.where(inside, d, np.inf))
         nearest = np.min(distances, axis=0)
-        weights = [np.clip(1-(d-nearest)/self.seam, 0, 1) for d in distances]
+        with np.errstate(invalid='ignore'):
+            weights = [np.where(np.isfinite(d), np.clip(1-(d-nearest)/self.seam, 0, 1), 0.) for d in distances]
         total = np.zeros_like(nearest)
         for index, weight in zip(touching, weights):
             total = total+weight

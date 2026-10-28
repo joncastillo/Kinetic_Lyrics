@@ -14,7 +14,7 @@ class LayoutTest(unittest.TestCase):
             self.assertTrue((UI_ROOT/name).is_file(), name)
 
     def test_data_folders_present(self):
-        for name in ('assets', 'particles', 'shaders'):
+        for name in ('assets', 'particles', 'scenes', 'shaders'):
             self.assertTrue((PROJECT_ROOT/name).is_dir(), name)
 
     def test_particle_catalog_loads(self):

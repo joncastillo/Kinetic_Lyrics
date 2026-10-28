@@ -75,3 +75,4 @@ main,body.has-job main{grid-template-columns:400px minmax(0,1fr)}main>*,.form-bo
 .lettering-styles{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:2px}
 .kinetic-controls{display:grid;gap:8px}.kinetic-controls input[type=range]{width:100%}
 .base-swatch{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle;border:1px solid #fff6}
+.stage-controls[hidden],.scene-controls[hidden],.kinetic-controls[hidden]{display:none}

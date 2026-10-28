@@ -1,0 +1,9 @@
+{
+  "name": "Tree canopy",
+  "camera": "blocks",
+  "particles": [
+    "autumn-maple-lettering",
+    "old-oak-lettering"
+  ],
+  "description": "3D blocks whose top row grows maple or oak trees above the words."
+}
