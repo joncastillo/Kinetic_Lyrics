@@ -19,7 +19,7 @@ from review_policy import rejected, DEFAULT_THRESHOLD
 def keyframe_times(video):
     probe = json.loads(subprocess.check_output(['ffprobe','-v','error','-select_streams','v:0',
         '-skip_frame','nokey','-show_frames','-show_entries','frame=best_effort_timestamp_time',
-        '-of','json',str(video)],text=True))
+        '-of','json',str(video)],text=True,encoding='utf-8',errors='replace'))
     return [float(f['best_effort_timestamp_time']) for f in probe.get('frames',[]) if 'best_effort_timestamp_time' in f]
 
 
@@ -245,7 +245,8 @@ def main():
             (args.folder/'video.design.json').write_text(json.dumps(plan,ensure_ascii=False,indent=2),encoding='utf-8')
         video = args.folder/'video.mp4'
         duration = float(subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries',
-            'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', str(video)], text=True))
+            'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', str(video)],
+            text=True, encoding='utf-8', errors='replace'))
         illustrations = [manifest.parent/f'{i:03d}.png' for i in range(len(job['prompts']))]
         from realtime_typography import melody_for
         from rhythm import rhythm_for

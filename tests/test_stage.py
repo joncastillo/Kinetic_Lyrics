@@ -100,6 +100,21 @@ class DirectorTest(unittest.TestCase):
 
 
 class StageTest(unittest.TestCase):
+    def test_textured_accent_avoids_purple_in_artwork(self):
+        import colorsys
+        from types import SimpleNamespace
+        from PIL import Image, ImageDraw
+        from stage_3d import Stage3D
+
+        art = Image.new('RGB', (100, 100), (116, 78, 151))
+        ImageDraw.Draw(art).rectangle((0, 0, 24, 99), fill=(168, 116, 63))
+        stage = Stage3D.__new__(Stage3D)
+        stage.c = SimpleNamespace(artwork_mode='verse', art=[art], art_starts=[0.])
+        stage.art_tones = {}
+        color = stage.artwork_accent(1., (255, 185, 170))
+        hue = colorsys.rgb_to_hsv(*(component/255 for component in color))[0]
+        self.assertLess(hue, .2)
+
     def test_renders_a_frame_with_top_row_effect(self):
         try:
             import moderngl
@@ -117,7 +132,20 @@ class StageTest(unittest.TestCase):
             self.assertEqual([b['lines'] for b in blocks], [[0, 1], [2]])
             for block in blocks:
                 self.assertTrue(all((w['effect'] is not None) == (w['row'] == 0) for w in block['words']))
-                self.assertEqual(sum(w['color'] == (239, 76, 84) for w in block['words']), 1)
+                self.assertEqual(sum(w['color'] == block['palette'][3] for w in block['words']), 1)
+            from stage_3d import MOVE
+            transition = blocks[1]['move']
+            before = c.realtime.camera(transition-1e-5)
+            at = c.realtime.camera(transition)
+            after = c.realtime.camera(transition+MOVE)
+            middle = c.realtime.camera(transition+MOVE/2)
+            import numpy as np
+            self.assertLess(np.linalg.norm(before[0]-at[0]), .01)
+            before_distance = np.linalg.norm(before[0]-before[1])
+            middle_distance = np.linalg.norm(middle[0]-middle[1])
+            after_distance = np.linalg.norm(after[0]-after[1])
+            self.assertGreaterEqual(middle_distance, min(before_distance, after_distance)-.05)
+            self.assertLessEqual(middle_distance, max(before_distance, after_distance)+.05)
             moon = next(w for w in blocks[0]['words'] if w['bare'] == 'moon')
             self.assertEqual((moon['ornament']['kind'], moon['letter']), ('moon', 1))
             frame = c.frame(3.)
@@ -134,8 +162,26 @@ class SceneTest(unittest.TestCase):
     def test_scene_catalog_owns_particles(self):
         from scene_catalog import scene_catalog
         catalog = scene_catalog()
-        self.assertEqual(catalog['tree-canopy']['particles'], ['autumn-maple-lettering', 'old-oak-lettering'])
-        self.assertEqual({catalog[s]['camera'] for s in ('panning-canvas', 'framed-lines', 'plain-blocks')}, {'pan', 'still', 'blocks'})
+        self.assertIn('autumn-maple-lettering', catalog['tree-canopy']['particles'])
+        self.assertIn('ink-bloom-lettering', catalog['tree-canopy']['particles'])
+        self.assertIn('glass-prism', catalog['tree-canopy']['particles'])
+        self.assertIn('bamboo-lettering', catalog['tree-canopy']['particles'])
+        self.assertIn('mucha-silk-lettering', catalog['lace-and-paper']['particles'])
+        self.assertIn('catholic-cross-lettering', catalog['crystal-and-coral']['particles'])
+        self.assertNotIn('framed-lines', catalog)
+        self.assertEqual(catalog['full-screen-type']['camera'], 'pan')
+        self.assertEqual({catalog[s]['camera'] for s in ('panning-canvas', 'plain-blocks')}, {'pan', 'blocks'})
+
+    def test_full_screen_scene_enlarges_words(self):
+        from kinetic_director import Compositor, rules_plan
+        from kinetic_lyrics import theme_for
+        data = lyrics((.2, 'vast sky'), (5., 'vast sky'))
+        plan = dict(rules_plan(data, theme_for('autumn')), scene_flows=[
+            dict(start=0, end=1, scene='full-screen-type'),
+            dict(start=1, end=2, scene='panning-canvas')])
+        c = Compositor(data, plan, 320, 180, 9., reading_flow='mixed', text_animation='none')
+        lines = c.realtime.engines['pan'].plan()
+        self.assertGreater(lines[0]['layout'].words[0].size, lines[1]['layout'].words[0].size*1.5)
 
     def test_sections_split_and_repeat(self):
         from scene_mix import rule_scenes, segments
@@ -160,6 +206,7 @@ class SceneTest(unittest.TestCase):
             self.skipTest(f'No OpenGL 3.3 context: {exc}')
         from kinetic_director import Compositor, rules_plan
         from kinetic_lyrics import theme_for
+        from scene_catalog import scene_catalog
         from stage_3d import close_stage
         data = lyrics((.2, 'maple leaves turning gold'), (1.8, 'every word you never told'),
                       (5, 'under the silver moon'), (6.6, 'i hold your love so tight'))
@@ -173,7 +220,7 @@ class SceneTest(unittest.TestCase):
             self.assertEqual(set(mix.engines), {'pan', 'blocks'})
             self.assertEqual([b['lines'] for b in mix.stage.plan()], [[2, 3]])
             top = [w for w in mix.stage.plan()[0]['words'] if w['row'] == 0]
-            self.assertTrue(all(w['effect'].id in ('autumn-maple-lettering', 'old-oak-lettering') for w in top if not w['ornament']))
+            self.assertTrue(all(w['effect'].id in scene_catalog()['tree-canopy']['particles'] for w in top if not w['ornament']))
             for moment in (1., mix.switches[0], 8.):
                 self.assertEqual(c.frame(moment).size, (320, 180))
         finally:

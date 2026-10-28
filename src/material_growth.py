@@ -35,11 +35,11 @@ def geometry(sprite,effect,seed):
             draw.line((row+2,0,row+h+2,h),fill=(63,151,211,150),width=1)
     elif effect.id=='ink-bloom-lettering':
         pools=gaussian_filter(rng.random((h,w)),max(1,h*.06));pools=(pools-pools.min())/max(.001,np.ptp(pools))
-        rgb=np.stack((150+100*pools,70+80*(1-pools),180+70*(1-pools)),axis=-1).astype('uint8')
+        rgb=np.stack((55+65*pools,105+65*(1-pools),88+55*(1-pools)),axis=-1).astype('uint8')
         texture=Image.fromarray(np.dstack((rgb,mask)),'RGBA');draw=ImageDraw.Draw(texture)
         for _ in range(max(10,w//6)):
             cx=randoms.randrange(w);cy=randoms.randrange(h);r=randoms.uniform(1,max(2,h*.06))
-            draw.ellipse((cx-r,cy-r,cx+r,cy+r),outline=(255,173,228,100),width=1)
+            draw.ellipse((cx-r,cy-r,cx+r,cy+r),outline=(171,207,178,100),width=1)
     else:
         texture=Image.new('RGBA',(w,h),(45,40,63,255));draw=ImageDraw.Draw(texture)
         step=max(4,round(h*.065))
@@ -64,6 +64,10 @@ def paint_growth(layer,sprite,x,y,progress,effect,seed,intensity=1.,cache=None,g
     if effect.family=='trees':
         from arboreal_growth import paint_growth as paint_tree
         return paint_tree(layer,sprite,x,y,progress,effect,seed,intensity,cache,glyph_spans)
+    from material_recipes import RECIPES
+    if effect.id in RECIPES:
+        from material_fx import paint
+        return paint(layer,sprite,x,y,'entrance',progress,effect,seed,intensity,cache)
     from ornate_growth import EFFECT_IDS
     if effect.id in EFFECT_IDS:
         from ornate_growth import paint_growth as paint_ornate
@@ -100,7 +104,7 @@ def paint_growth(layer,sprite,x,y,progress,effect,seed,intensity=1.,cache=None,g
         elif effect.id=='ink-bloom-lettering' and progress>.2:
             radius=max(.6,min(2.8,sprite.height*.025))*age
             cx=start[0]+math.cos(angle)*length*.13;cy=start[1]+math.sin(angle)*length*.13
-            draw.ellipse((cx-radius,cy-radius,cx+radius,cy+radius),fill=(206,109,220,round(150*age)))
+            draw.ellipse((cx-radius,cy-radius,cx+radius,cy+radius),fill=(119,175,149,round(150*age)))
     if effect.id=='thread-stitch-lettering' and progress<.98:
         frontier=np.abs(birth-progress+.10)<.035
         glow=np.zeros((*frontier.shape,4),dtype='uint8');glow[:,:,:3]=(255,244,199)
@@ -109,6 +113,10 @@ def paint_growth(layer,sprite,x,y,progress,effect,seed,intensity=1.,cache=None,g
 
 
 def grown_sprite(sprite,effect,seed,intensity=1.,cache=None,glyph_spans=None):
+    from material_recipes import RECIPES
+    if effect.id in RECIPES:
+        from material_fx import held
+        return held(sprite,effect,seed,intensity,cache)
     key=('material-held-v2',sprite_key(sprite),effect,seed,intensity,tuple(glyph_spans or ()))
     if cache is not None and key in cache:return cache[key]
     padding=round(sprite.height*.7)

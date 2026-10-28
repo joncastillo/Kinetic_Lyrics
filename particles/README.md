@@ -50,9 +50,9 @@ project uses an effect that has since been deleted, that phase falls back to pla
 type and the user sees a warning.
 
 Only recipes from certain families are used, in Studio and on the command line
-alike. For entrances, these are the glass, letters, ornament, trees and cinematic
-families, plus a few petal, ink and thread lettering effects. For exits, they are the
-glass, petals, smoke and cinematic families. The other recipes on disk are kept so
+alike. For entrances, these are the glass, letters, ornament, trees, cinematic and
+material families, plus a few petal, ink and thread lettering effects. For exits, they
+are the glass, petals, smoke, cinematic and material families. The other recipes on disk are kept so
 that older projects still load, but choosing one of them gives plain type and a
 warning. A new family is made available by adding it to the filter in
 `discover_effects` in `src/particle_catalog.py`.
@@ -75,7 +75,7 @@ Here is `exit/glass-shatter.json`:
 
 | Field | What it controls |
 |---|---|
-| `family` | The material: glass, dust, sparks, ribbons, pixels, petals, snow, smoke, bubbles, ink, vortex, magnetic, letters, ornament, trees, flock or cinematic |
+| `family` | The material: glass, dust, sparks, ribbons, pixels, petals, snow, smoke, bubbles, ink, vortex, magnetic, letters, ornament, trees, flock, cinematic or material |
 | `trajectory` | The direction of travel: radial, left, right, up, down, spiral, wave, fan or grow |
 | `spread` | How far the fragments travel |
 | `gravity` | How strongly fragments are pulled down. A negative value makes them rise |
@@ -108,6 +108,18 @@ words. Studio's search uses it, and so does AI selection.
 - **Cinematic** effects, such as prismatic, aurora silk, liquid chrome and ember, add
   shaded streamers, droplets and trails. They fade in from invisible, and they leave
   along a different path from the one they arrived on.
+
+- **Material** effects (Studio's *Real materials* filter) build the word out of, or
+  dissolve it into, a physical substance. A sandstone block is worn away by centuries
+  of wind under a time-lapse sun; gold is poured into letter moulds; Mucha-style satin
+  billows in and drapes into the glyphs; paper burns behind a glowing ember edge.
+  Each one is a painter in `src/material_recipes.py`, built from the shared pieces in
+  `src/material_fx.py`: signed distances to the glyph, noise and Voronoi cells,
+  height-field shading for stone, metal, satin, glass and ice, and particles whose
+  paths are solved in closed form. Their JSON recipes only name them, so a new
+  material needs a painter as well as a recipe. They run at an ink height of at most
+  150 pixels and are scaled back up, so large stage words cost the same as small ones.
+  A material entrance's last frame is also its held word.
 
 Exit trails can carry on behind the next line rather than being squeezed into the
 short gap between lines.

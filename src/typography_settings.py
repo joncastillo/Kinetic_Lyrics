@@ -12,7 +12,7 @@ BACKDROP_KINDS = ('outline','filled','vertical','echo','giant')
 GLOW_INSTRUMENTS = ('drums','other','bass')
 CAMERA_MODES = ('pan','still')
 KINETIC_DEFAULTS = dict(camera='pan',pan_speed=.05,backdrop_rate=.6,backdrops=list(BACKDROP_KINDS),traces=True,
-                        geometry=.8,frames=.1,glows=list(GLOW_INSTRUMENTS),glow_words=.5,glow_strength=.55,glitch=True,text_pulse=.1,word_shapes=.6,scenes=None)
+                        geometry=.8,frames=.1,glows=list(GLOW_INSTRUMENTS),glow_words=.5,glow_strength=.55,glitch=True,text_pulse=.1,word_shapes=0.,scenes=None)
 
 
 def effect_speeds(value):
@@ -28,6 +28,22 @@ def effect_speeds(value):
         if not isinstance(key,str) or not key.replace('-','').isalnum() or not math.isfinite(speed) or not .2<=speed<=3:
             raise ValueError('Each effect speed must be between 0.2 and 3')
         result[key]=speed
+    return result
+
+
+def effect_intensities(value):
+    """Per-effect letter-effect intensities {effect id: 0..2}; effects without one use the global intensity."""
+    if isinstance(value,str):
+        try:value=json.loads(value) if value.strip() else {}
+        except json.JSONDecodeError as exc:raise ValueError('Invalid per-effect intensities') from exc
+    value=value or {}
+    if not isinstance(value,dict):raise ValueError('Invalid per-effect intensities')
+    result={}
+    for key,amount in value.items():
+        amount=float(amount)
+        if not isinstance(key,str) or not key.replace('-','').isalnum() or not math.isfinite(amount) or not 0<=amount<=2:
+            raise ValueError('Each effect intensity must be between 0 and 2')
+        result[key]=amount
     return result
 
 
@@ -94,6 +110,7 @@ def typography_options(values):
         raise ValueError('Choose the real-time, preview, 3D stage or scene mix reading flow')
     return dict(font_family=family,font_style=style,font_scale=scale,text_pool=list(dict.fromkeys(pool)),reading_flow=flow,
                 kinetic=kinetic_options(values.get('kinetic')),effect_speeds=effect_speeds(values.get('effect_speeds')),
+                effect_intensities=effect_intensities(values.get('effect_intensities')),
                 lettering_styles=[choice for choice in LETTERING_STYLES if choice in styles])
 
 

@@ -3,7 +3,13 @@
   "camera": "blocks",
   "particles": [
     "autumn-maple-lettering",
-    "old-oak-lettering"
+    "old-oak-lettering",
+    "bamboo-lettering",
+    "petals-grow-lettering",
+    "ink-bloom-lettering",
+    "jeweled-brocade-lettering",
+    "luminous-coral-lettering",
+    "glass-prism"
   ],
-  "description": "3D blocks whose top row grows maple or oak trees above the words."
+  "description": "3D blocks with trees, bamboo, flowering vines, ink blooms, coral, jewels, and glass."
 }

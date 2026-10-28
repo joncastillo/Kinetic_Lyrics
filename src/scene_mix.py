@@ -2,7 +2,7 @@
 
 The song is cut into sections (the lyric's own verse and chorus labels, with long sections
 split at their longest pauses) and each section is filmed in one of the scene effects the
-user ticked: the panning canvas, framed lines, or one of the 3D block scenes. One renderer
+user ticked: the panning canvas or one of the 3D block scenes. One renderer
 runs per camera, each limited to the lines of its own sections, so the panning canvas keeps
 its flowing bands and drifting shapes and the 3D stage keeps its camera path from one of
 its sections to the next. Where the scene changes, the outgoing picture pushes in and fades
@@ -180,7 +180,10 @@ class SceneMix:
                                                crowns={i: scene['particles'] for i, scene in staged},
                                                layouts={i: scene['layout'] for i, scene in staged})
             else:
-                self.engines[camera] = RealtimeTypography(c, melody, speed, rhythm, dict(options, camera=camera), only=only)
+                large = {i for f in self.flows if f['camera'] == camera and f['scene'] == 'full-screen-type'
+                         for i in range(f['start'], f['end'])}
+                self.engines[camera] = RealtimeTypography(c, melody, speed, rhythm, dict(options, camera=camera),
+                                                           only=only, large=large)
         self.stage = self.engines.get('blocks')
         self.canvas_engine = self.engines.get('pan') or self.engines.get('still')
         self.switches = []

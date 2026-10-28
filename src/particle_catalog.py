@@ -29,6 +29,7 @@ FAMILIES = (
     "ornament",
     "trees",
     "cinematic",
+    "material",
 )
 # "top" marks effects that grow above the word (trees, ornaments), so a block uses them
 # only on its top row, where nothing sits above.
@@ -118,8 +119,8 @@ def discover_effects(root=None):
                 warnings.warn(f"Skipping particle effect {path}: {exc}", stacklevel=2)
                 continue
             if curated:
-                allowed=(effect.family in ('glass','letters','ornament','trees','cinematic') or effect.id in
-                         ('petals-breeze-lettering','petals-spiral-lettering','petals-wind-lettering','petals-grow-lettering','ink-bloom-lettering','thread-stitch-lettering')) if phase=='entrance' else effect.family in ('glass','petals','smoke','cinematic')
+                allowed=(effect.family in ('glass','letters','ornament','trees','cinematic','material') or effect.id in
+                         ('petals-breeze-lettering','petals-spiral-lettering','petals-wind-lettering','petals-grow-lettering','ink-bloom-lettering','thread-stitch-lettering')) if phase=='entrance' else effect.family in ('glass','petals','smoke','cinematic','material')
                 if not allowed:continue
             catalog[phase][effect.id] = effect
     return catalog

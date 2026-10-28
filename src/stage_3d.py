@@ -20,9 +20,8 @@ space, between blocks) and outlined shapes drift and turn on strong bass notes, 
 around the blocks so they shift with parallax. Words and pictures share one invisible
 rectangle: a picture beside a word takes its own slot in the justified row. A scene can
 set its blocks in the "contrast" layout instead: thin and heavy words side by side, one
-heavy display word whose every letter has its own texture, tone and motion (marble, warped
-stripes, ripples, a rolling sweep or glinting grain, in tones close to the accent, drawn by
-a shader so the textures keep moving inside the letters), and the last word set
+heavy display word whose every letter has fine woven grain in colors sampled from the
+illustration, drawn by a shader so the texture drifts gently inside the letters), and the last word set
 vertically close beside the rows; every letter springs in with an elastic bounce, and the camera zooms in and
 rolls into a tilt. Which side, which way the vertical word reads, how the fonts pair, the
 tilt and the zoom vary from block to block. A scene effect
@@ -39,6 +38,7 @@ from collections import OrderedDict
 import colorsys
 from functools import lru_cache
 import math
+from pathlib import Path
 import random
 import threading
 
@@ -47,8 +47,9 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 import glyph_art
 from lyric_blocks import TARGET_RATIO, group_lines, layout_block
-from realtime_typography import (BACKDROP_COLORS, FUNCTION_WORDS, SHAPE_LIFE, SHAPES, THREAD_LIFE, assign_roles, bare, hex_rgb,
-                                  overshoot, role_font, smooth, thread_distance)
+from realtime_typography import (BACKDROP_COLORS, FUNCTION_WORDS, SHAPE_LIFE, SHAPES, THREAD_LIFE, assign_roles, bare, curl_route, hex_rgb,
+                                  swash_route,
+                                  insert_thread_loop, monotone_keys, overshoot, role_font, sample_thread, smooth, thread_distance)
 
 FOV = 38.
 BLOCK_WIDTH = 4.
@@ -56,9 +57,8 @@ FILL_WIDTH, FILL_HEIGHT = .74, .72
 REFERENCE = 200
 OVERSAMPLE = 1.25
 FONT_LIMITS = (16, 440)
-MOVE, MOVE_LEAD = 1.3, .9
-HOLD_DOLLY, CRUISE = .06, .14
-ARC_LIFT, ARC_PULL = .12, .55
+MOVE, MOVE_LEAD = 1.8, 1.1
+CRUISE = .14
 DEPTHS = (-1.2, .6)
 VIEW_TILT = .55
 ENTRY, ENTRY_LEAD, LETTER_STAGGER = .38, .08, .035
@@ -75,13 +75,13 @@ ROLL_RANGE, ZOOM_RANGE = (5., 12.), (.9, .96)
 CONTRAST_LEADING = .42
 HOP, SWAY = .07, 3.
 PATTERNS = 5
-HUE_STEPS = (0., .045, -.045, .085, -.08, .03)
 ENTRANCES = ('flip', 'swing', 'rise', 'drop')
 MOTIONS = ('wave', 'pulse', 'tilt')
 OLD_BLOCK, DIM_TIME = .45, 1.
 DRAW_REACH = 3.
 EXTRUDE_LAYERS, EXTRUDE_DEPTH = 7, .07
 ORNAMENT_SIZE, FLOAT_SIZE = 1.12, .9
+SLOT_PICTURE = 1.45  # a picture beside a word is drawn larger than its slot, overlapping its neighbours a little
 BACKDROP_DEPTH, BACKDROP_TINT = 8., .62
 CHUNK, CHUNK_LIMIT = 1024, 16
 PAPER_STRIPS, PAPER_DEPTH, PAPER_FOLD, PAPER_SHADE = 14, 1.1, .16, .55
@@ -177,29 +177,14 @@ void main() {
     vec4 texel = texture(image, uv);
     vec2 p = origin+vec2(uv.x, 1.-uv.y)*span+vec2(seed*7.31, seed*3.17);
     vec2 along = vec2(cos(angle), sin(angle));
-    float clock = time*speed;
-    float n;
-    if (pattern == 0) {
-        vec2 q = vec2(fbm(p*1.1+along*clock*.16), fbm(p*1.1+vec2(5.2, 1.3)-along.yx*clock*.12));
-        n = fbm(p*1.4+2.2*q+along*clock*.05);
-    } else if (pattern == 1) {
-        float warp = fbm(p*1.8+vec2(clock*.1, 0.))*2.4;
-        n = .5+.5*sin(dot(p, along)*7.+warp-clock*1.6);
-    } else if (pattern == 2) {
-        vec2 centre = origin+span*.5+along*.25;
-        n = .5+.5*sin(length(p-centre-vec2(seed*7.31, seed*3.17))*11.-clock*2.4+fbm(p*2.)*1.5);
-    } else if (pattern == 3) {
-        n = smoothstep(0., 1., abs(fract(dot(p, along)*.45-clock*.22)*2.-1.));
-        n = mix(n, fbm(p*2.6), .25);
-    } else {
-        float base = fbm(p*1.6+along*clock*.08);
-        float glint = smoothstep(.78, .95, noise(p*18.+along*clock*1.5));
-        n = mix(base, 1., glint*.85);
-    }
-    vec3 ink = mix(deep, middle, smoothstep(.2, .62, n));
-    ink = mix(ink, light, smoothstep(.62, .92, n)*.85);
-    float band = abs(fract(dot(p, vec2(.55, .3))*.35-time*.12)-.5);
-    ink += light*(1.-smoothstep(.0, .06, band))*.18;
+    float drift = time*speed*.018;
+    float weave = dot(p, along)*(.8+float(pattern)*.17);
+    float grain = noise(p*vec2(11., 16.)+along*drift);
+    float thread = sin(weave*24.+(grain-.5)*.9+drift);
+    float fibre = smoothstep(.84, .98, thread);
+    float shade = .5+.15*(noise(p*3.2+vec2(drift, 0.))-.5);
+    vec3 ink = mix(deep, middle, shade);
+    ink = mix(ink, light, fibre*.18);
     color = vec4(ink*texel.r, texel.a)*opacity;
 }
 '''
@@ -417,26 +402,22 @@ def text_sprite(text, role, size, color):
 
 
 def letter_fills(accent, count, rng):
-    """A different texture, tone and motion for each letter, all close to the accent so the word stays one
-    family: patterns shuffled so neighbours differ, hues a few steps either side, own drift and speed."""
+    """Subtle woven grain with a shared scene color and independent, slow letter drift."""
     patterns = list(range(PATTERNS))
     rng.shuffle(patterns)
-    h, s, v = colorsys.rgb_to_hsv(*(c/255 for c in accent))
     fills = []
     for k in range(count):
-        shift = HUE_STEPS[k % len(HUE_STEPS)]*rng.uniform(.7, 1.2)
-        tone = colorsys.hsv_to_rgb((h+shift) % 1., s, min(1., v*rng.uniform(.88, 1.06)))
-        fills.append(dict(texture_tones(tuple(round(c*255) for c in tone)), pattern=patterns[k % PATTERNS],
-                          angle=rng.uniform(0., math.pi), speed=rng.uniform(.6, 1.4)*rng.choice((-1, 1)),
+        fills.append(dict(texture_tones(accent), pattern=patterns[k % PATTERNS],
+                          angle=rng.uniform(0., math.pi), speed=rng.uniform(.4, .8)*rng.choice((-1, 1)),
                           seed=rng.uniform(0., 50.)))
     return fills
 
 
 def texture_tones(accent):
-    """Three related tones for the textured word: a deep shade, the accent (softened), and a light tint."""
+    """Three close tones of the scene accent, with no unrelated white or hue shift."""
     h, s, v = colorsys.rgb_to_hsv(*(c/255 for c in accent))
     tone = lambda s, v: tuple(round(c*255) for c in colorsys.hsv_to_rgb(h, s, v))  # noqa: E731
-    return dict(deep=tone(min(1., s*1.05), v*.32), middle=tone(min(.78, s), min(1., v*.95)), light=tone(s*.28, 1.))
+    return dict(deep=tone(s, v*.78), middle=tone(s*.95, v*.9), light=tone(s*.85, min(1., v*1.04)))
 
 
 def elastic(value):
@@ -445,17 +426,72 @@ def elastic(value):
     return 1-math.exp(-6*value)*math.cos(value*math.pi*3.2)
 
 
-def shape_image(kind, filled, size=256):
-    """A white outlined (and maybe translucent filled) shape, tinted by the shape's colour when drawn."""
-    image = Image.new('RGBA', (size*2, size*2))
+ORNAMENTS = ('ring', 'halo', 'orbit', 'sparkle')
+
+
+@lru_cache(maxsize=256)
+def ornament_image(kind, step, size=256):
+    """A floating line ornament drawn on by `step`/24: a ring, a double halo of beads, an orbit with its
+    travelling bead, or a four-point sparkle; thin luminous strokes with a soft glow."""
+    from PIL import ImageFilter
+    image = Image.new('L', (size, size))
     draw = ImageDraw.Draw(image)
-    sides = {'ring': 72, 'circle': 72, 'triangle': 3, 'square': 4, 'hexagon': 6}[kind]
-    r = size*.9
-    points = [(size+r*math.cos(2*math.pi*k/sides-math.pi/2), size+r*math.sin(2*math.pi*k/sides-math.pi/2)) for k in range(sides)]
-    if filled and kind != 'ring':
-        draw.polygon(points, fill=(255, 255, 255, 70))
-    draw.line(points+points[:2], fill=(255, 255, 255, 235), width=round(size*.035), joint='curve')
-    return image.resize((size, size), Image.Resampling.LANCZOS)
+    c, r, w = size/2, size*.42, max(2, size//80)
+    sweep = 360*step/24
+    if kind == 'ring':
+        draw.arc((c-r, c-r, c+r, c+r), -90, -90+sweep, fill=255, width=w)
+    elif kind == 'halo':
+        draw.arc((c-r, c-r, c+r, c+r), -90, -90+sweep, fill=255, width=w)
+        inner = r*.78
+        draw.arc((c-inner, c-inner, c+inner, c+inner), 90, 90+sweep*.85, fill=170, width=max(1, w//2))
+        for k in range(int(12*step/24)):
+            a = math.radians(-90+k*30)
+            bx, by = c+math.cos(a)*r*.89, c+math.sin(a)*r*.89
+            draw.ellipse((bx-w*1.3, by-w*1.3, bx+w*1.3, by+w*1.3), fill=230)
+    elif kind == 'orbit':
+        box = (c-r, c-r*.45, c+r, c+r*.45)
+        draw.arc(box, -90, -90+sweep, fill=210, width=max(1, w//2*2))
+        a = math.radians(-90+sweep)
+        bx, by = c+math.cos(a)*r, c+math.sin(a)*r*.45
+        draw.ellipse((bx-w*2.4, by-w*2.4, bx+w*2.4, by+w*2.4), fill=255)
+    else:
+        reach = r*step/24
+        for angle in (0, 90, 180, 270):
+            a = math.radians(angle)
+            tip = (c+math.cos(a)*reach, c+math.sin(a)*reach)
+            side = (math.cos(a+math.pi/2)*w*1.6, math.sin(a+math.pi/2)*w*1.6)
+            draw.polygon([(c+side[0], c+side[1]), tip, (c-side[0], c-side[1])], fill=255)
+        draw.ellipse((c-w*2, c-w*2, c+w*2, c+w*2), fill=255)
+    glow = image.filter(ImageFilter.GaussianBlur(size/40))
+    alpha = Image.eval(Image.merge('L', (image,)), lambda v: v)
+    combined = Image.fromarray(np.clip(np.asarray(alpha, dtype=float)+np.asarray(glow, dtype=float)*1.4, 0, 255).astype('uint8'))
+    result = Image.new('RGBA', (size, size), (255, 255, 255, 0))
+    result.putalpha(combined)
+    return result
+
+
+def shape_image(kind, filled=True, size=128, progress=1.):
+    """The portion of a solid shape swept out by the traveling dot; no perimeter stroke."""
+    image = Image.new('RGBA', (size, size))
+    draw = ImageDraw.Draw(image)
+    sides = {'triangle': 3, 'square': 4, 'hexagon': 6}[kind]
+    centre, radius = size/2, size*.47
+    points = [(centre+radius*math.cos(math.pi+2*math.pi*k/sides),
+               centre-radius*math.sin(math.pi+2*math.pi*k/sides)) for k in range(sides+1)]
+    progress = max(0., min(1., progress))
+    count = min(sides-1, int(progress*sides))
+    fraction = progress*sides-count
+    a, b = points[count], points[count+1]
+    tip = (a[0]+(b[0]-a[0])*fraction, a[1]+(b[1]-a[1])*fraction)
+    if progress > 0:
+        draw.polygon([(centre, centre)]+points[:count+1]+[tip], fill=(255, 255, 255, 255))
+    return image
+
+
+def shifted(color, amount):
+    """An RGB colour (0..1) with its hue turned by `amount` of a full turn."""
+    h, l, s = colorsys.rgb_to_hls(*(float(v) for v in color[:3]))
+    return colorsys.hls_to_rgb((h+amount) % 1., l, s)
 
 
 def band_image(width=8, height=64):
@@ -501,6 +537,7 @@ class Stage3D:
         self.rhythm = rhythm or {}
         self.seed = getattr(compositor, 'layout_seed', 42) if seed is None else seed
         self.blocks = None
+        self.art_tones = {}
         width, height = compositor.width, compositor.height
         self.aspect = width/height
         self.ppu = width*FILL_WIDTH/BLOCK_WIDTH*OVERSAMPLE
@@ -531,13 +568,14 @@ class Stage3D:
         groups = group_lines(c.data, self.art_breaks() | self.breaks)
         groups = [g for g in ([i for i in group if self.only is None or i in self.only] for group in groups) if g]
         direction = self.directions()
+        generated = 0
         for number, members in enumerate(groups):
             rng = random.Random(self.seed*7919+number*104729)
             directed = direction.get(members[0]) if direction is not None else None
             scene = c.plan['scenes'][members[0]]
             palette = [hex_rgb(v) for v in PALETTES[scene['palette']]]
             words = self.block_words(members, palette)
-            accent = hex_rgb(directed['accent']) if directed and directed.get('accent') else ACCENT
+            accent = self.artwork_accent(words[0]['start'], palette[3])
             style = self.contrast_style(words, rng, accent) if self.layouts.get(members[0]) == 'contrast' else None
             arrange = (lambda pictured=None: self.arrange_contrast(words, members, style, pictured)) if style else \
                 (lambda pictured=None: self.arrange(words, members, pictured))
@@ -545,7 +583,14 @@ class Stage3D:
             effect = self.block_effect(members, number, directed)
             self.crown(words, effect)
             self.choose_accent(words, palette[2], accent, style)
-            self.choose_motion(words, rng, (directed or {}).get('ornament') if direction is not None else False)
+            ornament = (directed or {}).get('ornament') if direction is not None else None
+            background_ornament = None
+            if ornament and ornament.get('image') and Path(ornament['image']).is_file():
+                if generated % 2 == 0:
+                    background_ornament = ornament
+                generated += 1
+            no_pictures = self.c.plan.get('pictures') == 'off'  # the setting turns off keyword pictures too
+            self.choose_motion(words, rng, None if background_ornament or no_pictures else ornament if direction is not None else False)
             pictured = next((w for w in words if w['ornament'] and w['letter'] is None), None)
             if pictured is not None:
                 height = arrange(pictured)
@@ -575,10 +620,20 @@ class Stage3D:
                                     start=min(w['start'] for w in words), end=max(w['end'] for w in words),
                                     palette=palette, entrance=rng.choice(ENTRANCES), motes=self.motes(rng, height),
                                     drift=rng.choice((-1., 1.)), accent=accent, layout='contrast' if style else 'justified', margin=max(0., margin),
-                                    roll=style['roll'] if style else 0., zoom=style['zoom'] if style else 1.))
+                                    roll=style['roll'] if style else 0., zoom=style['zoom'] if style else 1.,
+                                    background_ornament=background_ornament))
             if directed and directed.get('entrance') in ENTRANCES:
                 self.blocks[-1]['entrance'] = directed['entrance']
         for number, block in enumerate(self.blocks):
+            required = block['distance']*1.06
+            if number == 0:
+                block['camera_distance'] = required*1.08
+            else:
+                previous = self.blocks[number-1]['camera_distance']
+                phase = number % 5
+                scale = (1.16, 1.12, 1., .84, .9)[phase-1]
+                block['camera_distance'] = max(required, min(required*1.65, previous*scale))
+            block['shot_roll'] = (0., 0., 7., -6., 0., 5.)[number % 6]+block['roll']*.25
             block['move'] = block['start']-MOVE_LEAD if number else -math.inf
             following = self.blocks[number+1]['start']-MOVE_LEAD if number+1 < len(self.blocks) else self.c.duration
             block['hold'] = (max(0., block['start']-MOVE_LEAD), max(block['start']+1., following))
@@ -589,6 +644,28 @@ class Stage3D:
         self.shapes = self.plan_shapes()
         self.ribbon = self.plan_ribbon()
         return self.blocks
+
+    def artwork_accent(self, time, fallback):
+        """Pick a readable backdrop hue while keeping purple out of textured lettering."""
+        c = self.c
+        if c.artwork_mode not in ('fullscreen', 'verse') or not getattr(c, 'art', None) or not c.art_starts:
+            return fallback
+        slot = max(0, min(len(c.art)-1, bisect.bisect_right(c.art_starts, time)-1))
+        if slot not in self.art_tones:
+            swatches = c.art[slot].convert('RGB').resize((96, 54), Image.Resampling.BILINEAR).quantize(colors=12)
+            colors = swatches.convert('RGB').getcolors() or []
+            choices = []
+            for count, color in colors:
+                h, s, v = colorsys.rgb_to_hsv(*(component/255 for component in color))
+                if s >= .14 and .25 <= v <= .96 and not .69 <= h <= .96:
+                    choices.append((count*(.2+s)*(.5+v), h, s, v))
+            if choices:
+                _, h, s, v = max(choices)
+                rgb = colorsys.hsv_to_rgb(h, min(.55, max(.26, s)), max(.78, min(.94, v*1.35)))
+                self.art_tones[slot] = tuple(round(component*255) for component in rgb)
+            else:
+                self.art_tones[slot] = fallback
+        return self.art_tones[slot]
 
     def heading(self, number, rng):
         """Direction from one block to the next: right, rising, falling or diving, never straight back."""
@@ -789,12 +866,18 @@ class Stage3D:
             def at(self, t):
                 eye, target, _, _ = stage.camera(t)
                 return target[0]*stage.backdrop_scale, -target[1]*stage.backdrop_scale
-        return WorldCanvas([str(p) for p in paths], spans, c.width, c.height, Path())
+        reach = max(b['camera_distance'] for b in self.blocks)/float(np.median([b['distance'] for b in self.blocks]))
+        return WorldCanvas([str(p) for p in paths], spans, c.width, c.height, Path(), reach=1.25*reach, bleed=.9)
 
-    def backdrop_items(self, gl, eye, view):
+    def backdrop_items(self, gl, eye, view, target, t):
         """The part of the collage the camera sees this frame, on curved paper. The collage is cut into fixed
         square chunks (made once, kept on the GPU); each chunk is drawn as thin vertical strips that follow
-        the folds, each showing its own slice of the chunk, darker where the paper turns away."""
+        the folds, each showing its own slice of the chunk, darker where the paper turns away. The paper
+        slides along with the camera so that the camera looks at the collage point WorldCanvas.at(t): the
+        pictures drift slowly and glide from one to the next (see world_canvas)."""
+        far = self.world.at(t)
+        drift = np.array([target[0]-far[0]/self.backdrop_scale, target[1]+far[1]/self.backdrop_scale, 0.])
+        eye = eye-drift
         half = math.tan(math.radians(FOV)/2)
         corners = []
         for x in (-1, 1):
@@ -824,7 +907,7 @@ class Stage3D:
                     model[:3, 0] = (b-a, 0., zb-za)
                     model[:3, 1] = (0., size, 0.)
                     model[:3, 2] = normalized((za-zb, 0., b-a))
-                    model[:3, 3] = ((a+b)/2, middle, (za+zb)/2)
+                    model[:3, 3] = ((a+b)/2+drift[0], middle+drift[1], (za+zb)/2)
                     light = BACKDROP_TINT*(1-PAPER_SHADE*min(1., abs(zb-za)/(b-a)))*(1+.12*(za < zb))
                     strips.append((model, texture, (light,)*3, (k/PAPER_STRIPS, 0., 1/PAPER_STRIPS, 1.)))
         return strips
@@ -834,7 +917,7 @@ class Stage3D:
         bass), on screen for about the `geometry` share of the stage's time, in the block's own colours."""
         blocks = self.blocks
         span = sum(b['hold'][1]-b['hold'][0] for b in blocks)
-        count = round(self.options['geometry']*span/SHAPE_LIFE)
+        count = round(self.options['geometry']*span/(SHAPE_LIFE*1.7))
         moments = [time for time, strength in (self.rhythm.get('bass') or []) if strength >= .6]
         moments = [m for m in moments if any(b['hold'][0] <= m < b['hold'][1] for b in blocks)] or [b['start'] for b in blocks]
         spacing = span/max(1, count)
@@ -852,7 +935,9 @@ class Stage3D:
             x = math.cos(angle)*BLOCK_WIDTH/2*rng.uniform(.6, SHAPE_REACH)
             y = math.sin(angle)*block['height']/2*rng.uniform(.8, SHAPE_REACH*1.4)
             color = block['accent'] if rng.random() < .5 else hex_rgb(rng.choice(BACKDROP_COLORS))
-            shapes.append(dict(start=time, block=number, kind=rng.choice(SHAPES), filled=rng.random() < .4, color=color,
+            mode = ('glide', 'word', 'glide', 'loop', 'word', 'glide')[len(shapes) % 6]
+            shapes.append(dict(start=time, block=number, kind=rng.choice(SHAPES), ornament=rng.choice(ORNAMENTS), mode=mode,
+                               filled=True, color=color,
                                position=(x, y, rng.uniform(*SHAPE_DEPTHS)), size=rng.uniform(.35, 1.1),
                                spin=rng.uniform(-25, 25), tilt=(rng.uniform(-35, 35), rng.uniform(-35, 35)),
                                drift=(rng.uniform(-.06, .06), rng.uniform(-.06, .06), rng.uniform(-.04, .04))))
@@ -864,15 +949,18 @@ class Stage3D:
             age = t-shape['start']
             if not 0 <= age < SHAPE_LIFE:
                 continue
-            fade = smooth(age/.8)*(1-smooth((age-SHAPE_LIFE+1.)/1.))
+            fade = smooth(age/.6)*(1-smooth((age-SHAPE_LIFE+1.2)/1.2))
             if fade <= .01:
                 continue
             block = self.blocks[shape['block']]
             x, y, z = (p+d*age for p, d in zip(shape['position'], shape['drift']))
-            size = shape['size']*(1+.08*age/SHAPE_LIFE)
-            texture = gl.texture(('shape', shape['kind'], shape['filled']), lambda shape=shape: shape_image(shape['kind'], shape['filled']))
-            model = (block['placement']@translation(x, y, z)@rotation(*shape['tilt'], roll=shape['spin']*age)@scaling(size, size))
-            items.append((model, texture, .75*fade, tuple(v/255 for v in shape['color'])))
+            size = shape['size']*(.85+.25*smooth(age/SHAPE_LIFE))  # swells gently as it draws itself on
+            step = max(1, min(24, round(24*smooth(age/1.1))))
+            kind = shape.get('ornament', 'ring')
+            texture = gl.texture(('ornament-line', kind, step), lambda kind=kind, step=step: ornament_image(kind, step))
+            model = (block['placement']@translation(x, y, z)@rotation(shape['tilt'][0]*.4, shape['tilt'][1]*.4,
+                     roll=shape['spin']*.5*age)@scaling(size, size))
+            items.append((model, texture, .6*fade, tuple(min(1., v/255*.6+.4) for v in shape['color'])))
         return items
 
     def plan_ribbon(self):
@@ -895,32 +983,206 @@ class Stage3D:
         for n, stop in enumerate(stops):
             label += 0 if not n else 1 if stop[4] == stops[n-1][5]+1 else 2
             runs_of.append(label)
+        painted_words = set()
         for flow in build_flows(times, [stop[1] for stop in stops], [stop[2] for stop in stops], amplitude=RIBBON_SWING,
                                 normals=[stop[3] for stop in stops], lines=runs_of):
-            segments, colors = [], []
+            if self.options['geometry'] > 0:
+                for shape in self.shapes:
+                    if shape['mode'] == 'glide':
+                        continue
+                    moment = shape['start']
+                    keys = flow['keys']
+                    if not keys[0] or not keys[0][0]+.5 < moment < keys[0][-1]-1.2:
+                        continue
+                    distance = thread_distance(keys, moment)
+                    if distance is None or distance <= .01 or distance >= flow['pieces'][-1]['end']:
+                        continue
+                    point = sample_thread(flow['pieces'], distance-.01, distance, 1.)[-1]
+                    origin = np.array(point[:3])
+                    block = self.blocks[shape['block']]
+                    permanent = shape['mode'] == 'word'
+                    if permanent:
+                        choices = [w for w in block['words'] if w['role'] == 'hero' and w['start'] <= moment+.5
+                                   and (w['line'], w['index']) not in painted_words]
+                        if not choices:
+                            continue
+                        word = min(choices, key=lambda w: abs(w['start']-moment))
+                        painted_words.add((word['line'], word['index']))
+                        frame = block['placement']@word['frame']
+                        cx, cy = word['x']+word['width']/2, word['baseline']+word['cap']/2
+                        rx, ry = word['width']/2+word['cap']*.65, word['cap']*1.1
+                        local = np.linalg.inv(frame)@np.array([*origin, 1.])
+                        flat = swash_route(local[0], local[1], cx, cy, rx, ry, tilt=.12)
+                        route = [tuple((frame@np.array([px, py, RIBBON_DEPTH-.04, 1.]))[:3]) for px, py in flat]
+                        route[0] = route[-1] = tuple(origin)
+                        color = block['accent']
+                    else:
+                        right, up = block['placement'][:3, 0], block['placement'][:3, 1]
+                        flat = curl_route(0., 0., shape['size']*.2, 1. if round(moment*10) % 2 else -1.)
+                        route = [tuple(origin+px*right-py*up) for px, py in flat]  # the curl is drawn with y down
+                        color = point[-1]
+                    # The ribbon itself draws the curl or swash; no filled shape is revealed behind it.
+                    length = insert_thread_loop(flow['pieces'], distance, route, color, shape=False)
+                    clock, distances, _ = keys
+                    duration = 2.2 if permanent else 1.2
+                    flow['keys'] = monotone_keys(clock, [d+length*smooth((time-moment)/duration)
+                                                         for time, d in zip(clock, distances)])
+            segments, colors, paint = [], [], []
             for piece in flow['pieces']:
                 points = [np.array(p) for p in piece['points']]
                 segments.extend(zip(points, points[1:]))
                 colors.extend([piece['color']]*(len(points)-1))
-            runs.append(dict(segments=segments, colors=colors, keys=flow['keys']))
+                paint.extend([not piece.get('shape', False)]*(len(points)-1))
+            runs.append(dict(segments=segments, colors=colors, paint=paint, keys=flow['keys'],
+                             shape_fills=flow.get('shape_fills', [])))
         return runs
+
+    def shape_fill_items(self, gl, t):
+        """Reveal each solid polygon only as the white ribbon head traces its route."""
+        items = []
+        for run in self.ribbon:
+            head = thread_distance(run['keys'], t)
+            if head is None:
+                continue
+            for shape in run['shape_fills']:
+                start, end = shape['start_distance'], shape['end_distance']
+                if head <= start or (not shape['permanent'] and t >= shape['time']+SHAPE_LIFE):
+                    continue
+                progress = min(1., (head-start)/max(1e-6, end-start))
+                step = max(1, round(progress*40))
+                texture = gl.texture(('shape-fill', shape['kind'], step),
+                                     lambda shape=shape, step=step: shape_image(shape['kind'], progress=step/40))
+                model = np.identity(4)
+                model[:3, 0] = shape['right']*shape['rx']*2.15
+                model[:3, 1] = shape['up']*shape['ry']*2.15
+                model[:3, 2] = normalized(np.cross(shape['right'], shape['up']))
+                model[:3, 3] = shape['centre']
+                fade = 1. if shape['permanent'] else 1-smooth((t-shape['time']-SHAPE_LIFE+.8)/.8)
+                alpha = .4 if shape['permanent'] else .5
+                items.append((model, texture, alpha*smooth(progress)*fade, tuple(v/255 for v in shape['color'])))
+        return items
+
+    def background_picture_items(self, gl, t, view):
+        """Move AI-painted lyric cutouts through the scenery behind the words."""
+        items = []
+        for block in self.blocks:
+            spec = block.get('background_ornament')
+            if not spec:
+                continue
+            age = t-block['start']
+            duration = max(3., block['end']-block['start']+1.)
+            if not -.6 <= age <= duration:
+                continue
+            u = smooth((age+.4)/duration)
+            subject = (spec.get('subject', '')+' '+spec.get('text', '')).lower()
+            if any(word in subject for word in ('airplane', 'aeroplane', 'plane', 'bird', 'flight', 'fly', 'lipad')):
+                x, y, angle = -BLOCK_WIDTH*.7+u*BLOCK_WIDTH*1.4, block['height']*.25+u*block['height']*.36, -8.
+            elif any(word in subject for word in ('ship', 'boat', 'sail', 'barko', 'bangka')):
+                x, y, angle = -BLOCK_WIDTH*.6+u*BLOCK_WIDTH*1.2, -block['height']*.34+math.sin(age*2)*.06, math.sin(age*1.3)*3
+            elif any(word in subject for word in ('ball', 'soccer', 'football', 'bola', 'fall', 'drop')):
+                x, y, angle = BLOCK_WIDTH*.28+math.sin(age*.8)*.1, block['height']*.65-u*block['height']*1.3, u*145
+            else:
+                x, y, angle = -BLOCK_WIDTH*.35+u*BLOCK_WIDTH*.7, block['height']*.24+math.sin(age*.8)*.1, math.sin(age*.6)*4
+            position = (block['placement']@np.array([x, y, -1.1, 1.]))[:3]
+            pose = glyph_art.image_pose(spec.get('motion'), t, self.beat(t))
+            position += block['placement'][:3, 0]*pose['dx']+block['placement'][:3, 1]*pose['dy']
+            size = max(.55, min(1.45, block['height']*.42))*pose['scale']
+            texture = gl.texture(('background-cutout', spec['image']), lambda spec=spec: glyph_art.cutout(spec['image']))
+            fade = smooth((age+.6)/.8)*(1-smooth((age-duration+1.)/1.))
+            model = self.billboard(position, view, size)@rotation(roll=angle+pose['angle'])
+            items.append((model, texture, .7*fade*pose['alpha']))
+        return items
 
     def ribbon_bands(self, t, eye):
         """Translucent bands from the thread's tail to its head, each swelling and narrowing in its own slow
         wave and pinching together at both ends, turned to face the camera: one vertex row per sample."""
-        if not self.options['traces']:
+        if not self.options['traces'] and self.options['geometry'] <= 0:
             return []
         return [band for run in self.ribbon for band in self.run_bands(run, t, eye)]
+
+    def ribbon_heads(self, t):
+        """The white point at the leading end of each active ribbon run."""
+        if not self.options['traces'] and self.options['geometry'] <= 0:
+            return []
+        result = []
+        for run in self.ribbon:
+            if t > run['keys'][0][-1]+.3:
+                continue
+            head = thread_distance(run['keys'], t)
+            if head is None:
+                continue
+            travelled = 0.
+            for p, q in run['segments']:
+                length = float(np.linalg.norm(q-p))
+                if travelled+length >= head and length > 1e-6:
+                    result.append(p+(q-p)*max(0., min(1., (head-travelled)/length)))
+                    break
+                travelled += length
+        return result
+
+    # The two wisps: they dance to the stems.
+
+    def music(self):
+        """Hits from the drums and bass, and the sung pitch rank of each word, prepared once."""
+        if getattr(self, '_music', None) is None:
+            hits = sorted(h for stem in ('drums', 'bass') for h in (self.rhythm.get(stem) or []))
+            times = np.array([h[0] for h in hits]) if hits else np.zeros(0)
+            strengths = np.array([h[1] for h in hits]) if hits else np.zeros(0)
+            tune = []
+            for index, line in enumerate(self.c.data):
+                features = (self.melody or [None]*len(self.c.data))[index] if self.melody else None
+                for number, word in enumerate(line['words']):
+                    rank = (features[number] or {}).get('pitch_rank') if features and number < len(features) else None
+                    if rank is not None:
+                        tune.append((word['start'], rank))
+            tune.sort()
+            self._music = dict(times=times, strengths=strengths, tune_times=[a for a, _ in tune], tune=[b for _, b in tune])
+        return self._music
+
+    def pulse(self, t):
+        """(energy 0..1.5 from recent hits, a clock that jumps ahead on every hit, pitch rank 0..1 of the tune)."""
+        music = self.music()
+        before = music['times'] <= t
+        ages = t-music['times'][before]
+        strengths = music['strengths'][before]
+        energy = float(np.sum(strengths*np.exp(-ages/.18)))
+        clock = t*.5+float(np.sum(strengths*.45*(1-np.exp(-ages/.3))))
+        index = bisect.bisect_right(music['tune_times'], t)-1
+        if index < 0:
+            tune = .5
+        else:  # glide from the previous word's pitch to this one's over a moment
+            here = music['tune'][index]
+            previous = music['tune'][index-1] if index else here
+            tune = previous+(here-previous)*smooth((t-music['tune_times'][index])/.4)
+        return min(1.5, energy), clock, tune
+
+    def dance(self, t, energy):
+        """How tightly the two wisps braid: a slow recurring duet, drawn tighter by strong hits."""
+        return min(1., .25+.45*(.5+.5*math.sin(t*.42))**3+.5*energy)
+
+    def wisp_offset(self, distance, t, wisp, side, up, clock, dance):
+        """Where a wisp sits around the shared path: the pair circle each other in a helix whose twist
+        tightens as they dance, each with its own wobble so they never move identically."""
+        twist = .6+2.4*dance
+        angle = distance/(BAND_WIDTH*12)*twist+clock*1.6+wisp*math.pi
+        separation = BAND_WIDTH*(1.4+2.2*(1-dance))
+        wobble = BAND_WIDTH*(.8 if wisp else .5)*math.sin(distance*(.9 if wisp else .7)+clock*(2.6 if wisp else 2.1))
+        return side*(separation*math.cos(angle)+wobble)+up*separation*math.sin(angle)*.8
 
     def run_bands(self, run, t, eye):
         head = thread_distance(run['keys'], t)
         if head is None:
             return []
         tail = max(thread_distance(run['keys'], t-THREAD_LIFE) or 0., head-RIBBON_REACH)
-        samples, travelled = [], 0.
-        for (p, q), color in zip(run['segments'], run['colors']):
+        samples, groups, travelled = [], [], 0.
+        for (p, q), color, paint in zip(run['segments'], run['colors'], run['paint']):
             length = float(np.linalg.norm(q-p))
             start, travelled = travelled, travelled+length
+            if not paint:
+                if len(samples) >= 2:
+                    groups.append(samples)
+                samples = []
+                continue
             if travelled <= tail or start >= head or length < 1e-6:
                 continue
             marks = [max(tail, start)]+[d for d in np.arange(math.ceil(start/BAND_STEP)*BAND_STEP, travelled, BAND_STEP)
@@ -928,31 +1190,101 @@ class Stage3D:
             for distance in marks:
                 if not samples or distance > samples[-1][1]+1e-6:
                     samples.append((p+(q-p)*((distance-start)/length), distance, np.array(color)/255))
-        if len(samples) < 2:
-            return []
+        if len(samples) >= 2:
+            groups.append(samples)
+        energy, clock, tune = self.pulse(t)
+        dance = self.dance(t, energy)
         bands = []
-        for band in range(BANDS):
-            rows = []
-            for number, (point, distance, color) in enumerate(samples):
-                before, after = samples[max(0, number-1)][0], samples[min(len(samples)-1, number+1)][0]
-                side = normalized(np.cross(after-before, eye-point))
-                pinch = smooth(min(head-distance, distance-tail)/(BAND_WIDTH*14))
-                phase = distance/(BAND_WIDTH*16)+t*.5+band*1.7
-                offset = ((band-(BANDS-1)/2)*1.4+math.sin(phase)*1.2)*BAND_WIDTH*pinch
-                width = (1.1+.8*math.sin(phase*.6+band))*BAND_WIDTH*2*pinch
-                rows.append((*(point+side*(offset-width/2)), 0., *color))
-                rows.append((*(point+side*(offset+width/2)), 1., *color))
-            bands.append(np.array(rows))
+        for samples in groups:
+            begin, finish = samples[0][1], samples[-1][1]
+            for wisp in (0, 1):
+                lag = BAND_WIDTH*6*wisp  # the partner follows a moment behind
+                hue = (tune-.5)*.12+wisp*.06
+                for band in range(BANDS if wisp == 0 else BANDS-1):
+                    rows = []
+                    for number, (point, distance, color) in enumerate(samples):
+                        if distance > finish-lag:
+                            break
+                        before, after = samples[max(0, number-1)][0], samples[min(len(samples)-1, number+1)][0]
+                        tangent = after-before
+                        side = normalized(np.cross(tangent, eye-point))
+                        up = normalized(np.cross(side, tangent))
+                        pinch = smooth(min(finish-lag-distance, distance-begin)/(BAND_WIDTH*14))
+                        phase = distance/(BAND_WIDTH*16)+clock+band*1.7
+                        centre = point+self.wisp_offset(distance, t, wisp, side, up, clock, dance)*pinch
+                        offset = ((band-(BANDS-1)/2)*1.2+math.sin(phase)*1.)*BAND_WIDTH*pinch*.8
+                        width = (1.+.8*math.sin(phase*.6+band))*BAND_WIDTH*1.7*pinch*(1+.35*energy)
+                        tint = shifted(color, hue)
+                        rows.append((*(centre+side*(offset-width/2)), 0., *tint))
+                        rows.append((*(centre+side*(offset+width/2)), 1., *tint))
+                    if len(rows) >= 4:
+                        bands.append(np.array(rows))
         return bands
+
+    def wisp_particles(self, t):
+        """Glowing motes streaming from both wisp heads, bursting on every hit, and sparks where the wisps
+        cross: [(position, size, opacity, colour)]. Each mote's path is solved from its birth time."""
+        if not self.options['traces']:
+            return []
+        energy, clock, tune = self.pulse(t)
+        music = self.music()
+        result = []
+        for number, run in enumerate(self.ribbon):
+            if t > run['keys'][0][-1]+1.2 or t < run['keys'][0][0]:
+                continue
+            colour = np.array(run['colors'][0] if run['colors'] else (255, 255, 255))/255
+            for k in range(36):  # motes born over the last 1.2 s
+                born = math.floor(t*30)/30-k/30
+                age = t-born
+                if born < run['keys'][0][0]:
+                    break
+                head = self.head_at(number, born)
+                if head is None:
+                    continue
+                point, tangent = head
+                hits = music['times'][(music['times'] <= born) & (music['times'] > born-1/30)]
+                burst = 5 if len(hits) else 1
+                b_energy, b_clock, _ = self.pulse(born)
+                b_dance = self.dance(born, b_energy)
+                for j in range(burst*2):
+                    rng = random.Random(round(born*30)*97+j*13+number)
+                    wisp = j % 2
+                    side = normalized(np.cross(tangent, np.array([0., 0., 1.])))
+                    up = normalized(np.cross(side, tangent))
+                    origin = point+self.wisp_offset(0., born, wisp, side, up, b_clock, b_dance)
+                    velocity = np.array([rng.uniform(-1, 1), rng.uniform(-.4, 1.), rng.uniform(-1, 1)])*(.3+.9*(burst > 1))
+                    position = origin+velocity*age-np.array([0., .12, 0.])*age*age
+                    fade = (1-smooth(age/1.2))*smooth(age/.05)
+                    tint = shifted(colour*.6+.4, (tune-.5)*.12+wisp*.06)
+                    result.append((position, BAND_WIDTH*(2.6 if burst > 1 else 1.5)*(1-.5*age), fade, tint))
+            # Where the two wisps cross on the head's stretch of path, a spark flares.
+            head = self.head_at(number, t)
+            if head is not None and self.dance(t, energy) > .6 and math.cos(clock*1.6) > .96:
+                point, _ = head
+                result.append((point, BAND_WIDTH*5, .9, (1., 1., 1.)))
+        return result
+
+    @lru_cache(maxsize=4096)
+    def head_at(self, number, t):
+        """Position and direction of a ribbon run's head at time t (cached: motes ask about recent times)."""
+        run = self.ribbon[number]
+        head = thread_distance(run['keys'], t)
+        if head is None:
+            return None
+        travelled = 0.
+        for p, q in run['segments']:
+            length = float(np.linalg.norm(q-p))
+            if travelled+length >= head and length > 1e-6:
+                return p+(q-p)*max(0., min(1., (head-travelled)/length)), normalized(q-p)
+            travelled += length
+        return None
 
     # Camera.
 
     def hold_pose(self, block, t):
-        start, end = block['hold']
-        u = (t-start)/max(1e-3, end-start)
         middle = (block['start']+block['end'])/2
         target = block['focus']+block['cruise']*(t-middle)
-        eye = target+block['view']*block['distance']*(1-HOLD_DOLLY*u)+block['side']*.1*math.sin(t*.4)*block['drift']
+        eye = target+block['view']*block['camera_distance']
         return eye, target
 
     def camera(self, t):
@@ -963,14 +1295,11 @@ class Stage3D:
         if number and t < block['move']+MOVE:
             u = ease((t-block['move'])/MOVE)
             old_eye, old_target = self.hold_pose(blocks[number-1], t)
-            travel = np.linalg.norm(target-old_target)
-            arc = math.sin(math.pi*u)
-            eye = old_eye+(eye-old_eye)*u+np.array([0., 1., 0.])*arc*travel*ARC_LIFT
-            eye = eye+normalized(eye-target)*arc*travel*ARC_PULL
+            eye = old_eye+(eye-old_eye)*u
             target = old_target+(target-old_target)*u
-        roll = block['roll']
+        roll = block['shot_roll']
         if number and t < block['move']+MOVE:
-            roll = blocks[number-1]['roll']+(roll-blocks[number-1]['roll'])*ease((t-block['move'])/MOVE)
+            roll = blocks[number-1]['shot_roll']+(roll-blocks[number-1]['shot_roll'])*ease((t-block['move'])/MOVE)
         forward = normalized(target-eye)
         angle = math.radians(roll)
         up = np.array([0., 1., 0.])
@@ -1004,14 +1333,22 @@ class Stage3D:
         sky = gl.texture(('sky', palette[0], palette[1]), lambda: gradient(tuple(round(v*.7) for v in palette[0]), palette[1]))
         gl.quad(sky, scaling(2., 2.))
         if self.world is not None:
-            for model, texture, light, uv in self.backdrop_items(gl, eye, view) or []:
+            for model, texture, light, uv in self.backdrop_items(gl, eye, view, target, t) or []:
                 gl.quad(texture, camera@model, 1., light, uv)
+        for model, texture, opacity in self.background_picture_items(gl, t, view):
+            gl.quad(texture, camera@model, opacity)
+        for model, texture, opacity, tint in self.shape_fill_items(gl, t):
+            gl.quad(texture, camera@model, opacity, tint)
         band = gl.texture('band', band_image)
         for rows in self.ribbon_bands(t, eye):
             gl.strip(band, camera, rows, BAND_OPACITY)
-        items = self.shape_items(gl, t)
+        items = []
         beat = self.beat(t)
         dot = gl.texture('dot', soft_dot)
+        for position in self.ribbon_heads(t):
+            items.append((self.billboard(position, view, BAND_WIDTH*4), dot, .95, (1., 1., 1.)))
+        for position, size, opacity, tint in self.wisp_particles(t):
+            items.append((self.billboard(position, view, size), dot, opacity, tuple(tint)))
         reach = DRAW_REACH*blocks[current]['distance']
         for number in range(len(blocks)):
             block = blocks[number]
@@ -1079,7 +1416,7 @@ class Stage3D:
             edges = [0]+[pad+round(font.getlength(word['text'][:n])) for n in range(1, len(word['text']))]+[sprite.width]
             layer = Image.new('RGBA', (sprite.width+side*2, sprite.height+top+bottom))
             paint_transition(layer, sprite, side, top, 'entrance', 1-progress, recipe, word['line']*31+word['index'],
-                             c.particle_intensity, .6, c.effect_cache, glyph_spans=list(zip(edges, edges[1:])))
+                             c.effect_intensity(recipe), .6, c.effect_cache, glyph_spans=list(zip(edges, edges[1:])))
             return layer
         if progress >= 1:
             texture = gl.texture(('effect', word['text'], recipe.id, size, word['color'], word['line'], word['index']), draw)
@@ -1170,6 +1507,7 @@ class Stage3D:
                 center[1] += math.sin(t*4.2-word['letter']*.7)*cap*.09*smooth(max(0., t-word['start'])/.6)
         else:
             x, y, size = word['slot']
+            size *= SLOT_PICTURE
             center = np.array([x, y+math.sin(t*1.7)*cap*.05, cap*.15])
         items = []
         for key, image, pose in glyph_art.ornament_layers(word['ornament'], t, beat):

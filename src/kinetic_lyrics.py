@@ -17,7 +17,8 @@ from kinetic_progress import emit
 
 
 def run(command):
-    return subprocess.run(command, check=True, capture_output=True, text=True).stdout
+    return subprocess.run(command, check=True, capture_output=True, text=True,
+                          encoding='utf-8', errors='replace').stdout
 
 
 def archive_legacy_subtitles(path):
@@ -368,6 +369,8 @@ def main(argv=None):
     parser.add_argument('--stage-pictures',choices=('ai-painted','ai-library','keywords','off'),default='ai-painted',
                         help='3D stage pictures: AI picks them and paints new ones, AI picks from the library only, keyword matches, or none')
     parser.add_argument('--effect-speeds',default=None,help='JSON per-effect particle speeds, e.g. {"glass-shatter": 0.5}')
+    parser.add_argument('--instruments',choices=('auto','off'),default='auto',help='Animate the instruments the analysis confidently hears (auto) or never (off)')
+    parser.add_argument('--effect-intensities',default=None,help='JSON per-effect letter-effect intensities, e.g. {"paper-burn": 1.5}')
     parser.add_argument('--kinetic',default=None,help='JSON real-time effect settings (pan_speed, backdrop_rate, backdrops, traces, geometry, frames, glows, glow_strength, glitch)')
     parser.add_argument('--lettering-styles',default=None,help='JSON list of allowed text styles: swiss, poster, outline, cutout (default: all, as planned)')
     parser.add_argument('--font-style',choices=FONT_STYLES,default='auto')
@@ -495,6 +498,9 @@ def main(argv=None):
         args.melody = ensure_melody(data, output.parent)
         from rhythm import ensure_rhythm
         args.rhythm = ensure_rhythm(audio, output.parent)
+        if getattr(args, 'instruments', 'auto') != 'off':
+            from instrument_analysis import ensure_instruments
+            args.instruments_found = ensure_instruments(audio, output.parent, duration, getattr(args, 'image_cache', None))
         if moved:
             print(f'Moved {moved} line start(s) to the measured vocal onset.', flush=True)
             timing_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')

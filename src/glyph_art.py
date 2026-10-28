@@ -15,6 +15,7 @@ from functools import lru_cache
 import math
 import random
 
+import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageSequence
 
 from project_paths import PROJECT_ROOT
@@ -226,8 +227,10 @@ def image_pose(motion, t, beat):
 
 @lru_cache(maxsize=32)
 def cutout(path):
+    from staging_matte import remove_staging
     with Image.open(path) as source:
         image = source.convert('RGBA')
+    image = remove_staging(image)  # any flat staging backdrop left around the subject becomes transparent
     bounds = image.getchannel('A').getbbox()
     if bounds:
         image = image.crop(bounds)

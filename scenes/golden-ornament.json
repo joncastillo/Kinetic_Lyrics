@@ -3,7 +3,8 @@
   "camera": "blocks",
   "particles": [
     "gold-filigree-lettering",
-    "jeweled-brocade-lettering"
+    "jeweled-brocade-lettering",
+    "catholic-cross-lettering"
   ],
-  "description": "3D blocks crowned with gold filigree or jewelled brocade."
+  "description": "3D blocks with gold filigree, jeweled brocade, or a Latin cross."
 }
