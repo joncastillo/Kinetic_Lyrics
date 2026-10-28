@@ -5,13 +5,14 @@ maple, frost...) carries its own colours, measured once from a rendered sample. 
 holds the mean colour (the catalogue swatch); particles/palettes.json holds every colour covering a
 real share of the lettering, because a mean hides light parts: brass gears average to brown but are
 partly pale gold, which vanishes on a yellow scene. Readability is checked against all of them.
-Regenerate both with `python effect_colors.py` after adding recipes.
+Regenerate both with `python src/effect_colors.py` after adding recipes.
 """
 import json
 from functools import lru_cache
 from pathlib import Path
+from project_paths import PROJECT_ROOT
 
-COLORS_PATH = Path(__file__).with_name('particles')/'colors.json'
+COLORS_PATH = PROJECT_ROOT/'particles'/'colors.json'
 PALETTES_PATH = COLORS_PATH.with_name('palettes.json')
 PROBE = (128, 128, 128)
 MIN_CONTRAST = 1.8

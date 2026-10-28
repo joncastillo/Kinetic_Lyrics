@@ -6,6 +6,7 @@ import argparse
 import json
 import math
 from pathlib import Path
+from project_paths import PROJECT_ROOT
 import re
 import shutil
 import subprocess
@@ -69,10 +70,10 @@ def whisper_model(args):
     try:
         import stable_whisper
     except ImportError as exc:
-        raise ValueError("Whisper transcription/alignment needs stable-ts. Install requirements-kinetic.txt "
+        raise ValueError("Whisper transcription/alignment needs stable-ts. Install requirements.txt "
                          "or supply --timings with reviewed word timestamps.") from exc
     return stable_whisper.load_model(args.model, device=args.device,
-        download_root=str((Path(getattr(args,'image_cache',None) or Path(__file__).resolve().parent/'.cache')/'speech'/'whisper').resolve()))
+        download_root=str((Path(getattr(args,'image_cache',None) or PROJECT_ROOT/'.cache')/'speech'/'whisper').resolve()))
 
 
 def release_whisper_memory():
@@ -417,7 +418,7 @@ def main(argv=None):
     if args.style_reference and (args.no_illustrations or args.illustrations or args.renderer != 'editorial'):
         parser.error('--style-reference requires automatically generated editorial illustrations.')
     if args.renderer == 'editorial' and not args.no_illustrations and not args.illustrations and args.style_reference is None and not args.no_default_style_references:
-        default_reference = Path(__file__).resolve().parent / 'assets' / 'default-style-reference.jpg'
+        default_reference = PROJECT_ROOT / 'assets' / 'default-style-reference.jpg'
         args.style_reference = [default_reference] if default_reference.is_file() else []
     if args.illustrations and args.renderer != 'editorial':
         parser.error('--illustrations requires --renderer editorial.')

@@ -1,6 +1,7 @@
 """Admit Ollama inference only after verifying full GPU residency."""
 from contextlib import nullcontext
 from pathlib import Path
+from project_paths import PROJECT_ROOT
 import time
 import urllib.error
 from gpu_models import GIB, budget_for_model, detect_gpus, normalize
@@ -82,7 +83,7 @@ def gpu_chat(endpoint,payload=None,timeout=900):
         return local_json(endpoint,payload,timeout=timeout)
     from model_lifecycle import current_session
     from filelock import FileLock
-    lock=nullcontext() if current_session() else FileLock(str(Path(__file__).parent/'.image-generation.lock'),timeout=-1)
+    lock=nullcontext() if current_session() else FileLock(str(PROJECT_ROOT/'.image-generation.lock'),timeout=-1)
     query=dict(payload);query['options']={**payload.get('options',{}),'num_gpu':999}
     query['keep_alive']=-1
     with lock:

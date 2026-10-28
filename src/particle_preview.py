@@ -152,8 +152,9 @@ def _pool():
 
 def _source_version():
     from pathlib import Path
+    from project_paths import PROJECT_ROOT
     root = Path(__file__).parent
-    paths = [root/name for name in PREVIEW_SOURCES]+sorted((root/'particles').rglob('*.json'))
+    paths = [root/name for name in PREVIEW_SOURCES]+sorted((PROJECT_ROOT/'particles').rglob('*.json'))
     return max((path.stat().st_mtime_ns for path in paths if path.exists()), default=0)
 
 
@@ -161,7 +162,8 @@ def _cached(kind, args, renderer):
     """Disk-cached sample, invalidated whenever the renderer or recipes change."""
     import hashlib
     from pathlib import Path
-    folder = Path(__file__).parent/'.preview-cache'
+    from project_paths import PROJECT_ROOT
+    folder = PROJECT_ROOT/'.preview-cache'
     key = hashlib.sha256(repr((kind, args, _source_version())).encode()).hexdigest()[:32]
     target = folder/f'{key}.gif'
     try:

@@ -3,6 +3,7 @@ import json
 import io
 import os
 from pathlib import Path
+from project_paths import PROJECT_ROOT
 import shutil
 import subprocess
 import time
@@ -52,7 +53,7 @@ def ready():
 def ensure_running(timeout=30):
     if ready():
         return
-    lock = Path(__file__).parent / 'tmp' / 'ollama-start.lock'
+    lock = PROJECT_ROOT / 'tmp' / 'ollama-start.lock'
     lock.parent.mkdir(exist_ok=True)
     with FileLock(str(lock), timeout=timeout+5):
         if ready():

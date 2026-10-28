@@ -1,8 +1,8 @@
 @echo off
 setlocal
 if exist "%~dp0.venv\Scripts\python.exe" (
-  "%~dp0.venv\Scripts\python.exe" "%~dp0studio.py" %*
+  "%~dp0.venv\Scripts\python.exe" "%~dp0src\studio.py" %*
 ) else (
-  python "%~dp0studio.py" %*
+  python "%~dp0src\studio.py" %*
 )
 exit /b %errorlevel%

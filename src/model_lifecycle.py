@@ -3,6 +3,7 @@ from contextvars import ContextVar
 import gc
 import gpu_memory
 from pathlib import Path
+from project_paths import PROJECT_ROOT
 
 _ACTIVE = ContextVar('image_model_session', default=None)
 GIB = 2**30
@@ -25,7 +26,7 @@ class ModelSession:
 
     def __enter__(self):
         from filelock import FileLock
-        self.lock = FileLock(str(Path(__file__).parent/'.image-generation.lock'), timeout=-1)
+        self.lock = FileLock(str(PROJECT_ROOT/'.image-generation.lock'), timeout=-1)
         self.lock.acquire()
         self.token = _ACTIVE.set(self)
         return self

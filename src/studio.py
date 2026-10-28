@@ -1,6 +1,6 @@
 """Local-only lyric studio. No web framework or extra UI dependencies required."""
 from typography_settings import typography_options
-from project_paths import default_model_cache, studio_output
+from project_paths import PROJECT_ROOT, UI_ROOT, default_model_cache, studio_output
 import argparse
 import copy
 import codecs
@@ -32,7 +32,7 @@ from review_policy import rejected, DEFAULT_THRESHOLD
 from speech_models import ASR_MODELS, LANGUAGES, DEFAULT_ASR, validate_speech
 
 HERE = Path(__file__).resolve().parent
-ROOT = studio_output(HERE,'lyric-studio')
+ROOT = studio_output(PROJECT_ROOT,'lyric-studio')
 STAGES = {'alignment': (0, 10), 'subjects': (10, 15), 'model': (15, 20),
           'illustrations': (20, 70), 'cutouts': (70, 80), 'review': (80, 80),
           'direction': (80, 85), 'render': (85, 99), 'complete': (100, 100)}
@@ -196,7 +196,7 @@ class Job:
             with LOCK:
                 if self.cancelled:
                     return
-                process = subprocess.Popen(command, cwd=HERE.parent, env=env, stdout=subprocess.PIPE,
+                process = subprocess.Popen(command, cwd=PROJECT_ROOT.parent, env=env, stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT, **kwargs)
                 if action:
                     self.action_process = process
@@ -627,17 +627,17 @@ class Handler(BaseHTTPRequestHandler):
         try:
             url = urlsplit(self.path)
             if url.path == '/':
-                return self.respond((HERE/'studio.html').read_bytes(), content_type='text/html; charset=utf-8')
+                return self.respond((UI_ROOT/'studio.html').read_bytes(), content_type='text/html; charset=utf-8')
             if url.path == '/assets/default-style-reference.jpg':
-                return self.respond((HERE/'assets'/'default-style-reference.jpg').read_bytes(), content_type='image/jpeg')
+                return self.respond((PROJECT_ROOT/'assets'/'default-style-reference.jpg').read_bytes(), content_type='image/jpeg')
             if url.path in ('/studio.css', '/studio-profiles.js', '/studio-models.js', '/studio-particles.js'):
-                path = HERE/url.path.lstrip('/')
+                path = UI_ROOT/url.path.lstrip('/')
                 return self.respond(path.read_bytes(), content_type='text/css' if path.suffix=='.css' else 'text/javascript')
             if url.path == '/api/profile-audio':
                 from profile_audio import profile_audio_path
                 value=parse_qs(url.query).get('path',[''])[0]
                 try:
-                    path=profile_audio_path(HERE/'profiles'/'audio',value,AUDIO_SUFFIXES)
+                    path=profile_audio_path(PROJECT_ROOT/'profiles'/'audio',value,AUDIO_SUFFIXES)
                 except FileNotFoundError as exc:
                     return self.respond(dict(error=str(exc)),404)
                 return self.respond(path.read_bytes(),content_type=mimetypes.guess_type(str(path))[0] or 'application/octet-stream')
@@ -775,7 +775,7 @@ class Handler(BaseHTTPRequestHandler):
                 if len(files.get('audio',[]))!=1:
                     raise ValueError('Choose one audio file')
                 name,content=files['audio'][0]
-                path=store_profile_audio(HERE/'profiles'/'audio',name,content,AUDIO_SUFFIXES)
+                path=store_profile_audio(PROJECT_ROOT/'profiles'/'audio',name,content,AUDIO_SUFFIXES)
                 return self.respond(dict(path=str(path)),201)
             if route == '/api/jobs':
                 fields, files = parse_form(body, self.headers['Content-Type'])

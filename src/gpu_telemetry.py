@@ -2,10 +2,11 @@
 import json
 import os
 from pathlib import Path
+from project_paths import PROJECT_ROOT
 import threading
 import time
 
-REPORTS=Path(__file__).parent/'.runtime'/'gpu-memory'
+REPORTS=PROJECT_ROOT/'.runtime'/'gpu-memory'
 _CACHE_LOCK=threading.Lock()
 _CACHE=None
 _CACHE_TIME=0

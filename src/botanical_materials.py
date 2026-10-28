@@ -2,13 +2,14 @@
 import math
 from functools import lru_cache
 from pathlib import Path
+from project_paths import PROJECT_ROOT
 from PIL import Image, ImageDraw
 
 FLOWERS = ('chrysanthemum','poppy','daisy')
 
 @lru_cache(maxsize=32)
 def botanical_photo(index):
-    path=Path(__file__).with_name('assets')/'botanical-v2'/'atlas.png'
+    path=PROJECT_ROOT/'assets'/'botanical-v2'/'atlas.png'
     with Image.open(path) as atlas:
         cell_w,cell_h=atlas.width//4,atlas.height//4
         x,y=(index%4)*cell_w,(index//4)*cell_h

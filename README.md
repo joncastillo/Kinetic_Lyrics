@@ -27,6 +27,13 @@ This creates `.venv`, installs CUDA PyTorch and the dependencies in
 `KINETIC_LYRICS_MODEL_CACHE` (default `~/.cache/kinetic-lyrics`). Set
 `KINETIC_LYRICS_OUTPUT` to choose where projects are written.
 
+## Project layout
+
+- `src/` — Python implementation (CLI, Studio server, renderer, model workers)
+- `ui/` — Studio web front end (HTML, CSS, JS)
+- `tests/` — run with `python -m unittest discover -s tests`
+- `assets/`, `particles/`, `shaders/` — images, effect recipes and GLSL shaders
+
 ## Studio
 
 ```powershell
