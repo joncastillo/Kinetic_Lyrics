@@ -3,7 +3,8 @@
   "camera": "blocks",
   "particles": [
     "pearl-lace-lettering",
-    "folded-paper-lettering"
+    "folded-paper-lettering",
+    "mucha-silk-lettering"
   ],
-  "description": "3D blocks crowned with pearl lace or folded paper craft."
+  "description": "3D blocks with pearl lace, folded paper, or flowing Art Nouveau silk."
 }

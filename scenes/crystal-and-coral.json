@@ -4,7 +4,8 @@
   "particles": [
     "frost-crystal-lettering",
     "luminous-coral-lettering",
-    "obsidian-lattice-lettering"
+    "obsidian-lattice-lettering",
+    "catholic-cross-lettering"
   ],
-  "description": "3D blocks crowned with frost crystal, glowing coral or obsidian lattice."
+  "description": "3D blocks with frost crystal, glowing coral, obsidian lattice, or gold Latin crosses."
 }

@@ -78,7 +78,7 @@ def geometry(sprite,effect,seed,intensity=1.):
         colors=((240,230,205),(215,214,207),(255,247,226))
     elif effect.id=='jeweled-brocade-lettering':
         rib=.5+.5*np.sin(xx*1.5+yy*.75)
-        rgb=np.stack((62+46*rib,23+20*rib,49+44*rib),axis=-1)
+        rgb=np.stack((75+55*rib,42+31*rib,23+23*rib),axis=-1)
         rgb[depth<1.4]=(237,184,84)
         colors=((234,179,73),(251,218,139),(167,117,48))
     else:
@@ -117,7 +117,7 @@ def geometry(sprite,effect,seed,intensity=1.):
             strands.append(Strand(petals,born,.35,1.1,color))
             strands.append(Strand(oval(px,py,radius*.36,radius*.65,angle),born+.05,.30,.75,colors[1]))
             if len(occupied)%2==0:
-                gem_colors=((167,32,67),(24,165,112),(62,114,217),(156,87,199))
+                gem_colors=((167,65,47),(24,165,112),(62,114,217),(206,149,65))
                 jewels.append(Jewel((px,py),min(5.4,max(2.4,depth[int(py),int(px)]*.6)),born+.36,gem_colors[len(occupied)%4]))
         else:
             for branch in range(3):

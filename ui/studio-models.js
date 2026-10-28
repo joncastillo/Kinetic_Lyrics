@@ -313,7 +313,7 @@ document.addEventListener('DOMContentLoaded',()=>{
  syncLetteringChecks();
 });
 
-const KINETIC_DEFAULTS={camera:'pan',pan_speed:.05,backdrop_rate:.6,backdrops:['outline','filled','vertical','echo','giant'],traces:true,geometry:.8,frames:.1,glows:['drums','other','bass'],glow_words:.5,glow_strength:.55,glitch:true,text_pulse:.1,word_shapes:.6};
+const KINETIC_DEFAULTS={camera:'pan',pan_speed:.05,backdrop_rate:.6,backdrops:['outline','filled','vertical','echo','giant'],traces:true,geometry:.8,frames:.1,glows:['drums','other','bass'],glow_words:.5,glow_strength:.55,glitch:true,text_pulse:.1,word_shapes:0};
 function kineticSettings(){
  const hidden=document.getElementById('kinetic');let value={};
  try{value=JSON.parse(hidden?.value||'{}')||{}}catch{value={}}

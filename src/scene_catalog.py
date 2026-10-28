@@ -3,14 +3,13 @@
 Each scene is a small JSON recipe in scenes/. Its `camera` picks the renderer: "pan" (the
 real-time panning canvas, with flowing bands and drifting shapes), "still" (the real-time
 still camera, lines built inside shapes) or "blocks" (the 3D stage). A blocks scene owns a
-few particle effects (`particles`), such as the maple and oak trees of the tree canopy;
+few particle effects (`particles`), such as the varied tree canopy entrances;
 inside that scene the AI picks one of them for each block. A blocks scene's `layout` is
 "justified" (rows of equal width, the default) or "contrast" (thin and heavy words, one
 word with a flowing textured fill, the last word set vertically, the camera zoomed and
 tilted). Pan and still scenes keep the user's per-line entrance effects, so `particles`
 is null for them. The filename, without .json, is the scene's ID.
 """
-from functools import lru_cache
 import json
 import re
 import warnings
@@ -49,7 +48,6 @@ def read_scene(path, entrances=None):
                 particles=list(particles) if particles is not None else None, layout=layout)
 
 
-@lru_cache(maxsize=1)
 def scene_catalog():
     """{id: scene} for every valid recipe in scenes/, skipping invalid ones with a warning."""
     from particle_catalog import discover_effects

@@ -290,6 +290,10 @@ def remove_negative_space(source, biref_session):
 
     combined_alpha = np.maximum(biref_alpha, edge_alpha)
     combined_alpha[is_negative_space & (val > 238)] = 0
+    from staging_matte import staging_alpha
+    staging = staging_alpha(source)  # a flat staging backdrop of any colour (grey, beige...), not only near-white
+    if staging is not None:
+        combined_alpha = np.minimum(combined_alpha, (staging[0]*255).astype(np.uint8))
 
     result = source.convert('RGBA')
     result.putalpha(Image.fromarray(combined_alpha))

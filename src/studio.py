@@ -319,7 +319,8 @@ class Job:
             result['replacement_review']=[c['index'] for c in waiting.get('candidates',[])] if waiting.get('manifest')==str(self.manifest()) else []
         except (OSError,ValueError):result['replacement_review']=[]
         logs = result.pop('logs')
-        result.update(logs=logs[cursor:], cursor=len(logs), images=self.images(), rejected_images=self.rejected_selections(),
+        result.update(logs=logs[cursor:], cursor=len(logs), images=self.images(), ornaments=self.ornaments(),
+                      rejected_images=self.rejected_selections(),
                       elapsed=round(self.state.get('finished', time.time())-self.state['started']),
                       render_settings=dict(**typography_options(self.config),text_animation=self.config.get('text_animation','directed'), auto_accept=self.config.get('auto_accept',False), type_effect=self.config.get('type_effect','none'), entrance_effect=self.config.get('entrance_effect','legacy'), exit_effect=self.config.get('exit_effect','legacy'), entrance_pool=self.config.get('entrance_pool'), exit_pool=self.config.get('exit_pool'), particle_speed=self.config.get('particle_speed',1.), particle_intensity=self.config.get('particle_intensity',1.)))
         if (self.folder/'video.mp4').exists():
@@ -335,6 +336,35 @@ class Job:
     def manifest(self):
         from active_artwork import select_manifest
         return select_manifest(self.folder,self.config,self.state)
+
+    def ornaments(self):
+        """The small pictures the AI painted for words in the typography, shown as the transparent cutouts the
+        video uses (cached beside each picture as .cutout.png)."""
+        try:
+            blocks = json.loads((self.folder/'video.blocks.json').read_text(encoding='utf-8'))['blocks']
+        except (OSError, ValueError, KeyError, TypeError):
+            return []
+        result = []
+        for block in blocks:
+            ornament = (block or {}).get('ornament') or {}
+            if not ornament.get('image'):
+                continue
+            path = Path(ornament['image'])
+            path = (path if path.is_absolute() else self.folder/path).resolve()
+            if not path.is_file() or not path.is_relative_to(self.folder.resolve()):
+                continue
+            shown = path.with_suffix('.cutout.png')
+            try:
+                if not shown.exists() or shown.stat().st_mtime_ns < path.stat().st_mtime_ns:
+                    from glyph_art import cutout
+                    cutout(str(path)).save(shown)
+            except OSError:
+                continue
+            from ornament_director import picture_key, released_pictures
+            key = picture_key(ornament)
+            result.append(dict(word=ornament.get('text', ''), subject=ornament.get('subject', ''), line=ornament.get('line'),
+                               url=self.url(shown), key=key, keep=key not in released_pictures(self.folder)))
+        return result
 
     def images(self):
         try:
@@ -557,6 +587,7 @@ def start_job(fields, files):
             '-o', str(folder/'video.mp4')]
         command += ['--text-animation', config['text_animation'], '--text-pool',json.dumps(config['text_pool']),
                     '--font-family',config['font_family'],'--font-style',config['font_style'],'--font-scale',str(config['font_scale']),'--lettering-styles',json.dumps(config['lettering_styles']),'--reading-flow',config['reading_flow'],'--kinetic',json.dumps(config['kinetic']),'--effect-speeds',json.dumps(config['effect_speeds']),
+                    '--effect-intensities',json.dumps(config['effect_intensities']),
                     '--stage-pictures',config.get('stage_pictures','ai-painted')]
         if not config['auto_accept']:
             command.append('--review-artwork')
@@ -794,6 +825,12 @@ class Handler(BaseHTTPRequestHandler):
                 args, files = parse_form(body, self.headers['Content-Type'])
             else:
                 args, files = json.loads(body), {}
+            if operation == 'keep-picture':  # a preference for the next render; allowed at any time
+                if not isinstance(args.get('key'), str) or len(args['key']) > 40:
+                    raise ValueError('Invalid picture')
+                from ornament_director import set_picture_kept
+                set_picture_kept(job.folder, args['key'], bool(args.get('keep', True)))
+                return self.respond(dict(ok=True))
             if operation in ('regenerate','reprompt') and (not isinstance(args.get('prompt',''),str) or len(args.get('prompt',''))>32768):
                 raise ValueError('The generation prompt must be text no longer than 32,768 characters')
             with LOCK:
@@ -810,7 +847,9 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('Wait for the current image operation to finish')
                 live_selection = (operation in ('select', 'replace') and job.state['status'] == 'running'
                                   and job.state['stage'] in ('illustrations','cutouts','verification','repair','repair-complete','direction','render'))
-                if job.state['status'] not in ('review', 'complete') and not live_selection:
+                saved_review = (operation == 'skip-verify' and job.state['status'] == 'cancelled'
+                                and job.state['stage'] == 'review')
+                if job.state['status'] not in ('review', 'complete') and not live_selection and not saved_review:
                     raise ValueError('Images can be changed at artwork review or after the video completes')
                 if any(other is not job and (other.state['status'] in ('queued', 'running', 'review') or other.state['action']) for other in JOBS.values()):
                     raise ValueError('Another job is active; finish or cancel it first')
@@ -893,6 +932,27 @@ class Handler(BaseHTTPRequestHandler):
                 if not 0 <= index < count:
                     raise ValueError('Invalid illustration index')
                 target = manifest.parent/f'{index:03d}.png'
+                if operation == 'skip-verify':
+                    selected = checked_file(job, args['path'])
+                    if selected != target or not target.is_file():
+                        raise ValueError('Only the selected illustration can skip verification')
+                    from filelock import FileLock
+                    with FileLock(str(target)+'.write.lock',timeout=30):
+                        fingerprint = hashlib.sha256(target.read_bytes()).hexdigest()
+                        report_path = target.with_suffix('.review.json')
+                        try: previous = json.loads(report_path.read_text(encoding='utf-8'))
+                        except (OSError, ValueError): previous = {}
+                        if not previous.get('validation_pending') or previous.get('image_sha256') != fingerprint:
+                            raise ValueError('Only a pending validation for this image can be skipped')
+                        report = dict(model=previous.get('model'), manual_skip=True, validation_pending=False,
+                            score=None, rejected=False, verdict='skipped',
+                            summary='Verification skipped manually. Inspect this image before approving artwork.',
+                            issues=[], hand_checks=[], uncertain=True, image_sha256=fingerprint,
+                            image=str(target), reviewed_at=time.time(), advisory=True)
+                        report_path.write_text(json.dumps(report,indent=2),encoding='utf-8')
+                    job.log(f'Illustration {index+1} verification skipped manually.')
+                    job.save()
+                    return self.respond(dict(ok=True))
                 if operation in ('select', 'replace'):
                     if operation == 'replace':
                         name, content = files['replacement'][0]

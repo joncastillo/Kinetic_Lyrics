@@ -6,6 +6,12 @@ each illustration is laid where the camera travels while it is current. Every ca
 shows the picture whose stretch of path is nearest, with a soft seam where two pictures
 meet, so the background is one continuous image the camera glides across, never a fade.
 Only tiles under the camera are scaled, keeping memory small in every render worker.
+
+The pictures are a distant layer. During its verse each picture drifts slower than the camera, just
+enough that it is never enlarged more than MAX_ZOOM beyond filling the screen (stretching a picture
+across a whole verse of camera travel blows it up into an unrecognisable blur). The pictures are laid
+a screen apart, and at each verse change the background glides across to the next one, so at most two
+pictures share the screen, meeting along a narrow wandering seam rather than overlapping like ghosts.
 """
 import bisect
 import math
@@ -14,8 +20,15 @@ import numpy as np
 from PIL import Image, ImageOps
 
 DIRECTIONS = ((1, 0), (1, .55), (1, -.5), (.6, .8), (1, 0), (.65, -.75), (1, .3))
-SEAM = .3
+SEAM = .1  # width of the blend where two pictures meet; wider reads as a ghostly double exposure
+GLIDE = 1.6  # seconds the background takes to glide across to the next verse's picture
+MAX_ZOOM = 1.4  # how far beyond exactly filling the screen a picture may be enlarged
 CANVAS = (6, 9, 16)
+
+
+def _smooth(value):
+    value = np.clip(value, 0, 1)
+    return value*value*(3-2*value)
 
 
 class CameraPath:
@@ -52,27 +65,76 @@ class CameraPath:
 
 
 class WorldCanvas:
-    def __init__(self, paths, spans, width, height, path):
+    def __init__(self, paths, spans, width, height, path, reach=1., bleed=0.):
+        """`reach` is how many screens' worth of canvas the camera looks at directly (more than one for a 3D
+        camera that moves closer and further), and every picture covers it. `bleed` (in screens) extends each
+        picture with mirrored edges for what an oblique camera glimpses at the far edge of its view."""
         self.W, self.H = width, height
         self.seam = width*SEAM
-        margin = round(self.seam)
-        self.tiles = []
-        for source, (start, end) in zip(paths, spans):
-            centers = [path.at(start+(end-start)*k/16) for k in range(17)]
-            xs, ys = [p[0] for p in centers], [p[1] for p in centers]
-            left, top = min(xs)-width/2-margin, min(ys)-height/2-margin
-            right, bottom = max(xs)+width/2+margin, max(ys)+height/2+margin
-            self.tiles.append(dict(path=source, x=round(left), y=round(top), width=round(right-left), height=round(bottom-top),
-                                   centers=np.array(centers)))
+        width, height = width*reach, height*reach
+        self.path, self.spans = path, spans[:len(paths)]
+        margin = round(self.seam+bleed*self.W)
+        self.drift, self.base, self.tiles = [], [], []
+        end = np.zeros(2)
+        for index, (source, (start, stop)) in enumerate(zip(paths, self.spans)):
+            local = np.array([path.at(start+(stop-start)*k/16) for k in range(17)])-np.array(path.at(start))
+            with Image.open(source) as image:
+                iw, ih = image.size
+            fill = max(width/iw, height/ih)
+            rate = 1.
+            for axis, screen, size in ((0, width, iw), (1, height, ih)):
+                extent = np.ptp(local[:, axis])
+                if extent > 1e-6:
+                    rate = min(rate, max(0., MAX_ZOOM*fill*size-screen)/extent)
+            if index:
+                heading = np.array(path.at(start+min(GLIDE, (stop-start)/2)))-np.array(path.at(self.spans[index-1][0]))
+                heading = heading/max(1e-6, np.linalg.norm(heading)) if np.linalg.norm(heading) > 1e-6 else np.array((1., 0.))
+                crossing = 1/max(abs(heading[0])/width, abs(heading[1])/height)  # one screen along the heading
+                base = end+heading*crossing
+            else:
+                base = np.zeros(2)
+            centers = base+local*rate
+            end = centers[-1]
+            self.drift.append(rate)
+            self.base.append(base)
+            core = (np.ptp(centers[:, 0])+width, np.ptp(centers[:, 1])+height)
+            left, top = centers[:, 0].min()-width/2-margin, centers[:, 1].min()-height/2-margin
+            self.tiles.append(dict(path=source, x=round(left), y=round(top), width=round(core[0])+2*margin,
+                                   height=round(core[1])+2*margin, margin=margin, centers=centers))
         self._scaled = {}
+
+    def _resting(self, index, t):
+        start = self.spans[index][0]
+        offset = np.array(self.path.at(t))-np.array(self.path.at(start))
+        return self.base[index]+offset*self.drift[index]
+
+    def at(self, t):
+        """Canvas position the backdrop is centred on at time t: drifting slowly within a verse, gliding
+        across to the next picture when the verse changes."""
+        starts = [start for start, _ in self.spans]
+        index = max(0, bisect.bisect_right(starts, t)-1)
+        here = self._resting(index, t)
+        if index and t < starts[index]+GLIDE:
+            u = _smooth((t-starts[index])/GLIDE)
+            there = self._resting(index-1, starts[index])
+            here = there+(here-there)*u
+        return float(here[0]), float(here[1])
 
     def tile_image(self, index):
         if index not in self._scaled:
             if len(self._scaled) >= 3:
                 self._scaled.pop(next(iter(self._scaled)))
             spec = self.tiles[index]
+            m = spec['margin']
             with Image.open(spec['path']) as source:
-                self._scaled[index] = ImageOps.fit(source.convert('RGB'), (spec['width'], spec['height']), Image.Resampling.LANCZOS)
+                # Cover only what the camera can see; the seam margins mirror the picture's own edges.
+                core = ImageOps.fit(source.convert('RGB'), (spec['width']-2*m, spec['height']-2*m), Image.Resampling.LANCZOS)
+            pixels = np.asarray(core)
+            while m > 0:  # mirror repeatedly when the bleed is wider than the picture itself
+                step = min(m, pixels.shape[0]-1, pixels.shape[1]-1)
+                pixels = np.pad(pixels, ((step, step), (step, step), (0, 0)), mode='symmetric')
+                m -= step
+            self._scaled[index] = Image.fromarray(pixels)
         return self._scaled[index]
 
     def view(self, left, top, width, height):
@@ -93,9 +155,12 @@ class WorldCanvas:
             d = np.min(np.hypot(gx[..., None]-centers[:, 0], gy[..., None]-centers[:, 1]), axis=-1)
             inside = (gx >= spec['x']) & (gx < spec['x']+spec['width']) & (gy >= spec['y']) & (gy < spec['y']+spec['height'])
             distances.append(np.where(inside, d, np.inf))
+        # The seam wanders gently, so two pictures meet along an organic line instead of a straight dissolve.
+        distances = [d+self.seam*.8*np.sin(gx*.0041+index*1.7)*np.cos(gy*.0053+index*2.3)
+                     for d, index in zip(distances, touching)]
         nearest = np.min(distances, axis=0)
         with np.errstate(invalid='ignore'):
-            weights = [np.where(np.isfinite(d), np.clip(1-(d-nearest)/self.seam, 0, 1), 0.) for d in distances]
+            weights = [np.where(np.isfinite(d), _smooth(1-(d-nearest)/self.seam), 0.) for d in distances]
         total = np.zeros_like(nearest)
         for index, weight in zip(touching, weights):
             total = total+weight

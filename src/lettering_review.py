@@ -43,5 +43,6 @@ def needs_validation(paths,folder):
         path=Path(path)
         try:report=json.loads(path.with_suffix('.review.json').read_text(encoding='utf-8'))
         except (OSError,ValueError):return True
+        if report.get('manual_skip') and report.get('image_sha256')==hashlib.sha256(path.read_bytes()).hexdigest():continue
         if report.get('validation_pending') or report.get('model')!=config['vision_model'] or type(report.get('score')) is not int or report.get('image_sha256')!=hashlib.sha256(path.read_bytes()).hexdigest():return True
     return False

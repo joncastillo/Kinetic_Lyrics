@@ -24,7 +24,7 @@ def separate(audio, folder):
         return target
     with tempfile.TemporaryDirectory(prefix='stems-', dir=folder) as temp:
         result = subprocess.run([sys.executable, '-m', 'demucs', '-n', 'htdemucs', '-o', temp, str(audio)],
-                                capture_output=True, text=True)
+                                capture_output=True, text=True, encoding='utf-8', errors='replace')
         found = list(Path(temp).glob('htdemucs/*'))
         if result.returncode or not found:
             print(f'Warning: instrument separation unavailable; no audio-reactive accents. {result.stderr.strip()[-300:]}', flush=True)

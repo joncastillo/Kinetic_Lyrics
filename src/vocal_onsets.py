@@ -18,7 +18,7 @@ def vocal_stem(audio, folder):
         return target
     with tempfile.TemporaryDirectory(prefix='vocals-', dir=folder) as temp:
         result = subprocess.run([sys.executable, '-m', 'demucs', '--two-stems', 'vocals', '-n', 'htdemucs', '-o', temp, str(audio)],
-                                capture_output=True, text=True)
+                                capture_output=True, text=True, encoding='utf-8', errors='replace')
         stems = list(Path(temp).glob('htdemucs/*/vocals.wav'))
         if result.returncode or not stems:
             print(f'Warning: vocal separation unavailable; line starts keep the aligned timing. {result.stderr.strip()[-300:]}', flush=True)

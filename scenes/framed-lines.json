@@ -1,6 +1,0 @@
-{
-  "name": "Framed lines",
-  "camera": "still",
-  "particles": null,
-  "description": "Still camera; each line is built inside a traced shape, then leaves."
-}

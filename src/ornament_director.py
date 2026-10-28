@@ -21,13 +21,15 @@ when painting fails the library fallback the model named is used, so renders nev
 """
 import hashlib
 import json
+import re
+import time
 from pathlib import Path
 import subprocess
 import sys
 
 import glyph_art
 
-VERSION = 5
+VERSION = 6  # 6: object pictures no longer inherit the style's faces and figures
 BATCH = 8
 MOTIONS = ('drift', 'bob', 'spin', 'pulse', 'sway', 'flicker', 'twinkle')
 ENTRANCES = dict(flip='words flip up from lying flat: crisp, decisive', swing='words swing in like opening doors: playful, warm',
@@ -190,44 +192,118 @@ def lettering_colors(effect, ink):
 
 
 def icon_prompt(subject, colors='', style_prompt=''):
+    """The image prompt for one small picture. The profile's style often describes figures ("expressive faces,
+    flowing hair"); applied to a lamp or a moon it turns every icon into a portrait, so objects get only a
+    materials-and-linework technique and an explicit ban on people. Faces appear only when the subject asks."""
+    from kinetic_illustrations import subject_kind
+    subject = re.sub(r'^(?:(?:an?|the)\s+)?(?:small\b,?\s*)?', '', subject.strip(), flags=re.I)
+    people = subject_kind(subject) != 'object'
+    technique = style_prompt if people else 'Delicate ink contours, painterly shading, luminous colour and elegant material textures.'
     return (f'A single small {subject}, alone and centered, drawn as a bold sticker-like icon with a clean simple silhouette, '
-            f'clear shapes and a few flat colours{", mainly " + colors if colors else ""}. {style_prompt} '
-            'Plain uniform light grey background with nothing else in the picture. No text, letters, numbers or border.')
+            f'clear shapes and a few flat colours{", mainly " + colors if colors else ""}. {technique} '
+            + ('' if people else 'The object alone: no people, faces, figures or characters. ')
+            + 'Plain uniform light grey background with nothing else in the picture. No text, letters, numbers or border.')
+
+
+def paint_icons(prompts, subjects, folder, options, kind='video.ornaments'):
+    """Paint small transparent pictures with the image model, cached under folder/kind/<key>/; returns the
+    path of each picture, or None where painting failed."""
+    from image_models import MODEL, model_spec
+    from kinetic_layout import illustration_layout
+    model = options.get('image_model') or MODEL
+    steps = options.get('image_steps') or model_spec(model)['steps']
+    seed = int(options.get('image_seed', 42))
+    layout = dict(illustration_layout(0, ICON_SIZE, ICON_SIZE), image_width=ICON_SIZE, image_height=ICON_SIZE)
+    signature = dict(version=VERSION, model=model, steps=steps, seed=seed, prompts=prompts)
+    key = hashlib.sha256(json.dumps(signature, sort_keys=True).encode()).hexdigest()[:20]
+    manifest = Path(folder)/kind/key/'illustrations.json'
+    if not manifest.is_file():
+        manifest.parent.mkdir(parents=True, exist_ok=True)
+        manifest.write_text(json.dumps(dict(signature, artwork_mode='cutout', reference_paths=[], layouts=[layout]*len(prompts),
+                                            visual_descriptions=subjects), indent=2), encoding='utf-8')
+    paths = [manifest.parent/f'{i:03d}.png' for i in range(len(prompts))]
+    if not all(path.is_file() for path in paths):
+        from project_paths import default_model_cache
+        cache = Path(options.get('image_cache') or default_model_cache()).resolve()
+        print(f'Painting {len(prompts)} small pictures with {model}...', flush=True)
+        try:
+            subprocess.run([sys.executable, '-u', str(Path(__file__).with_name('kinetic_illustrations.py')), str(manifest),
+                            '--cache', str(cache)], check=True)
+        except (OSError, subprocess.CalledProcessError) as exc:
+            print(f'Warning: painting pictures failed ({exc}).', flush=True)
+    return [path if path.is_file() else None for path in paths]
+
+
+KEEP_FILE = 'video.pictures.json'
+
+
+def fresh_seed(options):
+    """A new seed, so a repainted picture is a genuinely new picture rather than the cached one."""
+    return dict(options, image_seed=time.time_ns() % 2**31)
+
+
+def picture_key(ornament):
+    """Stable name of a typography picture: the line and word it belongs to."""
+    return f"{ornament.get('line')}:{ornament.get('word')}"
+
+
+def released_pictures(folder):
+    """Pictures the user unticked "keep on next render" for: they are deleted and repainted next time."""
+    try:
+        kept = json.loads((Path(folder)/KEEP_FILE).read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return set()
+    return {key for key, keep in kept.items() if keep is False}
+
+
+def set_picture_kept(folder, key, keep):
+    path = Path(folder)/KEEP_FILE
+    try:
+        kept = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        kept = {}
+    if keep:
+        kept.pop(key, None)
+    else:
+        kept[key] = False
+    path.write_text(json.dumps(kept, indent=2), encoding='utf-8')
+
+
+def repaint_released(directions, folder, options):
+    """Keep every painted picture by default; delete and repaint only the ones the user released, plus any
+    whose file is missing. Repainted pictures are kept again until released."""
+    released = released_pictures(folder)
+    stale = []
+    for entry in directions:
+        ornament = (entry or {}).get('ornament')
+        if not ornament or ornament.get('source') != 'generate':
+            continue
+        image = ornament.get('image')
+        if image and Path(image).is_file() and picture_key(ornament) not in released:
+            continue
+        if image:
+            for path in (Path(image), Path(image).with_suffix('.cutout.png')):
+                path.unlink(missing_ok=True)
+        ornament['image'] = None
+        stale.append(picture_key(ornament))
+    if stale:
+        directions = paint(directions, folder, fresh_seed(options))
+        for key in stale:
+            set_picture_kept(folder, key, True)
+    return directions
 
 
 def paint(directions, folder, options):
     """Paint the pictures marked 'generate' with the image model as transparent cutouts, in their blocks' accent
     colours; fill in their image paths."""
-    from image_models import MODEL, model_spec
-    from kinetic_layout import illustration_layout
-    wanted = [d for d in directions if d['ornament'] and d['ornament']['source'] == 'generate']
+    wanted = [d for d in directions if d['ornament'] and d['ornament']['source'] == 'generate' and not d['ornament'].get('image')]
     if not wanted:
         return directions
-    model = options.get('image_model') or MODEL
-    steps = options.get('image_steps') or model_spec(model)['steps']
-    seed = int(options.get('image_seed', 42))
     prompts = [icon_prompt(d['ornament']['subject'], d.get('accent_name') or '', options.get('style_prompt', '')) for d in wanted]
-    layout = dict(illustration_layout(0, ICON_SIZE, ICON_SIZE), image_width=ICON_SIZE, image_height=ICON_SIZE)
-    signature = dict(version=VERSION, model=model, steps=steps, seed=seed, prompts=prompts)
-    key = hashlib.sha256(json.dumps(signature, sort_keys=True).encode()).hexdigest()[:20]
-    manifest = Path(folder)/'video.ornaments'/key/'illustrations.json'
-    if not manifest.is_file():
-        manifest.parent.mkdir(parents=True, exist_ok=True)
-        manifest.write_text(json.dumps(dict(signature, artwork_mode='cutout', reference_paths=[], layouts=[layout]*len(prompts),
-                                            visual_descriptions=[d['ornament']['subject'] for d in wanted]), indent=2), encoding='utf-8')
-    paths = [manifest.parent/f'{i:03d}.png' for i in range(len(wanted))]
-    if not all(path.is_file() for path in paths):
-        from project_paths import default_model_cache
-        cache = Path(options.get('image_cache') or default_model_cache()).resolve()
-        print(f'Painting {len(wanted)} small animated pictures with {model}...', flush=True)
-        try:
-            subprocess.run([sys.executable, '-u', str(Path(__file__).with_name('kinetic_illustrations.py')), str(manifest),
-                            '--cache', str(cache)], check=True)
-        except (OSError, subprocess.CalledProcessError) as exc:
-            print(f'Warning: painting pictures failed ({exc}); using library pictures instead.', flush=True)
+    paths = paint_icons(prompts, [d['ornament']['subject'] for d in wanted], folder, options)
     for entry, path in zip(wanted, paths):
         ornament = entry['ornament']
-        if path.is_file():
+        if path is not None:
             ornament['image'] = str(path)
         elif ornament['library']:
             ornament['source'] = 'library'
@@ -252,6 +328,9 @@ def ensure_ornaments(data, plan, compositor, options, folder, request=None):
     try:
         cached = json.loads(cache.read_text(encoding='utf-8'))
         if cached.get('signature') == signature and len(cached.get('blocks', [])) == len(blocks):
+            if options.get('ornament_images', True):
+                cached['blocks'] = repaint_released(cached['blocks'], folder, options)
+                cache.write_text(json.dumps(cached, ensure_ascii=False, indent=2), encoding='utf-8')
             return dict(plan, stage_direction=cached['blocks'])
     except (OSError, ValueError):
         pass
