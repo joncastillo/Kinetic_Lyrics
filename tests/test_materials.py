@@ -66,7 +66,7 @@ class MaterialTest(unittest.TestCase):
                 self.assertLess((frame(effect, 'exit', 1., self.sprite, cache)[..., 3] > 60).sum(), 30)
 
     def test_frames_depend_only_on_progress(self):
-        effect = self.catalog['entrance']['sandstone-wind-erosion']
+        effect = self.catalog['entrance']['marble-chisel-reveal']
         first = frame(effect, 'entrance', .4, self.sprite)
         frame(effect, 'entrance', .8, self.sprite)
         self.assertTrue(np.array_equal(first, frame(effect, 'entrance', .4, self.sprite)))

@@ -17,10 +17,10 @@ import bisect
 import math
 
 import numpy as np
-from PIL import Image, ImageOps
+from PIL import Image, ImageFilter, ImageOps
 
 DIRECTIONS = ((1, 0), (1, .55), (1, -.5), (.6, .8), (1, 0), (.65, -.75), (1, .3))
-SEAM = .1  # width of the blend where two pictures meet; wider reads as a ghostly double exposure
+SEAM = .012  # feather only the boundary between neighboring pictures
 GLIDE = 1.6  # seconds the background takes to glide across to the next verse's picture
 MAX_ZOOM = 1.4  # how far beyond exactly filling the screen a picture may be enlarged
 CANVAS = (6, 9, 16)
@@ -155,14 +155,18 @@ class WorldCanvas:
             d = np.min(np.hypot(gx[..., None]-centers[:, 0], gy[..., None]-centers[:, 1]), axis=-1)
             inside = (gx >= spec['x']) & (gx < spec['x']+spec['width']) & (gy >= spec['y']) & (gy < spec['y']+spec['height'])
             distances.append(np.where(inside, d, np.inf))
-        # The seam wanders gently, so two pictures meet along an organic line instead of a straight dissolve.
+        # Pick one painting at each point, then feather that ownership mask in image space. Blending
+        # distance scores directly makes a shallow distance gradient mix whole paintings together.
         distances = [d+self.seam*.8*np.sin(gx*.0041+index*1.7)*np.cos(gy*.0053+index*2.3)
                      for d, index in zip(distances, touching)]
-        nearest = np.min(distances, axis=0)
-        with np.errstate(invalid='ignore'):
-            weights = [np.where(np.isfinite(d), _smooth(1-(d-nearest)/self.seam), 0.) for d in distances]
-        total = np.zeros_like(nearest)
-        for index, weight in zip(touching, weights):
+        scores = np.stack(distances)
+        owner = np.argmin(scores, axis=0)
+        valid = np.isfinite(np.min(scores, axis=0))
+        total = np.zeros((height, width), dtype='float32')
+        for slot, index in enumerate(touching):
+            mask = Image.fromarray(((owner == slot) & valid).astype('uint8')*255, 'L')
+            mask = mask.resize((width, height), Image.Resampling.NEAREST).filter(ImageFilter.GaussianBlur(self.seam))
+            weight = np.asarray(mask, dtype='float32')/255
             total = total+weight
             share = np.divide(weight, total, out=np.zeros_like(weight), where=total > 0)
             if not share.any():
@@ -172,6 +176,5 @@ class WorldCanvas:
                       min(left+width, spec['x']+spec['width'])-spec['x'], min(top+height, spec['y']+spec['height'])-spec['y'])
             piece = Image.new('RGB', (width, height), CANVAS)
             piece.paste(self.tile_image(index).crop(region), (region[0]+spec['x']-left, region[1]+spec['y']-top))
-            mask = Image.fromarray((share*255).astype('uint8'), 'L').resize((width, height), Image.Resampling.BILINEAR)
-            view = Image.composite(piece, view, mask)
+            view = Image.composite(piece, view, Image.fromarray((share*255).astype('uint8'), 'L'))
         return view.convert('RGBA')

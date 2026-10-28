@@ -192,7 +192,8 @@ class Job:
 
     def run(self, command, action=None):
         try:
-            env = dict(os.environ, PYTHONUNBUFFERED='1', PYTHONIOENCODING='utf-8', KINETIC_PROGRESS='1')
+            env = dict(os.environ, PYTHONUNBUFFERED='1', PYTHONIOENCODING='utf-8', KINETIC_PROGRESS='1',
+                       OPENBLAS_NUM_THREADS='1', OMP_NUM_THREADS='1', MKL_NUM_THREADS='1', NUMEXPR_NUM_THREADS='1')
             kwargs = dict(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP) if os.name == 'nt' else dict(start_new_session=True)
             with LOCK:
                 if self.cancelled:
@@ -355,7 +356,8 @@ class Job:
                 continue
             shown = path.with_suffix('.cutout.png')
             try:
-                if not shown.exists() or shown.stat().st_mtime_ns < path.stat().st_mtime_ns:
+                cutout_source = HERE/'glyph_art.py'
+                if not shown.exists() or shown.stat().st_mtime_ns < max(path.stat().st_mtime_ns, cutout_source.stat().st_mtime_ns):
                     from glyph_art import cutout
                     cutout(str(path)).save(shown)
             except OSError:
@@ -639,6 +641,29 @@ def start_job(fields, files):
         return job
 
 
+def regenerate_new_session(source):
+    """Run the whole pipeline with the source job's inputs in a fresh project folder."""
+    config = source.config
+    fields = {key: json.dumps(value) if isinstance(value, (list, dict)) else str(value)
+              for key, value in config.items() if value is not None}
+    fields.update(project_id='', start_step='beginning',
+                  resolution={(1280, 720): '720p', (1920, 1080): '1080p', (720, 1280): 'portrait'}[
+                      (config['width'], config['height'])],
+                  cache=config['image_cache'], style=config['theme'], reference_prompt=config['style_prompt'],
+                  lines=str(config['illustration_lines']),
+                  cinematic='on' if config['cinematic'] else 'off',
+                  auto_verify='on' if config['auto_verify'] else 'off',
+                  auto_accept='on' if config['auto_accept'] else 'off',
+                  auto_repair='on' if config['auto_repair'] else 'off')
+    audio = Path(config['audio'])
+    references = source.folder/'references'
+    files = dict(audio=[(audio.name, audio.read_bytes())],
+                 references=[(path.name, path.read_bytes()) for path in sorted(references.iterdir()) if path.is_file()]
+                 if references.is_dir() else [])
+    fields['lyrics'] = (source.folder/'lyrics.txt').read_text(encoding='utf-8')
+    return start_job(fields, files)
+
+
 class Handler(BaseHTTPRequestHandler):
     def handle(self):
         try:
@@ -701,7 +726,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond(render_preview(catalog[phase][effect],phase,intensity,speed,settings['font_family'],settings['font_style'],settings['font_scale']), content_type='image/gif')
             if url.path == '/api/config':
                 from gpu_models import PRESETS, PROMPT_MODELS, VISION_MODELS
-                return self.respond(dict(token=TOKEN, auto_accept_supported=True, particle_materials_version=13, ai_typography_supported=True, typography_controls_supported=True, word_animations_supported=True, video_history_supported=True, video_history_version=2, live_artwork_version=2, replacement_priority_supported=True, particle_effects=catalog_choices(), scene_effects=list(scene_catalog().values()), prompt_regeneration=True, generation_queue_version=2, prompt_audit_version=1, style_prompt=STYLE_PROMPT, model=MODEL, image_models=MODELS, model_presets=PRESETS, prompt_choices=PROMPT_MODELS, vision_choices=VISION_MODELS, asr_models=ASR_MODELS, vocal_languages=LANGUAGES, default_asr=DEFAULT_ASR,
+                return self.respond(dict(token=TOKEN, auto_accept_supported=True, new_session_regeneration_supported=True, particle_materials_version=13, ai_typography_supported=True, typography_controls_supported=True, word_animations_supported=True, video_history_supported=True, video_history_version=2, live_artwork_version=2, replacement_priority_supported=True, particle_effects=catalog_choices(), scene_effects=list(scene_catalog().values()), prompt_regeneration=True, generation_queue_version=2, prompt_audit_version=1, style_prompt=STYLE_PROMPT, model=MODEL, image_models=MODELS, model_presets=PRESETS, prompt_choices=PROMPT_MODELS, vision_choices=VISION_MODELS, asr_models=ASR_MODELS, vocal_languages=LANGUAGES, default_asr=DEFAULT_ASR,
                     jobs=[dict(id=j.folder.name, name=j.config['name']) for j in reversed(list(JOBS.values()))]))
             if url.path == '/api/gpu':
                 from gpu_telemetry import gpu_usage
@@ -818,6 +843,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond(dict(id=start_job(fields, files).folder.name), 201)
             _, _, _, job_id, operation = route.split('/')
             job = JOBS[job_id]
+            if operation == 'regenerate-new':
+                return self.respond(dict(id=regenerate_new_session(job).folder.name), 201)
             if operation == 'cancel':
                 stop_job(job)
                 return self.respond(dict(ok=True))

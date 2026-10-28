@@ -43,7 +43,7 @@ import random
 import threading
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 import glyph_art
 from lyric_blocks import TARGET_RATIO, group_lines, layout_block
@@ -568,7 +568,6 @@ class Stage3D:
         groups = group_lines(c.data, self.art_breaks() | self.breaks)
         groups = [g for g in ([i for i in group if self.only is None or i in self.only] for group in groups) if g]
         direction = self.directions()
-        generated = 0
         for number, members in enumerate(groups):
             rng = random.Random(self.seed*7919+number*104729)
             directed = direction.get(members[0]) if direction is not None else None
@@ -584,13 +583,8 @@ class Stage3D:
             self.crown(words, effect)
             self.choose_accent(words, palette[2], accent, style)
             ornament = (directed or {}).get('ornament') if direction is not None else None
-            background_ornament = None
-            if ornament and ornament.get('image') and Path(ornament['image']).is_file():
-                if generated % 2 == 0:
-                    background_ornament = ornament
-                generated += 1
             no_pictures = self.c.plan.get('pictures') == 'off'  # the setting turns off keyword pictures too
-            self.choose_motion(words, rng, None if background_ornament or no_pictures else ornament if direction is not None else False)
+            self.choose_motion(words, rng, None if no_pictures else ornament if direction is not None else False)
             pictured = next((w for w in words if w['ornament'] and w['letter'] is None), None)
             if pictured is not None:
                 height = arrange(pictured)
@@ -620,8 +614,7 @@ class Stage3D:
                                     start=min(w['start'] for w in words), end=max(w['end'] for w in words),
                                     palette=palette, entrance=rng.choice(ENTRANCES), motes=self.motes(rng, height),
                                     drift=rng.choice((-1., 1.)), accent=accent, layout='contrast' if style else 'justified', margin=max(0., margin),
-                                    roll=style['roll'] if style else 0., zoom=style['zoom'] if style else 1.,
-                                    background_ornament=background_ornament))
+                                    roll=style['roll'] if style else 0., zoom=style['zoom'] if style else 1.))
             if directed and directed.get('entrance') in ENTRANCES:
                 self.blocks[-1]['entrance'] = directed['entrance']
         for number, block in enumerate(self.blocks):
@@ -818,7 +811,7 @@ class Stage3D:
             return
         if directed is not False:
             spec = directed
-            word = next((w for w in words if (w['line'], w['index']) == (spec.get('line'), spec.get('word')) and not w['effect']
+            word = next((w for w in words if (w['line'], w['index']) == (spec.get('line'), spec.get('word'))
                          and not w.get('vertical') and not w.get('sweet')), None)
             if word is None:
                 return
@@ -827,6 +820,7 @@ class Stage3D:
             if not word['ornament']['kind'] and not word['ornament']['image']:
                 word['ornament'] = None
                 return
+            word['effect'] = None
             letter = word['text'].upper().find('O') if spec.get('placement') == 'letter' else -1
             word['letter'] = letter if letter >= 0 else None
         else:
@@ -847,70 +841,29 @@ class Stage3D:
                  rng.uniform(.025, .07), rng.uniform(0, math.tau), rng.uniform(.4, 1.2)) for _ in range(MOTES)]
 
     def plan_world(self):
-        """One collage of every full-screen illustration, stitched along where the camera looks (as the 2D
-        panning canvas is), on a plane behind all the blocks; None without full-screen artwork."""
+        """Screen aligned art behind the 3D lettering; one painting owns each frame."""
         c = self.c
         paths = list(getattr(c, 'illustration_paths', None) or [])
         if not paths or c.artwork_mode not in ('fullscreen', 'verse'):
             return None
-        from world_canvas import WorldCanvas
-        starts = list(getattr(c, 'art_starts', None) or [0.])[:len(paths)]
-        spans = [(start, starts[n+1] if n+1 < len(starts) else c.duration) for n, start in enumerate(starts)]
-        self.backdrop_z = DEPTHS[0]-BACKDROP_DEPTH
-        distance = float(np.median([b['distance'] for b in self.blocks]))+DEPTHS[0]+BACKDROP_DEPTH
-        footprint = 2*distance*math.tan(math.radians(FOV)/2)*self.aspect
-        self.backdrop_scale = c.width*1.15/footprint
-        stage = self
+        return [str(p) for p in paths]
 
-        class Path:
-            def at(self, t):
-                eye, target, _, _ = stage.camera(t)
-                return target[0]*stage.backdrop_scale, -target[1]*stage.backdrop_scale
-        reach = max(b['camera_distance'] for b in self.blocks)/float(np.median([b['distance'] for b in self.blocks]))
-        return WorldCanvas([str(p) for p in paths], spans, c.width, c.height, Path(), reach=1.25*reach, bleed=.9)
+    def backdrop_image(self, index):
+        """A little overscan allows a restrained pan without exposing an image edge."""
+        with Image.open(self.world[index]) as source:
+            return ImageOps.fit(source.convert('RGB'),
+                                (round(self.c.width*1.12), round(self.c.height*1.12)),
+                                Image.Resampling.LANCZOS).convert('RGBA')
 
-    def backdrop_items(self, gl, eye, view, target, t):
-        """The part of the collage the camera sees this frame, on curved paper. The collage is cut into fixed
-        square chunks (made once, kept on the GPU); each chunk is drawn as thin vertical strips that follow
-        the folds, each showing its own slice of the chunk, darker where the paper turns away. The paper
-        slides along with the camera so that the camera looks at the collage point WorldCanvas.at(t): the
-        pictures drift slowly and glide from one to the next (see world_canvas)."""
-        far = self.world.at(t)
-        drift = np.array([target[0]-far[0]/self.backdrop_scale, target[1]+far[1]/self.backdrop_scale, 0.])
-        eye = eye-drift
-        half = math.tan(math.radians(FOV)/2)
-        corners = []
-        for x in (-1, 1):
-            for y in (-1, 1):
-                direction = -view[2, :3]+view[0, :3]*x*half*self.aspect*1.1+view[1, :3]*y*half*1.1
-                if direction[2] >= -1e-3:
-                    return []
-                corners.append(eye+direction*(self.backdrop_z-PAPER_DEPTH*1.5-eye[2])/direction[2])
-        scale = self.backdrop_scale
-        xs, ys = [p[0]*scale for p in corners], [-p[1]*scale for p in corners]
-        columns = range(math.floor(min(xs)/CHUNK), math.floor(max(xs)/CHUNK)+1)
-        rows = range(math.floor(min(ys)/CHUNK), math.floor(max(ys)/CHUNK)+1)
-        if len(columns)*len(rows) > CHUNK_LIMIT:
-            return []
-        fold = lambda x: self.backdrop_z+PAPER_DEPTH*(math.sin(x*PAPER_FOLD+.7)+.45*math.sin(x*PAPER_FOLD*2.3+1.9))  # noqa: E731
-        size = CHUNK/scale
-        strips = []
-        for column in columns:
-            for row in rows:
-                texture = gl.chunk(('paper', column, row), lambda column=column, row=row:
-                                   self.world.view(column*CHUNK, row*CHUNK, CHUNK, CHUNK).convert('RGB'))
-                x0, middle = column*size, -(row+.5)*size
-                for k in range(PAPER_STRIPS):
-                    a, b = x0+size*k/PAPER_STRIPS, x0+size*(k+1)/PAPER_STRIPS
-                    za, zb = fold(a), fold(b)
-                    model = np.identity(4)
-                    model[:3, 0] = (b-a, 0., zb-za)
-                    model[:3, 1] = (0., size, 0.)
-                    model[:3, 2] = normalized((za-zb, 0., b-a))
-                    model[:3, 3] = ((a+b)/2+drift[0], middle+drift[1], (za+zb)/2)
-                    light = BACKDROP_TINT*(1-PAPER_SHADE*min(1., abs(zb-za)/(b-a)))*(1+.12*(za < zb))
-                    strips.append((model, texture, (light,)*3, (k/PAPER_STRIPS, 0., 1/PAPER_STRIPS, 1.)))
-        return strips
+    def backdrop(self, gl, t):
+        starts = list(getattr(self.c, 'art_starts', None) or [0.])
+        index = max(0, min(len(self.world)-1, bisect.bisect_right(starts, t)-1))
+        texture = gl.texture(('backdrop', index), lambda: self.backdrop_image(index))
+        # Gentle opposite motion to the foreground suggests depth; there is no world plane to fold or overlap.
+        pan = .025*math.sin(t*.16+index)
+        tilt = .025*math.sin(t*.12+index*1.7)
+        gl.quad(texture, scaling(2., 2.), 1., (BACKDROP_TINT,)*3,
+                (.055+pan, .055+tilt, .89, .89))
 
     def plan_shapes(self):
         """Outlined or translucent shapes around the blocks on strong bass notes (or block starts without
@@ -1060,37 +1013,6 @@ class Stage3D:
                 fade = 1. if shape['permanent'] else 1-smooth((t-shape['time']-SHAPE_LIFE+.8)/.8)
                 alpha = .4 if shape['permanent'] else .5
                 items.append((model, texture, alpha*smooth(progress)*fade, tuple(v/255 for v in shape['color'])))
-        return items
-
-    def background_picture_items(self, gl, t, view):
-        """Move AI-painted lyric cutouts through the scenery behind the words."""
-        items = []
-        for block in self.blocks:
-            spec = block.get('background_ornament')
-            if not spec:
-                continue
-            age = t-block['start']
-            duration = max(3., block['end']-block['start']+1.)
-            if not -.6 <= age <= duration:
-                continue
-            u = smooth((age+.4)/duration)
-            subject = (spec.get('subject', '')+' '+spec.get('text', '')).lower()
-            if any(word in subject for word in ('airplane', 'aeroplane', 'plane', 'bird', 'flight', 'fly', 'lipad')):
-                x, y, angle = -BLOCK_WIDTH*.7+u*BLOCK_WIDTH*1.4, block['height']*.25+u*block['height']*.36, -8.
-            elif any(word in subject for word in ('ship', 'boat', 'sail', 'barko', 'bangka')):
-                x, y, angle = -BLOCK_WIDTH*.6+u*BLOCK_WIDTH*1.2, -block['height']*.34+math.sin(age*2)*.06, math.sin(age*1.3)*3
-            elif any(word in subject for word in ('ball', 'soccer', 'football', 'bola', 'fall', 'drop')):
-                x, y, angle = BLOCK_WIDTH*.28+math.sin(age*.8)*.1, block['height']*.65-u*block['height']*1.3, u*145
-            else:
-                x, y, angle = -BLOCK_WIDTH*.35+u*BLOCK_WIDTH*.7, block['height']*.24+math.sin(age*.8)*.1, math.sin(age*.6)*4
-            position = (block['placement']@np.array([x, y, -1.1, 1.]))[:3]
-            pose = glyph_art.image_pose(spec.get('motion'), t, self.beat(t))
-            position += block['placement'][:3, 0]*pose['dx']+block['placement'][:3, 1]*pose['dy']
-            size = max(.55, min(1.45, block['height']*.42))*pose['scale']
-            texture = gl.texture(('background-cutout', spec['image']), lambda spec=spec: glyph_art.cutout(spec['image']))
-            fade = smooth((age+.6)/.8)*(1-smooth((age-duration+1.)/1.))
-            model = self.billboard(position, view, size)@rotation(roll=angle+pose['angle'])
-            items.append((model, texture, .7*fade*pose['alpha']))
         return items
 
     def ribbon_bands(self, t, eye):
@@ -1333,10 +1255,7 @@ class Stage3D:
         sky = gl.texture(('sky', palette[0], palette[1]), lambda: gradient(tuple(round(v*.7) for v in palette[0]), palette[1]))
         gl.quad(sky, scaling(2., 2.))
         if self.world is not None:
-            for model, texture, light, uv in self.backdrop_items(gl, eye, view, target, t) or []:
-                gl.quad(texture, camera@model, 1., light, uv)
-        for model, texture, opacity in self.background_picture_items(gl, t, view):
-            gl.quad(texture, camera@model, opacity)
+            self.backdrop(gl, t)
         for model, texture, opacity, tint in self.shape_fill_items(gl, t):
             gl.quad(texture, camera@model, opacity, tint)
         band = gl.texture('band', band_image)

@@ -199,10 +199,11 @@ def icon_prompt(subject, colors='', style_prompt=''):
     subject = re.sub(r'^(?:(?:an?|the)\s+)?(?:small\b,?\s*)?', '', subject.strip(), flags=re.I)
     people = subject_kind(subject) != 'object'
     technique = style_prompt if people else 'Delicate ink contours, painterly shading, luminous colour and elegant material textures.'
-    return (f'A single small {subject}, alone and centered, drawn as a bold sticker-like icon with a clean simple silhouette, '
+    return (f'A single small {subject}, alone and centered, drawn as a painted cutout with a clean simple silhouette, '
             f'clear shapes and a few flat colours{", mainly " + colors if colors else ""}. {technique} '
             + ('' if people else 'The object alone: no people, faces, figures or characters. ')
-            + 'Plain uniform light grey background with nothing else in the picture. No text, letters, numbers or border.')
+            + 'Plain uniform light grey staging background with nothing else in the picture. No white outline, sticker edge, '
+            'drop shadow, text, letters, numbers or border.')
 
 
 def paint_icons(prompts, subjects, folder, options, kind='video.ornaments'):

@@ -46,18 +46,7 @@
   "#060504",
   "#B9A781"
  ],
- "driftwood-sandblast": [
-  "#131212",
-  "#534E4C",
-  "#9A948D",
-  "#1B1918"
- ],
  "ember-forge": "ink",
- "ferrofluid-spikes": [
-  "#535358",
-  "#565761",
-  "#15161A"
- ],
  "folded-paper-lettering": [
   "#E2D1B0",
   "#9F9797",
@@ -180,17 +169,6 @@
   "#906C52"
  ],
  "prismatic-helix": "ink",
- "sand-hourglass-fill": [
-  "#B59B75",
-  "#262018",
-  "#E7CDA1"
- ],
- "sandstone-wind-erosion": [
-  "#B69B79",
-  "#361E12",
-  "#DDBC93",
-  "#705B44"
- ],
  "stained-glass-leading": [
   "#100C0A",
   "#FAFEBC",
@@ -202,12 +180,5 @@
   "#DED692",
   "#010101",
   "#60462C"
- ],
- "verdigris-patina": [
-  "#8B907C",
-  "#130A06",
-  "#92DFD5",
-  "#412C1F"
- ],
- "welding-bead": "ink"
+ ]
 }

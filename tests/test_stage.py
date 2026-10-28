@@ -1,5 +1,6 @@
 """The 3D stage: block grouping, justified layout, top-only effects, directed pictures and a rendered frame."""
 import json
+import random
 import sys
 import tempfile
 import unittest
@@ -23,6 +24,15 @@ def lyrics(*lines):
 
 
 class BlockTest(unittest.TestCase):
+    def test_directed_picture_joins_its_word_even_on_effect_row(self):
+        from stage_3d import Stage3D
+        word = dict(line=0, index=0, text='MOON', bare='moon', role='hero', effect=object())
+        picture = dict(line=0, word=0, image='painted.png', source='generate', placement='letter', motion='pulse')
+        Stage3D.choose_motion(None, [word], random.Random(1), picture)
+        self.assertEqual(word['letter'], 1)
+        self.assertEqual(word['ornament']['image'], 'painted.png')
+        self.assertIsNone(word['effect'])
+
     def test_pause_and_breaks_start_new_blocks(self):
         data = lyrics((0, 'one two three'), (1.2, 'four five'), (6, 'six seven'), (7, 'eight nine'))
         self.assertEqual(group_lines(data), [[0, 1], [2, 3]])

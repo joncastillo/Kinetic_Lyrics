@@ -136,7 +136,7 @@ def _render_text(animation,font_family="auto",font_style="auto",font_scale=1.25,
 _POOL = None
 PREVIEW_SOURCES = ('particle_preview.py', 'kinetic_director.py', 'kinetic_effects.py', 'particle_motion.py', 'line_arrival.py',
                    'typography_settings.py', 'cinematic_particles.py', 'material_growth.py', 'botanical_growth.py', 'arboreal_growth.py',
-                   'ornate_growth.py', 'mechanical_growth.py', 'petal_formation.py')
+                   'ornate_growth.py', 'mechanical_growth.py', 'petal_formation.py', 'material_recipes.py', 'material_fx.py')
 
 
 def _pool():
@@ -145,8 +145,9 @@ def _pool():
     if _POOL is None:
         import multiprocessing
         from concurrent.futures import ProcessPoolExecutor
-        from parallel_render import hardware
-        _POOL = ProcessPoolExecutor(max_workers=max(2, min(12, hardware()[0]-2)), mp_context=multiprocessing.get_context('spawn'))
+        for name in ('OPENBLAS_NUM_THREADS', 'OMP_NUM_THREADS', 'MKL_NUM_THREADS', 'NUMEXPR_NUM_THREADS'):
+            os.environ[name] = '1'
+        _POOL = ProcessPoolExecutor(max_workers=2, mp_context=multiprocessing.get_context('spawn'))
     return _POOL
 
 

@@ -492,7 +492,13 @@ class Compositor:
             if current > 0:
                 blend = ease(min(1.,max(0.,(t-self.art_starts[current])/.9)))
                 if blend < 1:
-                    frame = Image.blend(self.art[current-1].convert('RGB'),frame,blend)
+                    previous = self.art[current-1].convert('RGB')
+                    feather = max(2, round(self.width*.008))
+                    edge = round(blend*(self.width+4*feather)-2*feather)
+                    seam = Image.new('L', frame.size)
+                    ImageDraw.Draw(seam).rectangle((0, 0, edge, self.height), fill=255)
+                    seam = seam.filter(ImageFilter.GaussianBlur(feather))
+                    frame = Image.composite(frame, previous, seam)
             if not veil:
                 return frame
             _, (x,y,w,h) = self.composition(current)

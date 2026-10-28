@@ -4,9 +4,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import numpy as np
+from PIL import Image, ImageDraw
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
 import ornament_director
+from glyph_art import cutout
 from ornament_director import icon_prompt, picture_key, released_pictures, repaint_released, set_picture_kept
 
 
@@ -18,6 +22,19 @@ def block(folder, line, word, image=True):
 
 
 class PictureTest(unittest.TestCase):
+    def test_cutout_removes_white_sticker_border(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'portrait.png'
+            image = Image.new('RGBA', (128, 128), (224, 224, 224, 255))
+            draw = ImageDraw.Draw(image)
+            draw.ellipse((24, 24, 104, 104), fill='white')
+            draw.ellipse((34, 34, 94, 94), fill='#c86a32')
+            image.save(path)
+            pixels = np.asarray(cutout(str(path)))
+            white = (pixels[..., :3].min(axis=-1) > 195) & (pixels[..., 3] > 128)
+            self.assertLess(white.mean(), .01)
+            self.assertGreater(pixels[pixels.shape[0]//2, pixels.shape[1]//2, 3], 200)
+
     def test_only_released_or_missing_pictures_are_repainted(self):
         with tempfile.TemporaryDirectory() as folder:
             kept, released, missing = block(folder, 1, 0), block(folder, 2, 1), block(folder, 3, 0, image=False)
