@@ -339,6 +339,12 @@ def validate_ocr(video, data, duration, report_path):
     print(f"OCR: {sum(r['passed'] for r in results)}/{len(results)} lines passed; {report_path}")
 
 
+class _AnyEffect:
+    """Accepts every effect ID: reads a pool's raw selection to report what was dropped."""
+    def __contains__(self, item):
+        return True
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('audio', type=Path)
@@ -369,9 +375,10 @@ def main(argv=None):
     parser.add_argument('--stage-pictures',choices=('ai-painted','ai-library','keywords','off'),default='ai-painted',
                         help='3D stage pictures: AI picks them and paints new ones, AI picks from the library only, keyword matches, or none')
     parser.add_argument('--effect-speeds',default=None,help='JSON per-effect particle speeds, e.g. {"glass-shatter": 0.5}')
-    parser.add_argument('--instruments',choices=('auto','off'),default='auto',help='Animate the instruments the analysis confidently hears (auto) or never (off)')
+    parser.add_argument('--instruments',choices=('auto','off'),default='off',help='Also paint and animate pictures of the instruments the analysis confidently hears (auto); by default (off) the music shows only as words pulsing with light')
     parser.add_argument('--effect-intensities',default=None,help='JSON per-effect letter-effect intensities, e.g. {"paper-burn": 1.5}')
     parser.add_argument('--kinetic',default=None,help='JSON real-time effect settings (pan_speed, backdrop_rate, backdrops, traces, geometry, frames, glows, glow_strength, glitch)')
+    parser.add_argument('--instructions',default='',help='Special instructions for the renderer, one per line, e.g. Apply a neon effect to the word "neong"')
     parser.add_argument('--lettering-styles',default=None,help='JSON list of allowed text styles: swiss, poster, outline, cutout (default: all, as planned)')
     parser.add_argument('--font-style',choices=FONT_STYLES,default='auto')
     parser.add_argument('--font-scale',type=float,default=1.25,help='Relative font size, 0.6 to 2; long lines still fit the reading area')
@@ -439,8 +446,13 @@ def main(argv=None):
         catalog = discover_effects()
         validate_choice(args.entrance_effect, 'entrance', catalog)
         validate_choice(args.exit_effect, 'exit', catalog)
-        args.entrance_pool = parse_pool(args.entrance_pool, 'entrance', catalog)
-        args.exit_pool = parse_pool(args.exit_pool, 'exit', catalog)
+        for phase in ('entrance', 'exit'):  # a saved job may still list effects that were removed since
+            chosen = getattr(args, phase+'_pool')
+            pool = parse_pool(chosen, phase, catalog, strict=False)
+            dropped = sorted(set(parse_pool(chosen, phase, {phase: _AnyEffect()}) or [])-set(pool or []))
+            if dropped:
+                print(f"Skipping {phase} effects that no longer exist: {', '.join(dropped)}", flush=True)
+            setattr(args, phase+'_pool', pool)
         if not math.isfinite(args.particle_speed) or not .2 <= args.particle_speed <= 3:
             raise ValueError('--particle-speed must be between 0.2 and 3')
         if not math.isfinite(args.particle_intensity) or not 0 <= args.particle_intensity <= 2:
@@ -498,7 +510,7 @@ def main(argv=None):
         args.melody = ensure_melody(data, output.parent)
         from rhythm import ensure_rhythm
         args.rhythm = ensure_rhythm(audio, output.parent)
-        if getattr(args, 'instruments', 'auto') != 'off':
+        if getattr(args, 'instruments', 'off') != 'off':
             from instrument_analysis import ensure_instruments
             args.instruments_found = ensure_instruments(audio, output.parent, duration, getattr(args, 'image_cache', None))
         if moved:

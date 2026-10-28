@@ -255,7 +255,7 @@ class Job:
                 if not code and (not action or action in ('patch','rerender')):
                     try:
                         timings=json.loads((self.folder/'video.timings.json').read_text(encoding='utf-8'))
-                        at=float(timings[0]['words'][0]['start'])+.35
+                        at=max(1.2,float(timings[0]['words'][0]['start'])+.35)  # past the fade-in
                         subprocess.run(['ffmpeg','-v','error','-y','-ss',str(at),'-i',str(self.folder/'video.mp4'),
                             '-frames:v','1',str(self.folder/'poster.png')],check=True,capture_output=True)
                     except (OSError,ValueError,KeyError,IndexError,subprocess.CalledProcessError):
@@ -591,6 +591,8 @@ def start_job(fields, files):
                     '--font-family',config['font_family'],'--font-style',config['font_style'],'--font-scale',str(config['font_scale']),'--lettering-styles',json.dumps(config['lettering_styles']),'--reading-flow',config['reading_flow'],'--kinetic',json.dumps(config['kinetic']),'--effect-speeds',json.dumps(config['effect_speeds']),
                     '--effect-intensities',json.dumps(config['effect_intensities']),
                     '--stage-pictures',config.get('stage_pictures','ai-painted')]
+        if config.get('instructions'):
+            command += ['--instructions', config['instructions']]
         if not config['auto_accept']:
             command.append('--review-artwork')
         command += ['--entrance-effect', config['entrance_effect'], '--exit-effect', config['exit_effect']]

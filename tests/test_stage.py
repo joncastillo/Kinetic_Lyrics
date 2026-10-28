@@ -36,16 +36,17 @@ class BlockTest(unittest.TestCase):
         self.assertEqual(c.background(1, 4., veil=False).getpixel((50, 30)), (255, 0, 0))
         self.assertEqual(c.background(1, 7.7, veil=False).getpixel((50, 30)), (0, 0, 255))
 
-    def test_wisp_partner_visits_are_tied_to_stem_events(self):
+    def test_wisp_partner_visits_once_in_the_second_half_on_stem_events(self):
+        from types import SimpleNamespace
         from stage_3d import Stage3D
         stage = Stage3D.__new__(Stage3D)
-        notes = [1., 2., 3., 4., 5., 6., 7., 8., 9.]
-        stage._music = dict(times=[1., 3., 5., 7., 9.], strengths=[.9]*5,
-                            tune_times=notes, tune=[.2, .8, .2, .8, .2, .8, .2, .8, .2])
+        notes = [float(n) for n in range(1, 41)]
+        stage._music = dict(times=notes[::2], strengths=[.9]*20, tune_times=notes, tune=[.2, .8]*20)
         stage.ribbon = [dict(keys=(notes, [], []))]
+        stage.c = SimpleNamespace(duration=40.)
         windows = stage.duet_windows()
-        self.assertTrue(windows)
-        self.assertTrue(all(start in notes and end in notes for start, end in windows))
+        self.assertEqual(len(windows), 1)
+        self.assertTrue(all(start in notes and end in notes and start >= 20. for start, end in windows))
         start, end = windows[0]
         self.assertEqual(stage.partner_presence(start-.01), 0.)
         self.assertGreater(stage.partner_presence((start+end)/2), .9)

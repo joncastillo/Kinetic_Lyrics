@@ -105,7 +105,7 @@ words. Studio's search uses it, and so does AI selection.
   petal word.
 - **`letters-spin-*`** effects rotate strips of each glyph in three dimensions as
   they fly in.
-- **Cinematic** effects, such as prismatic, aurora silk, liquid chrome and ember, add
+- **Cinematic** effects, such as prismatic, liquid chrome and ember, add
   shaded streamers, droplets and trails. They fade in from invisible, and they leave
   along a different path from the one they arrived on.
 
