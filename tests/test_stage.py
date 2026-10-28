@@ -24,6 +24,70 @@ def lyrics(*lines):
 
 
 class BlockTest(unittest.TestCase):
+    def test_background_crossing_starts_with_valid_seam(self):
+        from PIL import Image
+        from kinetic_director import Compositor, rules_plan
+        from kinetic_lyrics import theme_for
+        data = lyrics((.2, 'silk'), (5.2, 'wind'))
+        c = Compositor(data, rules_plan(data, theme_for('autumn')), 100, 60, 8.,
+                       artwork_mode='verse', reading_flow='preview', text_animation='none')
+        c.art = [Image.new('RGBA', (100, 60), 'red'), Image.new('RGBA', (100, 60), 'blue')]
+        c.art_starts = [0., 4.]
+        self.assertEqual(c.background(1, 4., veil=False).getpixel((50, 30)), (255, 0, 0))
+        self.assertEqual(c.background(1, 7.7, veil=False).getpixel((50, 30)), (0, 0, 255))
+
+    def test_wisp_partner_visits_are_tied_to_stem_events(self):
+        from stage_3d import Stage3D
+        stage = Stage3D.__new__(Stage3D)
+        notes = [1., 2., 3., 4., 5., 6., 7., 8., 9.]
+        stage._music = dict(times=[1., 3., 5., 7., 9.], strengths=[.9]*5,
+                            tune_times=notes, tune=[.2, .8, .2, .8, .2, .8, .2, .8, .2])
+        stage.ribbon = [dict(keys=(notes, [], []))]
+        windows = stage.duet_windows()
+        self.assertTrue(windows)
+        self.assertTrue(all(start in notes and end in notes for start, end in windows))
+        start, end = windows[0]
+        self.assertEqual(stage.partner_presence(start-.01), 0.)
+        self.assertGreater(stage.partner_presence((start+end)/2), .9)
+        self.assertEqual(stage.partner_presence(end+.01), 0.)
+
+    def test_pseudo_3d_backdrop_uses_one_flat_composite_per_frame(self):
+        from types import SimpleNamespace
+        from PIL import Image
+        from stage_3d import Stage3D
+        stage = Stage3D.__new__(Stage3D)
+        calls = []
+        def background(index, t, veil=False):
+            calls.append(t)
+            return Image.new('RGB', (16, 9), 'red' if t < 5 else 'blue')
+        stage.c = SimpleNamespace(background=background, art_starts=[0., 5.],
+                                  art=[Image.new('RGB', (16, 9), 'red'), Image.new('RGB', (16, 9), 'blue')],
+                                  art_crossing=lambda index: 2.)
+        stage.world = ['first.png', 'second.png']
+
+        class GL:
+            def __init__(self):
+                self.images = []
+                self.quads = []
+
+            def transient(self, image):
+                self.images.append(image)
+                return image
+
+            def texture(self, key, image):
+                self.images.append(image())
+                return key
+
+            def quad(self, *args):
+                self.quads.append(args)
+
+        gl = GL()
+        stage.backdrop(gl, 4.99)
+        stage.backdrop(gl, 5.)
+        self.assertEqual(calls, [5.])
+        self.assertEqual(len(gl.images), 2)
+        self.assertEqual(len(gl.quads), 2)
+
     def test_directed_picture_joins_its_word_even_on_effect_row(self):
         from stage_3d import Stage3D
         word = dict(line=0, index=0, text='MOON', bare='moon', role='hero', effect=object())

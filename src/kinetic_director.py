@@ -484,20 +484,28 @@ class Compositor:
             draw_art(current-1, (1-progress)*opacity)
         draw_art(current, progress*opacity)
 
+    def art_crossing(self, current):
+        if current <= 0:
+            return 0.
+        gap = (self.art_starts[current+1]-self.art_starts[current]
+               if current+1 < len(self.art_starts) else self.art_starts[current]-self.art_starts[current-1])
+        return min(20., max(1., gap*.9))
+
     def background(self, index, t, veil=True):
         scene = self.plan['scenes'][max(0, index)]
         if self.artwork_mode in ('fullscreen', 'verse') and self.art_starts:
             current = max(0, bisect.bisect_right(self.art_starts,t)-1)
             frame = self.art[current].convert('RGB')
             if current > 0:
-                blend = ease(min(1.,max(0.,(t-self.art_starts[current])/.9)))
+                blend = min(1., max(0., (t-self.art_starts[current])/self.art_crossing(current)))
                 if blend < 1:
                     previous = self.art[current-1].convert('RGB')
-                    feather = max(2, round(self.width*.008))
+                    feather = max(2, round(self.width*.03))
                     edge = round(blend*(self.width+4*feather)-2*feather)
                     seam = Image.new('L', frame.size)
-                    ImageDraw.Draw(seam).rectangle((0, 0, edge, self.height), fill=255)
-                    seam = seam.filter(ImageFilter.GaussianBlur(feather))
+                    if edge > 0:
+                        ImageDraw.Draw(seam).rectangle((0, 0, edge, self.height), fill=255)
+                        seam = seam.filter(ImageFilter.GaussianBlur(feather))
                     frame = Image.composite(frame, previous, seam)
             if not veil:
                 return frame

@@ -55,6 +55,8 @@ def image_prompt(subject, layout, style_prompt):
         +layout['visual_prompt']+' '
         'Use the following only for color, brushwork and mood, never to replace the scene: '+style_prompt+'. '
         'Use painterly simplification without obscuring the story or turning concrete objects into unrelated shapes. '
+        'Draw one coherent scene with opaque, physically placed subjects. No superimposed scenes, double exposure, '
+        'semi-transparent people, ghost silhouettes, floating haze, smoke or wispy overlays unless the lyric explicitly describes them. '
         'No lettering, written numbers, captions, logos or watermarks. '
         'No frame or border. Smooth clean pigment, no grain or noisy texture.'
     )

@@ -228,7 +228,7 @@ def image_pose(motion, t, beat):
 @lru_cache(maxsize=32)
 def cutout(path):
     from staging_matte import remove_staging
-    from scipy.ndimage import binary_dilation, binary_propagation
+    from scipy.ndimage import binary_dilation, binary_propagation, label
     with Image.open(path) as source:
         image = source.convert('RGBA')
     image = remove_staging(image)  # any flat staging backdrop left around the subject becomes transparent
@@ -238,11 +238,18 @@ def cutout(path):
     outside = pixels[..., 3] < 64
     # Model-made sticker outlines are often separated from the transparent exterior by a grey
     # antialiased shadow. Start a short way inside that fringe, then follow only neutral light pixels.
-    seed = binary_dilation(outside, iterations=max(2, round(min(pixels.shape[:2])*.026))) & white
+    seed = binary_dilation(outside, iterations=max(2, round(min(pixels.shape[:2])*.055))) & white
     border = binary_propagation(seed, mask=white) & ~outside
     if border.sum() < .7*(pixels[..., 3] >= 128).sum():
         fringe = binary_dilation(border, iterations=max(1, round(min(pixels.shape[:2])*.003)))
         pixels[..., 3] = np.where(fringe, 0, pixels[..., 3])
+    components, count = label(pixels[..., 3] > 32)
+    if count:
+        sizes = np.bincount(components.ravel())
+        substantial = np.flatnonzero(sizes >= max(8, sizes[1:].max()*.001))
+        substantial = substantial[substantial != 0]
+        keep = binary_dilation(np.isin(components, substantial), iterations=2)
+        pixels[..., 3] = np.where(keep, pixels[..., 3], 0)
     image = Image.fromarray(pixels, 'RGBA')
     bounds = image.getchannel('A').getbbox()
     if bounds:

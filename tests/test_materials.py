@@ -83,6 +83,23 @@ class MaterialTest(unittest.TestCase):
         result = frame(effect, 'entrance', 1., big)
         self.assertGreater((result[..., 3] > 128).sum(), 5000)
 
+    def test_silk_letters_keep_distinct_translucent_fabrics(self):
+        sprite = word_sprite('SILK', 100)
+        effect = self.catalog['entrance']['mucha-silk-lettering']
+        result = frame(effect, 'entrance', 1., sprite)
+        ink = np.asarray(sprite)[..., 3] > 128
+        columns = np.flatnonzero(ink.any(axis=0))
+        letters = np.split(columns, np.flatnonzero(np.diff(columns) > 1)+1)
+        self.assertEqual(len(letters), 4)
+        means = []
+        for letter in letters:
+            area = result[:, 120+letter[0]:120+letter[-1]+1]
+            pixels = area[area[..., 3] > 100]
+            self.assertGreater(len(pixels), 200)
+            self.assertLess(np.median(pixels[:, 3]), 220)
+            means.append(pixels[:, :3].mean(axis=0))
+        self.assertTrue(all(np.linalg.norm(a-b) > 35 for a, b in zip(means, means[1:])))
+
 
 if __name__ == '__main__':
     unittest.main()
