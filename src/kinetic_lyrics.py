@@ -395,7 +395,7 @@ def main(argv=None):
     parser.add_argument('--style-reference', type=Path, nargs='+', help='One or more reference images for generated linework, palette and paint style')
     from kinetic_illustrations import STYLE_PROMPT
     parser.add_argument('--style-prompt', default=STYLE_PROMPT, help='Art style instruction accompanying reference images')
-    parser.add_argument('--image-cache', type=Path, default=default_model_cache(), help='Model cache (default: KINETIC_LYRICS_MODEL_CACHE or ~/.cache/kinetic-lyrics)')
+    parser.add_argument('--image-cache', type=Path, default=default_model_cache(), help='Model cache (default: KINETIC_LYRICS_MODEL_CACHE, else OLLAMA_MODELS or ~/.ollama/models)')
     parser.add_argument('--image-model', default='Qwen/Qwen-Image-2512', help='Local image repository (default: Qwen Image 2512)')
     parser.add_argument('--image-steps', type=int, default=None, help='Illustration inference steps (default: selected model recommendation)')
     parser.add_argument('--image-seed', type=int, default=42)

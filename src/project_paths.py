@@ -6,12 +6,14 @@ PROJECT_ROOT=Path(__file__).resolve().parent.parent
 UI_ROOT=PROJECT_ROOT/'ui'
 
 
+def ollama_models_dir():
+    override=os.environ.get('OLLAMA_MODELS')
+    return Path(override).expanduser() if override else Path.home()/'.ollama'/'models'
+
+
 def default_model_cache():
     override=os.environ.get('KINETIC_LYRICS_MODEL_CACHE')
-    if override:return Path(override).expanduser()
-    existing=Path('D:/AI_Models')
-    if os.name=='nt' and existing.is_dir():return existing
-    return Path.home()/'.cache'/'kinetic-lyrics'
+    return Path(override).expanduser() if override else ollama_models_dir()
 
 
 def studio_output(here,name='lyric-studio'):
