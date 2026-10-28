@@ -13,18 +13,18 @@ build by hand in tools such as Adobe After Effects.
 
 ```mermaid
 flowchart TD
-    A[Audio file] --> B[Align lyrics to the vocals]
-    L[Lyrics, optional] --> B
-    B --> C[Measure vocal onsets,<br/>melody and rhythm]
-    C --> D[Turn lyrics into<br/>illustration subjects]
-    D --> E[Generate illustrations<br/>with the image model]
-    S[Style references] --> E
-    E --> F[Remove backgrounds<br/>to make cutouts]
-    F --> G{You review<br/>the artwork}
-    G -- replace or regenerate --> E
-    G -- approve --> H[Plan typography<br/>and motion]
-    H --> I[Render frames and<br/>encode the video]
-    I --> V[Finished MP4]
+    A([Audio]) --> B[Align lyrics]
+    L([Lyrics]) -.-> B
+    B --> C[Analyse the music]
+    C --> D[Plan the scenes]
+    D --> E[Paint illustrations]
+    S([Style images]) -.-> E
+    E --> F[Cut out subjects]
+    F --> G{Review artwork}
+    G -- redo --> E
+    G -- approve --> H[Plan typography]
+    H --> I[Render video]
+    I --> V([MP4])
 ```
 
 If you leave the lyrics out, the first step transcribes them from the audio instead.
@@ -144,13 +144,17 @@ Run `kinetic-lyrics.cmd --help` to see every option.
 By default, each word appears at the moment it is sung.
 
 ```mermaid
-flowchart LR
-    S[Song] --> D[Demucs splits<br/>vocals and instruments]
-    D --> O[Vocal onsets] --> T[Line start times]
-    D --> M[Melody] --> H[Hero word colour<br/>and pace]
-    D --> I[Instruments] --> P[Pulses and glows]
-    T & H & P --> R[Each frame]
+flowchart TD
+    S([Song]) --> D[Demucs]
+    D --> O[Vocals] --> T[Line timing]
+    D --> M[Melody] --> H[Hero colour]
+    D --> I[Instruments] --> P[Pulses]
+    T & H & P --> R([Frames])
 ```
+
+Demucs splits the song into the voice and the instruments. The voice sets when each
+line starts, the melody sets the colour and pace of hero words, and the instruments
+drive the pulses and glows.
 
 - **Panning or still camera.** By default, all the illustrations are stitched into
   one seamless collage, and the camera glides through it at a steady speed. Each line

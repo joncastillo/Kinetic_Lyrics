@@ -9,12 +9,10 @@ like the word itself rather than laid on top of it.
 
 ```mermaid
 flowchart LR
-    P[Faint preview<br/>8% opacity] --> E[Entrance<br/>starts when the<br/>word is sung]
-    E --> H[Hold<br/>the word stays<br/>readable]
-    H --> X[Exit<br/>1 s after the<br/>word ends]
+    P[Preview] --> E[Entrance] --> H[Hold] --> X[Exit]
 ```
 
-Upcoming words show as a faint preview. A word's entrance begins at its sung
+Upcoming words show as a faint preview at 8% opacity. A word's entrance begins at its sung
 timestamp, the word then holds intact so it can be read, and its exit starts one
 second after the word ends. Changing the motion speed makes the animation longer or
 shorter, but the timing of the sung words stays the same. Setting the intensity to
@@ -41,9 +39,7 @@ typography plan is made again the next time you render.
 
 ```mermaid
 flowchart LR
-    A[Copy a JSON recipe<br/>into entrance/ or exit/] --> B[Give it a unique<br/>lowercase-hyphenated name]
-    B --> C[Add a description<br/>to descriptions.json]
-    C --> D[Refresh Studio]
+    A[Copy a recipe] --> B[Rename it] --> C[Describe it] --> D[Refresh Studio]
 ```
 
 The file name, without `.json`, becomes the effect's ID. You do not need to change
