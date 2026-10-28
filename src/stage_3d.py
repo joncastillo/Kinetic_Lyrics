@@ -20,8 +20,9 @@ space, between blocks) and outlined shapes drift and turn on strong bass notes, 
 around the blocks so they shift with parallax. Words and pictures share one invisible
 rectangle: a picture beside a word takes its own slot in the justified row. A scene can
 set its blocks in the "contrast" layout instead: thin and heavy words side by side, one
-candy-coloured outlined word whose letters keep bouncing, and the last word set vertically
-down one side; every letter springs in with an elastic bounce, and the camera zooms in and
+heavy display word filled with a slowly flowing marbled texture in the accent's tones (drawn
+by a shader, so the texture keeps moving inside the letters), and the last word set
+vertically close beside the rows; every letter springs in with an elastic bounce, and the camera zooms in and
 rolls into a tilt. Which side, which way the vertical word reads, how the fonts pair, the
 tilt and the zoom vary from block to block. A scene effect
 can own the block's particle effects (`crowns`, such as maple and oak for the tree canopy);
@@ -66,12 +67,12 @@ GROW_ROOM, EFFECT_ROOM = .9, .25
 ACCENT = (239, 76, 84)
 STAGE_FONTS = {'thin': ('segoeuil.ttf', 'calibril.ttf', 'DejaVuSans-ExtraLight.ttf'),
                'heavy': ('ariblk.ttf', 'seguibl.ttf', 'DejaVuSans-Bold.ttf'),
-               'sweet': ('ARLRDBD.TTF', 'comicbd.ttf', 'segoeprb.ttf', 'DejaVuSans-Bold.ttf')}
-COLUMN_GAP, COLUMN_LIMIT = .06, .32
+               'sweet': ('GILSANUB.TTF', 'ROCKEB.TTF', 'seguibl.ttf', 'DejaVuSans-Bold.ttf')}
+COLUMN_GAP, COLUMN_LIMIT = .018, .32
 BOUNCE_ENTRY, BOUNCE_STAGGER = .55, .045
 ROLL_RANGE, ZOOM_RANGE = (5., 12.), (.9, .96)
 CONTRAST_LEADING = .42
-CANDY_HUES = (0., .1, -.1, .45, .22, -.3)
+HOP, SWAY = .07, 3.
 ENTRANCES = ('flip', 'swing', 'rise', 'drop')
 MOTIONS = ('wave', 'pulse', 'tilt')
 OLD_BLOCK, DIM_TIME = .45, 1.
@@ -140,6 +141,45 @@ void main() {
 }
 '''
 
+FILL_FRAGMENT = '''
+#version 330
+uniform sampler2D image;
+uniform float opacity;
+uniform float time;
+uniform float seed;
+uniform vec2 origin;
+uniform vec2 span;
+uniform vec3 deep;
+uniform vec3 middle;
+uniform vec3 light;
+in vec2 uv;
+out vec4 color;
+
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7)))*43758.5453); }
+float noise(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    vec2 u = f*f*(3.-2.*f);
+    return mix(mix(hash(i), hash(i+vec2(1., 0.)), u.x), mix(hash(i+vec2(0., 1.)), hash(i+vec2(1., 1.)), u.x), u.y);
+}
+float fbm(vec2 p) {
+    float value = 0., amplitude = .5;
+    for (int k = 0; k < 5; k++) { value += amplitude*noise(p); p = p*2.03+vec2(1.7, 9.2); amplitude *= .5; }
+    return value;
+}
+
+void main() {
+    vec4 texel = texture(image, uv);
+    vec2 p = origin+vec2(uv.x, 1.-uv.y)*span+vec2(seed*7.31, seed*3.17);
+    vec2 q = vec2(fbm(p*1.1+vec2(0., time*.16)), fbm(p*1.1+vec2(5.2, 1.3)-vec2(time*.12, 0.)));
+    float n = fbm(p*1.4+2.2*q+vec2(time*.05, -time*.04));
+    vec3 ink = mix(deep, middle, smoothstep(.25, .62, n));
+    ink = mix(ink, light, smoothstep(.6, .9, n)*.85);
+    float band = abs(fract((p.x*.55+p.y*.3)*.35-time*.12)-.5);
+    ink += light*(1.-smoothstep(.0, .06, band))*.22;
+    color = vec4(ink*texel.r, texel.a)*opacity;
+}
+'''
+
 _LOCAL = threading.local()
 
 
@@ -203,6 +243,8 @@ class GLStage:
         self.program = self.ctx.program(vertex_shader=VERTEX, fragment_shader=FRAGMENT)
         self.vao = self.ctx.vertex_array(self.program, [])
         self.strip_program = self.ctx.program(vertex_shader=STRIP_VERTEX, fragment_shader=STRIP_FRAGMENT)
+        self.fill_program = self.ctx.program(vertex_shader=VERTEX, fragment_shader=FILL_FRAGMENT)
+        self.fill_vao = self.ctx.vertex_array(self.fill_program, [])
         samples = min(4, self.ctx.max_samples)
         self.msaa = self.ctx.framebuffer([self.ctx.renderbuffer(self.size, 4, samples=samples)])
         self.output = self.ctx.framebuffer([self.ctx.renderbuffer(self.size, 4)])
@@ -261,6 +303,22 @@ class GLStage:
         self.program['uv_rect'].value = tuple(float(v) for v in uv)
         self.vao.render(self.moderngl.TRIANGLES, vertices=6)
 
+    def fill(self, texture, mvp, opacity, fill):
+        """A glyph quad (white letters over a dark halo) filled with the flowing marbled texture: `fill` holds
+        the three tones, the time, a seed and where this quad sits in the word, in cap heights."""
+        texture.use(0)
+        program = self.fill_program
+        program['mvp'].write(np.ascontiguousarray(mvp.T, dtype='f4').tobytes())
+        program['opacity'].value = float(opacity)
+        program['uv_rect'].value = (0., 0., 1., 1.)
+        for name in ('deep', 'middle', 'light'):
+            program[name].value = tuple(v/255 for v in fill[name])
+        for name in ('time', 'seed'):
+            program[name].value = float(fill[name])
+        for name in ('origin', 'span'):
+            program[name].value = tuple(float(v) for v in fill[name])
+        self.fill_vao.render(self.moderngl.TRIANGLES, vertices=6)
+
     def strip(self, texture, mvp, vertices, opacity=1.):
         """A continuous band: rows of (x, y, z, across, r, g, b) drawn as one triangle strip."""
         buffer = self.ctx.buffer(np.ascontiguousarray(vertices, dtype='f4').tobytes())
@@ -318,32 +376,26 @@ def stage_font(name, size):
     return role_font('content', size)
 
 
-def text_sprite(text, role, size, color, outline=False):
-    """Text drawn with its baseline at (pad, pad+ascent) over a soft dark halo (and, for candy letters, a
-    white outline); returns (image, pad, ascent)."""
+def text_sprite(text, role, size, color):
+    """Text drawn with its baseline at (pad, pad+ascent) over a soft dark halo; returns (image, pad, ascent)."""
     font = stage_font(role, size)
     ascent, descent = font.getmetrics()
     pad = max(6, round(size*.14))
     width = max(1, math.ceil(font.getlength(text)))
-    stroke = max(2, round(size*.07)) if outline else 0
     shape = Image.new('L', (width+pad*2, ascent+descent+pad*2))
-    ImageDraw.Draw(shape).text((pad, pad+ascent), text, font=font, fill=255, anchor='ls', stroke_width=stroke, stroke_fill=255)
+    ImageDraw.Draw(shape).text((pad, pad+ascent), text, font=font, fill=255, anchor='ls')
     halo = shape.filter(ImageFilter.GaussianBlur(max(2, size*.07))).point(lambda a: min(255, round(a*1.4)))
     image = Image.new('RGBA', shape.size, (0, 0, 0, 0))
     image.putalpha(halo.point(lambda a: round(a*.55)))
-    if outline:
-        image.alpha_composite(Image.merge('RGBA', (*Image.new('RGB', shape.size, (255, 255, 255)).split(), shape)))
-        shape = Image.new('L', shape.size)
-        ImageDraw.Draw(shape).text((pad, pad+ascent), text, font=font, fill=255, anchor='ls')
     image.alpha_composite(Image.merge('RGBA', (*Image.new('RGB', shape.size, color).split(), shape)))
     return image, pad, ascent
 
 
-def candy(accent, count):
-    """Bright sweet colours around the block's accent, one per letter."""
-    h, _, _ = colorsys.rgb_to_hsv(*(v/255 for v in accent))
-    return [tuple(round(v*255) for v in colorsys.hsv_to_rgb((h+CANDY_HUES[k % len(CANDY_HUES)]) % 1., .72, 1.))
-            for k in range(count)]
+def texture_tones(accent):
+    """Three related tones for the textured word: a deep shade, the accent (softened), and a light tint."""
+    h, s, v = colorsys.rgb_to_hsv(*(c/255 for c in accent))
+    tone = lambda s, v: tuple(round(c*255) for c in colorsys.hsv_to_rgb(h, s, v))  # noqa: E731
+    return dict(deep=tone(min(1., s*1.05), v*.32), middle=tone(min(.78, s), min(1., v*.95)), light=tone(s*.28, 1.))
 
 
 def elastic(value):
@@ -519,7 +571,7 @@ class Stage3D:
 
     def contrast_style(self, words, rng, accent):
         """The contrast layout's choices for one block: the vertical word (the last word that is not a short
-        function word), the candy word (a hero word), how thin and heavy fonts pair, and the camera's tilt."""
+        function word), the textured word (a hero word), how thin and heavy fonts pair, and the camera's tilt."""
         content = [w for w in words if w['role'] != 'function' and len(w['bare']) > 2] or words
         vertical = content[-1]
         heroes = [w for w in words if w['role'] == 'hero' and w is not vertical]
@@ -531,7 +583,7 @@ class Stage3D:
             word.update(font='thin' if thin else 'heavy', text=word['text'].upper(), bouncy=True)
         vertical.update(font='heavy', vertical=True)
         if sweet is not None:
-            sweet.update(font='sweet', sweet=True, text=sweet['text'].lower(), letter_colors=candy(accent, len(sweet['text'])))
+            sweet.update(font='sweet', sweet=True, text=sweet['text'].lower(), fill=texture_tones(accent))
         return dict(vertical=vertical, side=rng.choice((-1, 1)), reads=rng.choice(('up', 'down')),
                     roll=rng.choice((-1, 1))*rng.uniform(*ROLL_RANGE), zoom=rng.uniform(*ZOOM_RANGE))
 
@@ -926,8 +978,11 @@ class Stage3D:
                 if t >= word['start']-ENTRY_LEAD:
                     items.extend(self.word_items(gl, block, word, t, opacity, beat))
         depth = lambda item: (view@item[0]@np.array([0., 0., 0., 1.]))[2]
-        for model, texture, opacity, tint in sorted(items, key=depth):
-            gl.quad(texture, camera@model, opacity, tint)
+        for item in sorted(items, key=depth):
+            if len(item) > 4:
+                gl.fill(item[1], camera@item[0], item[2], item[4])
+            else:
+                gl.quad(item[1], camera@item[0], item[2], item[3])
         return gl.read()
 
     def billboard(self, position, view, size):
@@ -998,7 +1053,7 @@ class Stage3D:
         pieces = list(enumerate(word['text'])) if letters else [(None, word['text'])]
         font = stage_font(word['font'], size)
         entry, stagger = (BOUNCE_ENTRY, BOUNCE_STAGGER) if word.get('bouncy') else (ENTRY, LETTER_STAGGER)
-        colors = word.get('letter_colors')
+        sweet = bool(word.get('sweet'))
         items = []
         for number, text in pieces:
             if number is not None and (number == word['letter'] or not text.strip()):
@@ -1008,10 +1063,9 @@ class Stage3D:
             progress = min(1., (t-word['start']+ENTRY_LEAD-delay)/entry)
             if progress <= 0:
                 continue
-            color = colors[number % len(colors)] if colors and number is not None else word['color']
-            sweet = bool(word.get('sweet'))
-            key = ('word', text, word['font'], size, color, sweet)
-            sprite = gl.texture(key, lambda text=text, color=color: text_sprite(text, word['font'], size, color, sweet)[0])
+            color = (255, 255, 255) if sweet else word['color']
+            key = ('word', text, word['font'], size, color)
+            sprite = gl.texture(key, lambda text=text, color=color: text_sprite(text, word['font'], size, color)[0])
             pad = max(6, round(size*.14))
             ascent = font.getmetrics()[0]
             width, height = sprite.size
@@ -1023,7 +1077,13 @@ class Stage3D:
             alpha = smooth(progress*2.2)*opacity
             base = (block['placement']@word['frame']@translation(*anchor, 0.)@local
                     @translation(relative[0]-glyph_width/2, relative[1], 0.))
-            if word['role'] == 'hero' and not sweet:
+            if sweet:
+                fill = dict(word['fill'], time=t, seed=word['line']*13+word['index'],
+                            origin=((offset-pad*k)/word['cap'], -(height-ascent-pad)*k/word['cap']),
+                            span=(width*k/word['cap'], height*k/word['cap']))
+                items.append((base@scaling(width*k, height*k), sprite, alpha, (1., 1., 1.), fill))
+                continue
+            if word['role'] == 'hero':
                 depth = EXTRUDE_DEPTH*word['cap']
                 for layer in range(EXTRUDE_LAYERS, 0, -1):
                     shade = .22+.25*(1-layer/EXTRUDE_LAYERS)
@@ -1042,7 +1102,7 @@ class Stage3D:
             return translation(0, math.sin(t*4.2-letter*.7)*cap*.09*settle)
         if word['motion'] == 'bounce' and letter is not None:
             hop = abs(math.sin(t*3.2-letter*.55))
-            return translation(0, hop*cap*.14*settle)@rotation(roll=math.sin(t*3.2-letter*.55)*7*settle)
+            return translation(0, hop*cap*HOP*settle)@rotation(roll=math.sin(t*3.2-letter*.55)*SWAY*settle)
         if word['motion'] == 'pulse':
             s = 1+.09*beat*settle+.03*math.sin(t*3.1)*settle
             return translation(0, cap/2)@np.diag((s, s, 1., 1.))@translation(0, -cap/2)

@@ -6,7 +6,7 @@ still camera, lines built inside shapes) or "blocks" (the 3D stage). A blocks sc
 few particle effects (`particles`), such as the maple and oak trees of the tree canopy;
 inside that scene the AI picks one of them for each block. A blocks scene's `layout` is
 "justified" (rows of equal width, the default) or "contrast" (thin and heavy words, one
-candy-coloured bouncing word, the last word set vertically, the camera zoomed and
+word with a flowing textured fill, the last word set vertically, the camera zoomed and
 tilted). Pan and still scenes keep the user's per-line entrance effects, so `particles`
 is null for them. The filename, without .json, is the scene's ID.
 """
