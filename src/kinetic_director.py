@@ -348,6 +348,12 @@ class Compositor:
         from realtime_typography import RealtimeTypography
         self.realtime = (RealtimeTypography(self, melody, particle_speed, rhythm, self.typography['kinetic'])
                          if self.typography['reading_flow'] == 'realtime' else None)
+        if self.typography['reading_flow'] == 'stage':
+            from stage_3d import Stage3D
+            self.realtime = Stage3D(self, melody, rhythm)
+        elif self.typography['reading_flow'] == 'mixed':
+            from scene_mix import SceneMix
+            self.realtime = SceneMix(self, melody, particle_speed, rhythm, self.typography['kinetic'], self.plan.get('scene_flows'))
         self.cache_index, self.layout = None, None
         self.photo = (ImageOps.fit(Image.open(background).convert('RGB'), (width, height))
                       if background else None)
@@ -953,6 +959,8 @@ def render(audio, output, data, plan, duration, args):
     finally:
         from kinetic_particles_3d import close_particle_renderer
         close_particle_renderer()
+        from stage_3d import close_stage
+        close_stage()
 
 
 def tighten_line_starts(data):
@@ -1002,6 +1010,21 @@ def _render_video(audio, output, data, plan, duration, args):
         from effect_director import ensure_line_effects
         emit('direction', 0, message='AI choosing effects for each line')
         plan = ensure_line_effects(data, plan, compositor, vars(args), Path(output).parent)
+        compositor = render_compositor(data,plan,duration,args)
+    if compositor.typography['reading_flow'] == 'mixed':
+        from scene_mix import ensure_scenes
+        emit('direction', 0, message='AI choosing a scene effect for each song section')
+        plan = ensure_scenes(data, plan, vars(args), Path(output).parent)
+        compositor = render_compositor(data,plan,duration,args)
+    pictures = getattr(args, 'stage_pictures', 'ai-painted')
+    has_stage = compositor.typography['reading_flow'] == 'stage' or getattr(compositor.realtime, 'stage', None) is not None
+    if has_stage and pictures != 'keywords':
+        if pictures == 'off':
+            plan = dict(plan, ornaments=[])
+        else:
+            from ornament_director import ensure_ornaments
+            emit('direction', 0, message='AI choosing the small animated pictures for each block')
+            plan = ensure_ornaments(data, plan, compositor, dict(vars(args), ornament_images=pictures == 'ai-painted'), Path(output).parent)
         compositor = render_compositor(data,plan,duration,args)
     encoding = (['-c:v', 'h264_nvenc', '-preset', 'p5', '-tune', 'hq', '-rc', 'vbr', '-cq', '18', '-b:v', '0']
                 if args.encoder == 'h264_nvenc' else ['-c:v', 'libx264', '-preset', 'medium', '-crf', '18'])

@@ -324,7 +324,7 @@ function syncKineticControls(){
  const settings=kineticSettings();
  document.querySelectorAll('[data-kinetic]').forEach(input=>{input.value=settings[input.dataset.kinetic];showKineticValue(input)});
  document.querySelectorAll('[data-kinetic-flag]').forEach(box=>box.checked=!!settings[box.dataset.kineticFlag]);
- document.querySelectorAll('[data-kinetic-list]').forEach(box=>box.checked=(settings[box.dataset.kineticList]||[]).includes(box.value));
+ document.querySelectorAll('[data-kinetic-list]').forEach(box=>{const list=settings[box.dataset.kineticList];box.checked=list==null||list.includes(box.value)});
  document.querySelectorAll('[data-kinetic-choice]').forEach(select=>select.value=settings[select.dataset.kineticChoice]);
  syncCameraMode();
 }
@@ -332,6 +332,14 @@ function syncCameraMode(){
  const flow=document.getElementById('readingFlow')?.value;
  const camera=document.querySelector('[data-kinetic-choice="camera"]')?.value;
  const panning=flow==='realtime'&&camera==='pan';
+ const stage=document.querySelector('.stage-controls');if(stage)stage.hidden=!['stage','mixed'].includes(flow);
+ const scenes=document.querySelector('.scene-controls');if(scenes)scenes.hidden=flow!=='mixed';
+ const kinetic=document.querySelector('.kinetic-controls');if(kinetic)kinetic.hidden=!['realtime','mixed'].includes(flow);
+ const help=document.getElementById('readingFlowHelp');
+ if(help)help.textContent={realtime:'Real-time mixes typewriter, heavy and huge hero words, follows the newest word with the camera and reacts to the melody.',
+  preview:'Each line appears in full before it is sung, then words animate on their timing.',
+  stage:'Lines sung together form a rectangular block of justified words in a 3D space; the camera glides from block to block.',
+  mixed:'Each verse, chorus and bridge gets its own scene effect, chosen by the AI from the ones ticked below; the video moves between them.'}[flow]||'';
  for(const id of ['exitEffect','browseExit']){const el=document.getElementById(id);if(el)el.disabled=panning;}
  const hint=document.getElementById('exitHint');if(hint)hint.hidden=!panning;
  const pan=document.querySelector('[data-kinetic="pan_speed"]');if(pan)pan.disabled=flow==='realtime'&&camera==='still';
@@ -346,10 +354,23 @@ function storeKineticControls(){
  document.querySelectorAll('[data-kinetic-flag]').forEach(box=>settings[box.dataset.kineticFlag]=box.checked);
  document.querySelectorAll('[data-kinetic-choice]').forEach(select=>settings[select.dataset.kineticChoice]=select.value);
  for(const key of ['backdrops','glows'])settings[key]=[...document.querySelectorAll(`[data-kinetic-list="${key}"]`)].filter(b=>b.checked).map(b=>b.value);
+ const scenes=[...document.querySelectorAll('[data-kinetic-list="scenes"]')];
+ if(scenes.length)settings.scenes=scenes.filter(b=>b.checked).map(b=>b.value);
  const hidden=document.getElementById('kinetic');if(hidden)hidden.value=JSON.stringify(settings);
  syncCameraMode();
 }
 window.syncKineticControls=syncKineticControls;
+function renderSceneEffects(scenes){
+ const group=document.getElementById('sceneEffects');if(!group||!Array.isArray(scenes))return;
+ group.replaceChildren(...scenes.map(scene=>{
+  const label=document.createElement('label');label.className='check-toggle';label.title=scene.description||'';
+  const box=document.createElement('input');box.type='checkbox';box.value=scene.id;box.dataset.kineticList='scenes';
+  box.addEventListener('input',()=>{if(!group.querySelector('input:checked'))box.checked=true;storeKineticControls()});
+  label.append(box,scene.name);return label;
+ }));
+ syncKineticControls();
+}
+window.renderSceneEffects=renderSceneEffects;
 document.addEventListener('DOMContentLoaded',()=>{
  document.querySelectorAll('[data-kinetic],[data-kinetic-flag],[data-kinetic-list],[data-kinetic-choice]').forEach(input=>input.addEventListener('input',storeKineticControls));
  document.getElementById('readingFlow')?.addEventListener('change',syncCameraMode);

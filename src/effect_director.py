@@ -104,8 +104,9 @@ def line_backdrops(compositor):
     """The background image region behind each line while it is sung."""
     from PIL import Image
     engine = getattr(compositor, 'realtime', None)
+    engine = getattr(engine, 'canvas_engine', engine)
     crops = []
-    if engine is not None:
+    if engine is not None and hasattr(engine, 'reading_box'):
         engine.plan()
         for line in engine.lines:
             words = line['layout'].words

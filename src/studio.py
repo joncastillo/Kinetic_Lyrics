@@ -27,6 +27,7 @@ from kinetic_illustrations import MODEL, STYLE_PROMPT
 from kinetic_progress import PREFIX
 from kinetic_effects import EFFECTS, TEXT_ANIMATIONS
 from particle_catalog import discover_effects, catalog_choices, validate_choice, parse_pool
+from scene_catalog import scene_catalog
 from image_models import MODELS
 from review_policy import rejected, DEFAULT_THRESHOLD
 from speech_models import ASR_MODELS, LANGUAGES, DEFAULT_ASR, validate_speech
@@ -501,8 +502,11 @@ def start_job(fields, files):
             type_effect=fields.get('type_effect','mixed'), language=fields.get('language','').strip(),
             ai_model=ai_model, start_step=start_step, project_id=folder.name,
             vision_model=fields.get('vision_model','').strip(),auto_verify=fields.get('auto_verify')=='on',
-            auto_accept=fields.get('auto_accept')=='on', auto_repair=fields.get('auto_repair','on')=='on',review_threshold=int(fields.get('review_threshold',DEFAULT_THRESHOLD)))
+            auto_accept=fields.get('auto_accept')=='on', auto_repair=fields.get('auto_repair','on')=='on',review_threshold=int(fields.get('review_threshold',DEFAULT_THRESHOLD)),
+            stage_pictures=fields.get('stage_pictures','ai-painted') or 'ai-painted')
         config.update(typography_options(fields))
+        if config['stage_pictures'] not in ('ai-painted','ai-library','keywords','off'):
+            raise ValueError('Invalid 3D stage picture setting')
         if config['artwork_mode'] not in ('cutout','fullscreen','verse'):
             raise ValueError('Invalid artwork mode')
         if not 0 <= config['review_threshold'] <= 100:
@@ -552,7 +556,8 @@ def start_job(fields, files):
             '--type-effect',config['type_effect'], '--particle-intensity', str(config['particle_intensity']), '--particle-speed', str(config.get('particle_speed', 1.)),
             '-o', str(folder/'video.mp4')]
         command += ['--text-animation', config['text_animation'], '--text-pool',json.dumps(config['text_pool']),
-                    '--font-family',config['font_family'],'--font-style',config['font_style'],'--font-scale',str(config['font_scale']),'--lettering-styles',json.dumps(config['lettering_styles']),'--reading-flow',config['reading_flow'],'--kinetic',json.dumps(config['kinetic']),'--effect-speeds',json.dumps(config['effect_speeds'])]
+                    '--font-family',config['font_family'],'--font-style',config['font_style'],'--font-scale',str(config['font_scale']),'--lettering-styles',json.dumps(config['lettering_styles']),'--reading-flow',config['reading_flow'],'--kinetic',json.dumps(config['kinetic']),'--effect-speeds',json.dumps(config['effect_speeds']),
+                    '--stage-pictures',config.get('stage_pictures','ai-painted')]
         if not config['auto_accept']:
             command.append('--review-artwork')
         command += ['--entrance-effect', config['entrance_effect'], '--exit-effect', config['exit_effect']]
@@ -665,7 +670,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond(render_preview(catalog[phase][effect],phase,intensity,speed,settings['font_family'],settings['font_style'],settings['font_scale']), content_type='image/gif')
             if url.path == '/api/config':
                 from gpu_models import PRESETS, PROMPT_MODELS, VISION_MODELS
-                return self.respond(dict(token=TOKEN, auto_accept_supported=True, particle_materials_version=13, ai_typography_supported=True, typography_controls_supported=True, word_animations_supported=True, video_history_supported=True, video_history_version=2, live_artwork_version=2, replacement_priority_supported=True, particle_effects=catalog_choices(), prompt_regeneration=True, generation_queue_version=2, prompt_audit_version=1, style_prompt=STYLE_PROMPT, model=MODEL, image_models=MODELS, model_presets=PRESETS, prompt_choices=PROMPT_MODELS, vision_choices=VISION_MODELS, asr_models=ASR_MODELS, vocal_languages=LANGUAGES, default_asr=DEFAULT_ASR,
+                return self.respond(dict(token=TOKEN, auto_accept_supported=True, particle_materials_version=13, ai_typography_supported=True, typography_controls_supported=True, word_animations_supported=True, video_history_supported=True, video_history_version=2, live_artwork_version=2, replacement_priority_supported=True, particle_effects=catalog_choices(), scene_effects=list(scene_catalog().values()), prompt_regeneration=True, generation_queue_version=2, prompt_audit_version=1, style_prompt=STYLE_PROMPT, model=MODEL, image_models=MODELS, model_presets=PRESETS, prompt_choices=PROMPT_MODELS, vision_choices=VISION_MODELS, asr_models=ASR_MODELS, vocal_languages=LANGUAGES, default_asr=DEFAULT_ASR,
                     jobs=[dict(id=j.folder.name, name=j.config['name']) for j in reversed(list(JOBS.values()))]))
             if url.path == '/api/gpu':
                 from gpu_telemetry import gpu_usage
@@ -862,8 +867,11 @@ class Handler(BaseHTTPRequestHandler):
                     if text_animation not in TEXT_ANIMATIONS:
                         raise ValueError('Invalid word animation')
                     typography = typography_options(dict(job.config,**args))
+                    pictures = args.get('stage_pictures') or job.config.get('stage_pictures','ai-painted')
+                    if pictures not in ('ai-painted','ai-library','keywords','off'):
+                        raise ValueError('Invalid 3D stage picture setting')
                     job.config.update(**typography,text_animation=text_animation, entrance_pool=entrance_pool, exit_pool=exit_pool, type_effect=effect, particle_intensity=density, particle_speed=speed,
-                                      entrance_effect=entrance, exit_effect=exit_effect)
+                                      entrance_effect=entrance, exit_effect=exit_effect, stage_pictures=pictures)
                     (job.folder/'config.json').write_text(json.dumps(job.config, indent=2), encoding='utf-8')
                     command = [sys.executable, '-u', str(HERE/'studio_worker.py'), 'rerender', str(job.folder)]
                     job.state.update(action='rerender', action_percent=0, message='Rebuilding video with selected letter effects')

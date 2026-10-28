@@ -7,12 +7,12 @@ import os
 KINETIC_TEXT_SCALE = 3.
 
 WORD_ANIMATIONS = ('directed','highlight','karaoke','slide','fade','none')
-READING_FLOWS = ('realtime','preview')
+READING_FLOWS = ('realtime','preview','stage','mixed')
 BACKDROP_KINDS = ('outline','filled','vertical','echo','giant')
 GLOW_INSTRUMENTS = ('drums','other','bass')
 CAMERA_MODES = ('pan','still')
 KINETIC_DEFAULTS = dict(camera='pan',pan_speed=.05,backdrop_rate=.6,backdrops=list(BACKDROP_KINDS),traces=True,
-                        geometry=.8,frames=.1,glows=list(GLOW_INSTRUMENTS),glow_words=.5,glow_strength=.55,glitch=True,text_pulse=.1,word_shapes=.6)
+                        geometry=.8,frames=.1,glows=list(GLOW_INSTRUMENTS),glow_words=.5,glow_strength=.55,glitch=True,text_pulse=.1,word_shapes=.6,scenes=None)
 
 
 def effect_speeds(value):
@@ -50,6 +50,15 @@ def kinetic_options(value):
         if not isinstance(result[key],list) or any(item not in allowed for item in result[key]):
             raise ValueError(f'Invalid kinetic setting {key}')
     if result['camera'] not in CAMERA_MODES:raise ValueError('Invalid kinetic setting camera')
+    if result['scenes'] is None:
+        from scene_catalog import scene_catalog
+        result['scenes']=list(scene_catalog())
+    elif not isinstance(result['scenes'],list) or not result['scenes'] or any(not isinstance(s,str) for s in result['scenes']):
+        raise ValueError('Tick at least one scene effect')
+    else:
+        from scene_catalog import scene_catalog
+        known=scene_catalog()
+        result['scenes']=[s for s in dict.fromkeys(result['scenes']) if s in known] or list(known)
     for key in ('traces','glitch'):
         if type(result[key]) is not bool:raise ValueError(f'Kinetic setting {key} must be on or off')
     return result
@@ -82,7 +91,7 @@ def typography_options(values):
         raise ValueError('Invalid text style set')
     flow = values.get('reading_flow','realtime') or 'realtime'
     if flow not in READING_FLOWS:
-        raise ValueError('Choose real-time or preview reading flow')
+        raise ValueError('Choose the real-time, preview, 3D stage or scene mix reading flow')
     return dict(font_family=family,font_style=style,font_scale=scale,text_pool=list(dict.fromkeys(pool)),reading_flow=flow,
                 kinetic=kinetic_options(values.get('kinetic')),effect_speeds=effect_speeds(values.get('effect_speeds')),
                 lettering_styles=[choice for choice in LETTERING_STYLES if choice in styles])

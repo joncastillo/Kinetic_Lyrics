@@ -7,6 +7,8 @@ picture. Words use a role-based font mix (small typewriter function words, heavy
 words, huge condensed hero words); hero words form through the line's particle entrance;
 melody drives colour and pace. A per-line backdrop (marquee, echo, giant word...) adds
 variety. Every frame is a pure function of time, so renders split across processes exactly.
+When the video mixes scenes, `only` limits the drawn lines (and the thread between hero words)
+to the song sections this scene films; the canvas and camera still span the whole song.
 """
 import bisect
 from dataclasses import dataclass
@@ -200,9 +202,10 @@ def word_sprite(word, size, color, alpha=1., glitch=False):
 
 
 class RealtimeTypography:
-    def __init__(self, compositor, melody=None, speed=1., rhythm=None, options=None):
+    def __init__(self, compositor, melody=None, speed=1., rhythm=None, options=None, only=None):
         from typography_settings import kinetic_options
         self.c = compositor
+        self.only = frozenset(only) if only is not None else None
         self.options = kinetic_options(options)
         self.rhythm = rhythm or {}
         self.melody = melody.get('lines') if isinstance(melody, dict) else None
@@ -266,6 +269,9 @@ class RealtimeTypography:
         self.assign_accents()
         return self.lines
 
+    def shown(self, index):
+        return self.only is None or index in self.only
+
     def assign_accents(self):
         """Pick the words that glow with an instrument (`glow_words` share of all words) and the hero words
         that get a translucent shape behind them (`word_shapes` share), in a colour that keeps them readable."""
@@ -291,7 +297,8 @@ class RealtimeTypography:
         c, line = self.c, self.lines[index]
         recipe = c.effect_catalog['exit'].get(c.effect_pairs[index][1]) if c.particle_intensity > 0 else None
         length = STILL_EXIT/c.effect_speed(recipe.id) if recipe else FADE_TIME
-        due = self.lines[index+2]['start'] if index+2 < len(self.lines) else c.duration
+        later = [j for j in range(index+1, len(self.lines)) if self.shown(j)][:2]
+        due = self.lines[later[1]]['start'] if len(later) > 1 else c.duration
         start = max(line['end']+.3, min(due-length, line['end']+STILL_HOLD))
         return start, length, recipe
 
@@ -341,10 +348,10 @@ class RealtimeTypography:
     def visible(self, t):
         """Started lines that are still visible, newest first, each with its eased opacity."""
         lines = self.plan()
-        newest = max((i for i, line in enumerate(lines) if line['start'] <= t), default=None)
+        newest = max((i for i, line in enumerate(lines) if line['start'] <= t and self.shown(i)), default=None)
         if newest is None:
             return []
-        shown = [(i, self.opacity(i, t)) for i in range(newest, max(-1, newest-(8 if self.still else 4)), -1)]
+        shown = [(i, self.opacity(i, t)) for i in range(newest, max(-1, newest-(8 if self.still else 4)), -1) if self.shown(i)]
         return [(i, value) for i, value in shown if value > .005]
 
 
@@ -367,7 +374,7 @@ class RealtimeTypography:
         if visible:
             newest = visible[0][0]
             handover = smooth((t-self.lines[newest]['start'])/BACKDROP_FADE)
-            if newest and handover < 1:
+            if newest and handover < 1 and self.shown(newest-1):
                 self.paint_backdrop(canvas, newest-1, t, fraction, 1-handover)
             self.paint_backdrop(canvas, newest, t, fraction)
         self.paint_shapes(canvas, t, fraction)
@@ -670,7 +677,9 @@ class RealtimeTypography:
         if getattr(self, '_thread', None) is not None:
             return self._thread
         stops = []
-        for line in self.plan():
+        for index, line in enumerate(self.plan()):
+            if not self.shown(index):
+                continue
             for word in line['layout'].words:
                 if word.role == 'hero':
                     ascent = role_font(word.role, word.size).getmetrics()[0]

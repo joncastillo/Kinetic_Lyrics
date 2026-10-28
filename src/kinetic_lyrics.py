@@ -364,7 +364,9 @@ def main(argv=None):
     parser.add_argument('--type-effect', choices=EFFECTS, default='none', help='Typography effect: mixed, shatter, melt, slime or liquid')
     from typography_settings import FONT_FAMILIES,FONT_STYLES,typography_options
     parser.add_argument('--font-family',choices=FONT_FAMILIES,default='auto')
-    parser.add_argument('--reading-flow',choices=('realtime','preview'),default='realtime',help='realtime: words land as sung; preview: whole line before the vocal')
+    parser.add_argument('--reading-flow',choices=('realtime','preview','stage','mixed'),default='realtime',help='realtime: words land as sung; preview: whole line before the vocal; stage: lines grouped into blocks in a 3D world; mixed: each song section in one of the ticked scene effects (kinetic "scenes")')
+    parser.add_argument('--stage-pictures',choices=('ai-painted','ai-library','keywords','off'),default='ai-painted',
+                        help='3D stage pictures: AI picks them and paints new ones, AI picks from the library only, keyword matches, or none')
     parser.add_argument('--effect-speeds',default=None,help='JSON per-effect particle speeds, e.g. {"glass-shatter": 0.5}')
     parser.add_argument('--kinetic',default=None,help='JSON real-time effect settings (pan_speed, backdrop_rate, backdrops, traces, geometry, frames, glows, glow_strength, glitch)')
     parser.add_argument('--lettering-styles',default=None,help='JSON list of allowed text styles: swiss, poster, outline, cutout (default: all, as planned)')

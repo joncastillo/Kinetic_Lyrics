@@ -255,7 +255,9 @@ def main():
             illustration_lines=config['illustration_lines'], cinematic=config['cinematic'], encoder=config['encoder'], preserve_art_slots=True,
             text_animation=config.get('text_animation','directed'), entrance_pool=config.get('entrance_pool'), exit_pool=config.get('exit_pool'),
             entrance_effect=config.get('entrance_effect'), exit_effect=config.get('exit_effect'),
-            type_effect=config.get('type_effect','none'), particle_intensity=config.get('particle_intensity',1.), particle_speed=config.get('particle_speed',1.))
+            type_effect=config.get('type_effect','none'), particle_intensity=config.get('particle_intensity',1.), particle_speed=config.get('particle_speed',1.),
+            stage_pictures=config.get('stage_pictures','ai-painted'), ai_model=config.get('ai_model','auto'), image_model=config.get('image_model'),
+            image_cache=config.get('image_cache'), style_prompt=config.get('style_prompt',''))
         if args.action == 'rerender':
             updated = args.folder/'rerendered.mp4'
             render(Path(config['audio']), updated, data, plan, duration, options)

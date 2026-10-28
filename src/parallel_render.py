@@ -23,6 +23,7 @@ def render_batch(task):
 WORKER_MEMORY=.35*2**30
 REALTIME_WORKER_MEMORY=.6*2**30
 MAX_AUTO_WORKERS=16
+STAGE_WORKERS=4
 MEMORY_RESERVE=3*2**30
 
 
@@ -42,11 +43,13 @@ def worker_count(args,count):
     if not 0<=selected<=limit:raise ValueError(f'Render workers must be between 0 (auto) and {limit}')
     if selected:return selected
     if count<args.fps*10:return 1
+    flow=getattr(args,'reading_flow','preview')
+    if flow=='stage':return max(1,min(STAGE_WORKERS,(os.cpu_count() or 2)-1))
     cores,available=hardware()
     scale=max(1.,args.width*args.height/(1280*720))
-    budget=REALTIME_WORKER_MEMORY if getattr(args,'reading_flow','preview')=='realtime' else WORKER_MEMORY
+    budget=REALTIME_WORKER_MEMORY if flow in ('realtime','mixed') else WORKER_MEMORY
     by_memory=int((available-MEMORY_RESERVE)//(budget*scale)) if available else cores
-    return max(1,min(cores-1,MAX_AUTO_WORKERS,by_memory))
+    return max(1,min(cores-1,MAX_AUTO_WORKERS if flow!='mixed' else STAGE_WORKERS*2,by_memory))
 
 
 def frame_batches(module,data,plan,duration,args,compositor,start,count,workers):

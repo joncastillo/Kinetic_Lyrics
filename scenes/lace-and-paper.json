@@ -1,0 +1,9 @@
+{
+  "name": "Lace and paper",
+  "camera": "blocks",
+  "particles": [
+    "pearl-lace-lettering",
+    "folded-paper-lettering"
+  ],
+  "description": "3D blocks crowned with pearl lace or folded paper craft."
+}
