@@ -1,12 +1,13 @@
 """Photographic tree and flight assets, cropped from a transparent 4x5 atlas."""
 from functools import lru_cache
 from pathlib import Path
+from project_paths import PROJECT_ROOT
 import numpy as np
 from PIL import Image,ImageOps
 
 @lru_cache(maxsize=24)
 def asset(index):
-    with Image.open(Path(__file__).with_name('assets')/'tree-flock-v1'/'atlas.png') as image:
+    with Image.open(PROJECT_ROOT/'assets'/'tree-flock-v1'/'atlas.png') as image:
         x,y=index%4,index//4;w,h=image.width/4,image.height/5
         photo=image.convert('RGBA').crop((round(x*w),round(y*h),round((x+1)*w),round((y+1)*h)))
     if index in (6,7):

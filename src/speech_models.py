@@ -1,5 +1,5 @@
 """Speech model catalog and isolated inference entry points."""
-from project_paths import default_model_cache
+from project_paths import PROJECT_ROOT, default_model_cache
 import copy,json,os,subprocess,sys,tempfile,site
 from pathlib import Path
 from filelock import FileLock
@@ -34,10 +34,10 @@ def validate_speech(model,language,aligner='auto',has_lyrics=False):
     return spec
 
 def ensure_runtime():
-    folder=HERE/'.runtime'/'asr';python=folder/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
+    folder=PROJECT_ROOT/'.runtime'/'asr';python=folder/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
     marker=folder/'studio-ready.json'
-    (HERE/'.runtime').mkdir(exist_ok=True)
-    with FileLock(str(HERE/'.runtime'/'asr-install.lock'),timeout=900):
+    (PROJECT_ROOT/'.runtime').mkdir(exist_ok=True)
+    with FileLock(str(PROJECT_ROOT/'.runtime'/'asr-install.lock'),timeout=900):
         if not python.exists():
             subprocess.run([sys.executable,'-m','venv','--system-site-packages',str(folder)],check=True)
         packages=folder/('Lib/site-packages' if os.name=='nt' else f'lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages')
@@ -62,13 +62,13 @@ def speech_worker(mode,audio,args,lines=None):
         module=tokenizer.split('>')[0]
         check=f'import importlib.util; raise SystemExit(0 if importlib.util.find_spec({module!r}) else 1)'
         if subprocess.run([str(python),'-c',check],capture_output=True).returncode:
-            with FileLock(str(HERE/'.runtime'/'asr-install.lock'),timeout=900):
+            with FileLock(str(PROJECT_ROOT/'.runtime'/'asr-install.lock'),timeout=900):
                 subprocess.run([str(python),'-m','pip','install','--only-binary=:all:',tokenizer],check=True)
     cache=Path(getattr(args,'image_cache',None) or str(default_model_cache())).expanduser().resolve()/'speech'
     cache.mkdir(parents=True,exist_ok=True)
     request=dict(mode=mode,audio=str(audio),model=args.asr_model,language=args.language,
                  device=args.device,cache=str(cache),lines=lines)
-    with tempfile.TemporaryDirectory(prefix='speech-',dir=HERE/'.runtime') as tmp:
+    with tempfile.TemporaryDirectory(prefix='speech-',dir=PROJECT_ROOT/'.runtime') as tmp:
         folder=Path(tmp);source=folder/'request.json';output=folder/'result.json'
         source.write_text(json.dumps(request),encoding='utf-8')
         subprocess.run([str(python),'-u',str(HERE/'speech_worker.py'),str(source),str(output)],check=True)

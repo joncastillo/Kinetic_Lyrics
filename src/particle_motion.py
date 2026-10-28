@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import json
 import math
 from pathlib import Path
+from project_paths import PROJECT_ROOT
 import random
 
 from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFilter
@@ -340,7 +341,7 @@ def measured_pacing(phase, effect):
     global _PACING
     if _PACING is None:
         try:
-            _PACING = json.loads((Path(__file__).with_name('particles')/'pacing.json').read_text(encoding='utf-8'))
+            _PACING = json.loads((PROJECT_ROOT/'particles'/'pacing.json').read_text(encoding='utf-8'))
         except (OSError, ValueError):
             _PACING = {}
     return _PACING.get(f'{phase}/{getattr(effect, "id", "")}')

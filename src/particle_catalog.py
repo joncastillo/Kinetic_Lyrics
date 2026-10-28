@@ -5,11 +5,12 @@ from itertools import zip_longest
 import json
 import math
 from pathlib import Path
+from project_paths import PROJECT_ROOT
 import re
 import warnings
 
 
-EFFECT_ROOT = Path(__file__).with_name("particles")
+EFFECT_ROOT = PROJECT_ROOT/"particles"
 PHASES = ("entrance", "exit")
 FAMILIES = (
     "glass",

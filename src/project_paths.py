@@ -2,6 +2,9 @@
 import os
 from pathlib import Path
 
+PROJECT_ROOT=Path(__file__).resolve().parent.parent
+UI_ROOT=PROJECT_ROOT/'ui'
+
 
 def default_model_cache():
     override=os.environ.get('KINETIC_LYRICS_MODEL_CACHE')

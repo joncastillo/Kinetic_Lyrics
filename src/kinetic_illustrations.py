@@ -10,6 +10,7 @@ import json
 import os
 import re
 from pathlib import Path
+from project_paths import PROJECT_ROOT
 import shutil
 import subprocess
 import sys
@@ -398,7 +399,7 @@ def run_job(manifest, cache):
     from active_artwork import record_manifest
     record_manifest(manifest)
     emit('model',0,message='Waiting for the image GPU worker',manifest=str(manifest))
-    with FileLock(str(Path(__file__).parent/'.image-generation.lock'), timeout=-1):
+    with FileLock(str(PROJECT_ROOT/'.image-generation.lock'), timeout=-1):
         return _run_job(manifest, Path(cache).expanduser().resolve())
 
 
@@ -417,7 +418,7 @@ def _run_job(manifest, cache):
         from rembg import new_session
         from rapidocr_onnxruntime import RapidOCR
     except ImportError as exc:
-        raise ValueError('Install requirements-illustrations.txt in the active environment: '+str(exc)) from exc
+        raise ValueError('Install requirements.txt in the active environment: '+str(exc)) from exc
     if not torch.cuda.is_available():
         raise ValueError('FLUX.2 generation requires CUDA in this environment.')
     model = job['model']

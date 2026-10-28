@@ -1,5 +1,6 @@
 """Headless ModernGL 3D particles with instancing, perspective and HDR bloom."""
 from pathlib import Path
+from project_paths import PROJECT_ROOT
 import threading
 from PIL import Image
 
@@ -11,13 +12,13 @@ class ParticleRenderer:
         try:
             import moderngl
         except ImportError as exc:
-            raise RuntimeError('3D particles require ModernGL. Install requirements-kinetic.txt.') from exc
+            raise RuntimeError('3D particles require ModernGL. Install requirements.txt.') from exc
         self.size=tuple(size);self.closed=False;self.resources=[]
         try:
             self.ctx=moderngl.create_context(standalone=True,require=330)
             self.renderer=self.ctx.info['GL_RENDERER']
             print('3D particles: ModernGL / '+self.renderer,flush=True)
-            shaders=Path(__file__).parent/'shaders'
+            shaders=PROJECT_ROOT/'shaders'
             read=lambda name:(shaders/name).read_text(encoding='utf-8-sig')
             self.program=self.track(self.ctx.program(vertex_shader=read('particles.vert'),fragment_shader=read('particles.frag')))
             self.vao=self.track(self.ctx.vertex_array(self.program,[]))
