@@ -195,3 +195,11 @@ single core.
 The entrance and exit effects are small JSON recipes stored in `particles/`. The
 [`particles/README.md`](particles/README.md) guide explains how they work and how to
 add new ones.
+
+## License
+
+Kinetic Lyrics is released under the [MIT License](LICENSE). The AI models that it
+downloads are not part of this repository and each one has its own license. Some of
+them, such as FLUX.2-klein-9B and FLUX.2-dev, allow only non-commercial use, so the
+user should check a model's terms on its Hugging Face page before using its output
+commercially.
