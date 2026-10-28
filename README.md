@@ -2,10 +2,10 @@
 
 Kinetic Lyrics turns a song (an MP3 or other audio file) into a lyric music video.
 
-It lines your lyrics up with the singing, asks a local language model to plan the
-typography and scenes, paints illustrations with a local image model, has a vision
+It lines the user's lyrics up with the singing, asks a local language model to plan
+the typography and scenes, paints illustrations with a local image model, has a vision
 model check the artwork, and then renders a kinetic-typography video with particle
-transitions. Everything runs on your own machine, so you will need a capable GPU. The
+transitions. Everything runs on the user's own machine, so a capable GPU is needed. The
 aim is to reach the kind of rich, hand-crafted motion type that designers usually
 build by hand in tools such as Adobe After Effects.
 
@@ -20,28 +20,29 @@ flowchart TD
     D --> E[Paint illustrations]
     S([Style images]) -.-> E
     E --> F[Cut out subjects]
-    F --> G{Review artwork}
+    F --> G{User reviews artwork}
     G -- redo --> E
     G -- approve --> H[Plan typography]
     H --> I[Render video]
     I --> V([MP4])
 ```
 
-If you leave the lyrics out, the first step transcribes them from the audio instead.
-Timings, audio analysis and artwork are saved in the project folder, so a rebuild
-after you swap an image reuses them instead of starting again from scratch.
+If the user leaves the lyrics out, the first step transcribes them from the audio
+instead. Timings, audio analysis and artwork are saved in the project folder, so a
+rebuild after the user swaps an image reuses them instead of starting again from
+scratch.
 
 ## Requirements
 
 - Windows with an NVIDIA CUDA GPU. 24 GB of VRAM is recommended.
 - Python 3.12.
-- FFmpeg on your `PATH`. NVENC hardware encoding is used when it is available.
+- FFmpeg on the `PATH`. NVENC hardware encoding is used when it is available.
 - [Ollama](https://ollama.com) with a text model, plus a vision model for reviewing
   the artwork.
 
 ## Setup
 
-Run the setup script once from the project folder:
+The user runs the setup script once from the project folder:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File setup.ps1
@@ -51,15 +52,15 @@ The script creates a `.venv` folder, installs the CUDA build of PyTorch, and the
 installs everything listed in `requirements.txt`. Model weights are not downloaded
 during setup. They download the first time each model is used, and they are stored
 in Ollama's model folder: the one named by `OLLAMA_MODELS`, or `~/.ollama/models`
-if that variable is not set. If you would rather keep them somewhere else, set
-`KINETIC_LYRICS_MODEL_CACHE` to that folder. To choose where your projects are
-written, set `KINETIC_LYRICS_OUTPUT`.
+if that variable is not set. To keep them somewhere else, the user can set
+`KINETIC_LYRICS_MODEL_CACHE` to that folder. To choose where projects are written,
+the user can set `KINETIC_LYRICS_OUTPUT`.
 
 ## Hugging Face
 
 The image and speech models come from [Hugging Face](https://huggingface.co). The
-default models are public, so you do not need an account to get started. A few of
-the optional image models are **gated**, which means you have to accept their terms
+default models are public, so no account is needed to get started. A few of the
+optional image models are **gated**, which means the user has to accept their terms
 on the model page and give the app an access token before they will download.
 
 | Model | Used for | Access |
@@ -75,29 +76,29 @@ on the model page and give the app an access token before they will download.
 | `nvidia/parakeet-tdt-0.6b-v3` | Transcription | Public |
 | Whisper large-v3 / turbo | Transcription and word timing | Public |
 
-To use a gated model:
+To use a gated model, the user:
 
-1. Sign in at huggingface.co, open the model page linked above and accept the terms.
-   Access is granted straight away.
-2. Create a token with **Read** access at https://huggingface.co/settings/tokens.
-3. Save the token in the `HF_TOKEN` user environment variable, then open a new
+1. Signs in at huggingface.co, opens the model page linked above and accepts the
+   terms. Access is granted straight away.
+2. Creates a token with **Read** access at https://huggingface.co/settings/tokens.
+3. Saves the token in the `HF_TOKEN` user environment variable, then opens a new
    terminal so that it is picked up:
 
    ```powershell
    [Environment]::SetEnvironmentVariable('HF_TOKEN', 'hf_...', 'User')
    ```
 
-Please use `HF_TOKEN` rather than `hf auth login`. The app points `HF_HOME` at the
+The token must be set through `HF_TOKEN` rather than `hf auth login`. The app points `HF_HOME` at the
 model folder, so it cannot see a token that `hf auth login` saved in its default
-location. If a gated model fails with an "Access required" message, make sure you
-accepted its terms with the same account that owns the token.
+location. If a gated model fails with an "Access required" message, check that its
+terms were accepted with the same account that owns the token.
 
 ## Project layout
 
 - `src/` holds the Python code: the command line, the Studio server, the renderer
   and the model workers.
 - `ui/` holds the Studio web front end (HTML, CSS and JavaScript).
-- `tests/` holds the test suite, which you can run with
+- `tests/` holds the test suite, which runs with
   `python -m unittest discover -s tests`.
 - `assets/`, `particles/` and `shaders/` hold images, effect recipes and GLSL shaders.
 
@@ -109,25 +110,25 @@ Studio is the easiest way to make a video. Start it with:
 kinetic-studio.cmd
 ```
 
-This opens a web page on your own computer at http://127.0.0.1:8765. Upload your
-audio and paste the lyrics, or leave the lyrics blank and let Studio transcribe them.
-Then pick your style references, models and effects. Before the video renders, you
-can review each illustration and replace or regenerate any you do not like. After a
-video is finished you can swap a single image and rebuild only the parts that
-changed, and your earlier exports remain available.
+This opens a web page on the user's own computer at http://127.0.0.1:8765. The user
+uploads the audio and pastes the lyrics, or leaves the lyrics blank so that Studio
+transcribes them, and then picks the style references, models and effects. Before the
+video renders, the user reviews each illustration and can replace or regenerate any
+that do not fit. After a video is finished, the user can swap a single image and
+rebuild only the parts that changed, and earlier exports remain available.
 
 ## Command line
 
-You can also make a video without opening Studio:
+A video can also be made without opening Studio:
 
 ```powershell
 kinetic-lyrics.cmd song.mp3 lyrics.txt --theme "bright, uplifting" -o output\song.mp4
 ```
 
-Some options you may find useful:
+Some useful options:
 
 - `--style-reference a.png b.png` gives the image model pictures to match the style of.
-- `--illustrations art.png ...` uses your own artwork, and `--no-illustrations`
+- `--illustrations art.png ...` uses the user's own artwork, and `--no-illustrations`
   makes a typography-only video.
 - `--illustration-lines N` sets how many lyric lines share each illustration.
 - `--language tl` sets the lyric language.
@@ -158,7 +159,7 @@ drive the pulses and glows.
 
 - **Panning or still camera.** By default, all the illustrations are stitched into
   one seamless collage, and the camera glides through it at a steady speed. Each line
-  is written where the camera is heading. If you choose the still camera instead, each
+  is written where the camera is heading. If the user picks the still camera instead, each
   line is framed in a shape, and it plays its exit animation when that space is needed
   again.
 - **Fonts chosen by role.** Small function words are set in a typewriter face, content
@@ -176,13 +177,13 @@ drive the pulses and glows.
   checks the backdrop behind each line, so the lettering never blends into the
   background. Material lettering, such as oak, maple, gold filigree, pearl lace and
   embroidery, always gets a black outline.
-- **AI effect choice.** If you turn this on, a local model picks each line's entrance
+- **AI effect choice.** When the user turns this on, a local model picks each line's entrance
   effect. It chooses from a shortlist of effects that stay readable on that line's
   backdrop and suit its meaning and scene.
 
-You can adjust all of this in Studio's **Kinetic effects** panel and save your
-settings as profiles, including a separate particle speed for each effect. If you
-prefer the earlier style, where the whole line appears before it is sung, use
+The user can adjust all of this in Studio's **Kinetic effects** panel and save the
+settings as profiles, including a separate particle speed for each effect. For the
+earlier style, where the whole line appears before it is sung, use
 `--reading-flow preview`.
 
 Videos are encoded and tagged as BT.709. Every frame depends only on its timestamp,
@@ -193,4 +194,4 @@ single core.
 
 The entrance and exit effects are small JSON recipes stored in `particles/`. The
 [`particles/README.md`](particles/README.md) guide explains how they work and how to
-add your own.
+add new ones.
