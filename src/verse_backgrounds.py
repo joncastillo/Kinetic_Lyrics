@@ -9,6 +9,9 @@ LANGUAGE_RULE = (
     'in their original language first, as a fluent native speaker would, including idioms, slang, figurative phrases '
     'and words that look like English but mean something else. Work out the intended meaning in that language before '
     'writing anything in English; never translate word by word or guess from a similar-looking English word. '
+    'If any lyric is not in English, first translate it silently into natural, faithful English that keeps its '
+    'meaning, tone and imagery, then base your interpretation and every detail you write on that translation '
+    'rather than on the sound or spelling of the original words. Do not output the translation unless asked to. '
 )
 DIRECTOR_PROMPT = LANGUAGE_RULE+(
     'Turn each lyric group and its supplied English meaning into a distinct painted scene for a kinetic lyric video. '
@@ -22,7 +25,7 @@ DIRECTOR_PROMPT = LANGUAGE_RULE+(
     'Do not invent extra people or supernatural events that the supplied meaning does not support. '
     'Use painterly simplification to unify the scene, without losing the lyric-specific anchors. '
     'Keep a coherent rendering style across the song while allowing each lyric to determine its imagery. '
-    'Write a detailed 70 to 110 word scene description. Specify the focal subject and action, foreground and '
+    'Write a richly detailed 400 to 500 word scene description. Specify the focal subject and action, foreground and '
     'background relationships, viewpoint, physical setting, surface details, weather or atmosphere where the '
     'lyric supports them, and the light that makes the action readable. Every detail must serve the supplied meaning. '
     'Describe only what the illustrator should draw. Do not explain the interpretation or quote the lyrics. '

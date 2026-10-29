@@ -30,10 +30,10 @@ def audit_prompts(request,model,groups,subjects,prompts,layouts,mode='cutout'):
           if mode=='fullscreen' else
           'These are cutout illustrations. Keep the subject and essential immediate supporting scene on '
           'a uniform removable background. Do not erase essential props, surfaces or cast shadows from the described subject. ')
-        +('Keep each complete verse image prompt richly detailed, about 240 to 350 words. '
+        +('Keep each complete verse image prompt richly detailed, about 600 to 750 words. '
           'Retain the scene-specific action, setting, material, weather, viewpoint and lighting. '
           'Do not compress a detailed prompt into a short summary. ' if mode=='verse' else
-          'Keep each complete image prompt clear and concise. ')
+          'Keep each complete image prompt clear and detailed. ')
         +'Return only JSON.'
     )
     payload=dict(model=model,stream=False,think=False,keep_alive=-1,options=dict(num_ctx=8192),
@@ -43,7 +43,7 @@ def audit_prompts(request,model,groups,subjects,prompts,layouts,mode='cutout'):
             for lyrics,subject,prompt,layout in zip(groups,subjects,prompts,layouts)]))])
     from llm_trace import trace_stage
     with trace_stage('Second pass / image prompt review'):
-        reviewed=request_subjects(request,payload,batch_size=2,max_words=380 if mode=='verse' else 180,avoid_repeats=False)
+        reviewed=request_subjects(request,payload,batch_size=2,max_words=780 if mode=='verse' else 300,avoid_repeats=False)
     if len(reviewed)!=len(prompts):raise ValueError('Prompt review must return one corrected prompt per scene')
     if mode=='verse':
         marker='Preserve the described subjects, actions, relationships and setting. '
