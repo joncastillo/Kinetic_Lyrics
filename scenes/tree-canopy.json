@@ -4,12 +4,7 @@
   "particles": [
     "autumn-maple-lettering",
     "old-oak-lettering",
-    "bamboo-lettering",
-    "petals-grow-lettering",
-    "ink-bloom-lettering",
-    "jeweled-brocade-lettering",
-    "luminous-coral-lettering",
-    "glass-prism"
+    "bamboo-lettering"
   ],
-  "description": "3D blocks with trees, bamboo, flowering vines, ink blooms, coral, jewels, and glass."
+  "description": "3D blocks with maple, oak, and bamboo canopies growing from the lettering."
 }

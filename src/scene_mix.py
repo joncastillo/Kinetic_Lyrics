@@ -2,7 +2,7 @@
 
 The song is cut into sections (the lyric's own verse and chorus labels, with long sections
 split at their longest pauses) and each section is filmed in one of the scene effects the
-user ticked: the panning canvas or one of the 3D block scenes. One renderer
+user ticked: the panning canvas, black hole sun or one of the 3D block scenes. One renderer
 runs per camera, each limited to the lines of its own sections, so the panning canvas keeps
 its flowing bands and traced shapes and the 3D stage keeps its camera path from one of
 its sections to the next. Where the scene changes, the outgoing picture pushes in and fades
@@ -179,6 +179,9 @@ class SceneMix:
                 self.engines[camera] = Stage3D(c, melody, rhythm, only=only, breaks={f['start'] for f in self.flows},
                                                crowns={i: scene['particles'] for i, scene in staged},
                                                layouts={i: scene['layout'] for i, scene in staged})
+            elif camera == 'cinema':
+                from cinema_typography import CinemaTypography
+                self.engines[camera] = CinemaTypography(c, melody, speed, rhythm, options, only=only)
             else:
                 large = {i for f in self.flows if f['camera'] == camera and f['scene'] == 'full-screen-type'
                          for i in range(f['start'], f['end'])}

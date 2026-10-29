@@ -339,7 +339,8 @@ function syncCameraMode(){
  if(help)help.textContent={realtime:'Real-time mixes typewriter, heavy and huge hero words, follows the newest word with the camera and reacts to the melody.',
   preview:'Each line appears in full before it is sung, then words animate on their timing.',
   stage:'Lines sung together form a rectangular block of justified words in a 3D space; the camera glides from block to block.',
-  mixed:'Each verse, chorus and bridge gets its own scene effect, chosen by the AI from the ones ticked below; the video moves between them.'}[flow]||'';
+  mixed:'Each verse, chorus and bridge gets its own scene effect, chosen by the AI from the ones ticked below; the video moves between them.',
+  cinema:'Two or three words at a time, centred over the artwork: hairline words settle in from oversized, heavy words slide in blurred, some flip in mirrored or stand on end. Works best with full-screen artwork.'}[flow]||'';
  for(const id of ['exitEffect','browseExit']){const el=document.getElementById(id);if(el)el.disabled=panning;}
  const hint=document.getElementById('exitHint');if(hint)hint.hidden=!panning;
  const pan=document.querySelector('[data-kinetic="pan_speed"]');if(pan)pan.disabled=flow==='realtime'&&camera==='still';
@@ -360,19 +361,35 @@ function storeKineticControls(){
  syncCameraMode();
 }
 window.syncKineticControls=syncKineticControls;
+function sceneSampleQuery(id){
+ const value=key=>document.getElementById(key)?.value;
+ const query={scene:id,v:'scene-samples-1'};
+ for(const [key,field] of [['font_family','fontFamily'],['font_style','fontStyle'],['font_scale','fontScale']])if(value(field))query[key]=value(field);
+ return '/api/scene-preview?'+new URLSearchParams(query);
+}
 function renderSceneEffects(scenes){
  const group=document.getElementById('sceneEffects');if(!group||!Array.isArray(scenes))return;
+ group.classList.add('scene-choices');
  group.replaceChildren(...scenes.map(scene=>{
+  const card=document.createElement('div');card.className='scene-choice';
   const label=document.createElement('label');label.className='check-toggle';label.title=scene.description||'';
   const box=document.createElement('input');box.type='checkbox';box.value=scene.id;box.dataset.kineticList='scenes';
   box.addEventListener('input',()=>{if(!group.querySelector('input:checked'))box.checked=true;storeKineticControls()});
-  label.append(box,scene.name);return label;
+  label.append(box,scene.name);
+  // An animated sample of the scene, rendered (and cached) on first view.
+  const sample=document.createElement('img');sample.className='scene-thumbnail';sample.loading='lazy';
+  sample.alt=scene.name+' animated sample';sample.title=scene.description||'';sample.dataset.scene=scene.id;sample.src=sceneSampleQuery(scene.id);
+  sample.addEventListener('click',()=>{box.checked=!box.checked;box.dispatchEvent(new Event('input'))});
+  card.append(label,sample);return card;
  }));
  syncKineticControls();
 }
+function refreshSceneSamples(){document.querySelectorAll('.scene-thumbnail').forEach(img=>{img.src=sceneSampleQuery(img.dataset.scene)})}
+window.refreshSceneSamples=refreshSceneSamples;
 window.renderSceneEffects=renderSceneEffects;
 document.addEventListener('DOMContentLoaded',()=>{
  document.querySelectorAll('[data-kinetic],[data-kinetic-flag],[data-kinetic-list],[data-kinetic-choice]').forEach(input=>input.addEventListener('input',storeKineticControls));
  document.getElementById('readingFlow')?.addEventListener('change',syncCameraMode);
+ for(const id of ['fontFamily','fontStyle','fontScale'])document.getElementById(id)?.addEventListener('change',refreshSceneSamples);
  syncKineticControls();storeKineticControls();
 });

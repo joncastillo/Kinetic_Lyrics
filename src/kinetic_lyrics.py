@@ -371,7 +371,7 @@ def main(argv=None):
     parser.add_argument('--type-effect', choices=EFFECTS, default='none', help='Typography effect: mixed, shatter, melt, slime or liquid')
     from typography_settings import FONT_FAMILIES,FONT_STYLES,typography_options
     parser.add_argument('--font-family',choices=FONT_FAMILIES,default='auto')
-    parser.add_argument('--reading-flow',choices=('realtime','preview','stage','mixed'),default='realtime',help='realtime: words land as sung; preview: whole line before the vocal; stage: lines grouped into blocks in a 3D world; mixed: each song section in one of the ticked scene effects (kinetic "scenes")')
+    parser.add_argument('--reading-flow',choices=('realtime','preview','stage','mixed','cinema'),default='realtime',help='realtime: words land as sung; preview: whole line before the vocal; stage: lines grouped into blocks in a 3D world; mixed: each song section in one of the ticked scene effects (kinetic "scenes"); cinema: black hole sun, one short phrase at a time in hairline and heavy type over the artwork')
     parser.add_argument('--stage-pictures',choices=('ai-painted','ai-library','keywords','off'),default='ai-painted',
                         help='3D stage pictures: AI picks them and paints new ones, AI picks from the library only, keyword matches, or none')
     parser.add_argument('--effect-speeds',default=None,help='JSON per-effect particle speeds, e.g. {"glass-shatter": 0.5}')
@@ -407,6 +407,7 @@ def main(argv=None):
     parser.add_argument('--style-reference', type=Path, nargs='+', help='One or more reference images for generated linework, palette and paint style')
     from kinetic_illustrations import STYLE_PROMPT
     parser.add_argument('--style-prompt', default=STYLE_PROMPT, help='Art style instruction accompanying reference images')
+    parser.add_argument('--image-instructions', default='', help='Additional direction for the AI image prompt model and generated image prompts')
     parser.add_argument('--image-cache', type=Path, default=default_model_cache(), help='Model cache (default: KINETIC_LYRICS_MODEL_CACHE, else OLLAMA_MODELS or ~/.ollama/models)')
     parser.add_argument('--image-model', default='Qwen/Qwen-Image-2512', help='Local image repository (default: Qwen Image 2512)')
     parser.add_argument('--image-steps', type=int, default=None, help='Illustration inference steps (default: selected model recommendation)')

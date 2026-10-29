@@ -206,7 +206,8 @@ flowchart LR
     A --> P[Panning canvas]
     A --> F[Framed lines]
     A --> B[3D blocks]
-    P & F & B --> V([Frames])
+    A --> C[Black hole sun]
+    P & F & B & C --> V([Frames])
 ```
 
 Scene effects are small JSON recipes in `scenes/`, like the particle recipes. The
@@ -215,12 +216,26 @@ file name is the scene's ID, and `camera` picks how the scene is filmed:
 | Field | What it controls |
 |---|---|
 | `name`, `description` | What Studio shows, and what the model reads when it picks scenes |
-| `camera` | `pan` for the panning canvas, `still` for framed lines, or `blocks` for the 3D stage |
-| `particles` | For a `blocks` scene, the particle effects that the scene owns, such as maple and oak for **Tree canopy**. Use an empty list for plain blocks. Pan and still scenes keep the per-line entrance effects, so it is `null` for them |
+| `camera` | `pan` for the panning canvas, `still` for framed lines, `blocks` for the 3D stage, or `cinema` for black hole sun |
+| `particles` | For a `blocks` scene, preferred particle effects. The AI may choose any selected entrance except in **Tree canopy**, where it is limited to maple, oak and bamboo. Pan, still and cinema scenes keep the per-line entrance effects, so this is `null` for them |
 | `layout` | Optional, and only for a `blocks` scene. `justified` (the default) gives rows of equal width. `contrast`, used by **Sweet contrast**, mixes thin and heavy words, gives every letter of one heavy word its own moving texture (marble, warped stripes, ripples, a rolling sweep or glinting grain) in tones close to the accent, and runs the last word vertically, close beside the rows. Every letter springs in with an elastic bounce, and the camera zooms in and rolls into a tilt. The side, the reading direction of the vertical word, the font pairing, the tilt and the zoom vary from block to block |
 
 The panning canvas and framed lines keep all their effects, including the flowing
 bands, the drifting shapes, the highlighting and the backdrops.
+
+## Black hole sun
+
+Black hole sun is minimal cinematic typography in the style of short-form lyric edits. It is
+used by the **Black hole sun** scene, and also on its own with `--reading-flow cinema`. Each
+line is cut into chunks of one to three words at the sung timings, and only one chunk is on
+screen at a time, centred over the artwork. Every chunk uses two weights of Montserrat (bundled
+in `assets/fonts`, under the SIL Open Font License): a hairline, widely tracked word above or
+below an ultra-black one, so "BLACK" sits thin over a heavy "HOLE". Words arrive as they are
+sung. Hairline words settle in from oversized and faint, and heavy words slide in with motion
+blur and brighten from grey. Some words flip in from their mirror image, and the odd lone word
+stands on end. A chunk pushes in slowly while it holds, then flips, slides or blurs away just
+before the next one arrives, and the artwork pushes in behind it. It looks best with
+full-screen artwork (`--artwork-mode fullscreen`).
 
 ## 3D stage
 
@@ -249,7 +264,7 @@ flowchart LR
   rows stay plain, with one accent word picked out in colour.
 - **Matched choices.** For each block, a local model picks the entry motion, the
   accent colour (only from colours that stay readable on that background), which of
-  the scene's own particle effects grows on the top row, and the picture, so that
+  selected entrance effects grows on the top row (tree effects only in Tree canopy), and the picture, so that
   they all suit each other and the lyric. The choices are saved in
   `video.blocks.json`.
 - **Bands and shapes.** As in the panning canvas, translucent bands flow on from one

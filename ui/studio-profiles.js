@@ -58,11 +58,13 @@ function restoreVisionSelection(){
  gallerySignature='';if(state)renderGallery(state);
 }
 
-const PROFILE_FIELDS=['text_animation','text_pool','font_family','font_style','font_scale','auto_accept','entrance_pool','exit_pool','entrance_effect','exit_effect','artwork_mode','ai_model','particle_speed','image_model','vision_model','project_id','asr_model','alignment_model','reference_prompt','style','type_effect','particle_intensity','language','auto_verify','auto_repair','review_threshold','cinematic','resolution','lines','steps','encoder','cache'];
+const PROFILE_FIELDS=['text_animation','text_pool','font_family','font_style','font_scale','auto_accept','entrance_pool','exit_pool','entrance_effect','exit_effect','artwork_mode','ai_model','particle_speed','image_model','vision_model','project_id','asr_model','alignment_model','reference_prompt','style','image_instructions','instructions','type_effect','particle_intensity','language','auto_verify','auto_repair','review_threshold','cinematic','resolution','lines','steps','encoder','cache'];
 let imageModels=[],audioModels=[],backendReady=false;
 const DEFAULT_PROFILE_NAME='Mucha · Bright & Flowing';
-const DEFAULT_REFERENCE='/assets/default-style-reference.jpg';
-const DEFAULT_PROFILE={version:1,settings:{artwork_mode:'cutout',ai_model:'auto',image_model:'Qwen/Qwen-Image-2512',vision_model:'',asr_model:'qwen3-asr-1.7b',alignment_model:'auto',reference_prompt:'Delicate linework, elegant proportions, expressive faces, flowing hair, and soft painterly shading inspired by Alphonse Mucha.',style:'Bright, uplifting mood; emphasis on flowing fabric, long flowing hair, graceful movement and luminous color. Expressive editorial typography with letters that shatter, melt and flow.',type_effect:'mixed',particle_intensity:'1',language:'auto',auto_verify:true,auto_repair:true,review_threshold:"50",cinematic:true,resolution:'720p',lines:'2',steps:'50',encoder:'h264_nvenc',cache:'',reference_asset:DEFAULT_REFERENCE}};
+const DEFAULT_REFERENCE='/assets/filipina-reference.png';
+const LEGACY_REFERENCE='/assets/default-style-reference.jpg';
+const DEFAULT_REFERENCE_PROMPT='Delicate linework, elegant proportions, expressive faces, flowing hair, graceful transparent fabric folds, and soft painterly shading inspired by Alphonse Mucha. Modern, fun, happy, sexy, upbeat.';
+const DEFAULT_PROFILE={version:1,settings:{artwork_mode:'cutout',ai_model:'auto',image_model:'Qwen/Qwen-Image-2512',vision_model:'',asr_model:'qwen3-asr-1.7b',alignment_model:'auto',reference_prompt:DEFAULT_REFERENCE_PROMPT,style:'Bright, uplifting mood; emphasis on flowing fabric, long flowing hair, graceful movement and luminous color. Expressive editorial typography with letters that shatter, melt and flow.',image_instructions:'',instructions:'',type_effect:'mixed',particle_intensity:'1',language:'auto',auto_verify:true,auto_repair:true,review_threshold:"50",cinematic:true,resolution:'720p',lines:'2',steps:'50',encoder:'h264_nvenc',cache:'',reference_asset:DEFAULT_REFERENCE}};
 async function initializeProfiles(){
  if(!window.profileChoicePersistenceBound){
   window.profileChoicePersistenceBound=true;
@@ -81,6 +83,13 @@ async function initializeProfiles(){
  try{
   const profiles=getProfiles();
   if(!Object.hasOwn(profiles,DEFAULT_PROFILE_NAME))profiles[DEFAULT_PROFILE_NAME]=JSON.parse(JSON.stringify(DEFAULT_PROFILE));
+  if(!localStorage.getItem(PROFILE_KEY+'ReferencePromptV3')){
+   const bundled=profiles[DEFAULT_PROFILE_NAME].settings;
+   const previous='Delicate linework, elegant proportions, expressive faces, flowing hair, and soft painterly shading inspired by Alphonse Mucha. The images are modern, upbeat, and resembles anime.';
+   if(!bundled.reference_prompt||bundled.reference_prompt===previous)bundled.reference_prompt=DEFAULT_REFERENCE_PROMPT;
+   if(!bundled.reference_asset||bundled.reference_asset===LEGACY_REFERENCE)bundled.reference_asset=DEFAULT_REFERENCE;
+   localStorage.setItem(PROFILE_KEY+'ReferencePromptV3','1');
+  }
   if(!localStorage.getItem(PROFILE_KEY+'QwenGpuDefaultsV1')){
    profiles[DEFAULT_PROFILE_NAME].settings.image_model='Qwen/Qwen-Image-2512';profiles[DEFAULT_PROFILE_NAME].settings.steps='50';
    localStorage.setItem(PROFILE_KEY+'QwenGpuDefaultsV1','1');
@@ -89,6 +98,12 @@ async function initializeProfiles(){
   localStorage.setItem('lyricStudioDefaultProfileV1','1');
   const activeName=localStorage.getItem(ACTIVE_PROFILE_KEY);
   const selectedName=activeName&&Object.hasOwn(profiles,activeName)?activeName:DEFAULT_PROFILE_NAME;
+  if(!localStorage.getItem(PROFILE_KEY+'RequestedReferenceImageV1')){
+   profiles[selectedName].settings.reference_prompt=DEFAULT_REFERENCE_PROMPT;
+   profiles[selectedName].settings.reference_asset=DEFAULT_REFERENCE;
+   localStorage.setItem(PROFILE_KEY,JSON.stringify(profiles));
+   localStorage.setItem(PROFILE_KEY+'RequestedReferenceImageV1','1');
+  }
   refreshProfiles(selectedName);$('profileName').value=selectedName;
   const previousAudio=profiles[activeName]?.settings;
   const audioDraft=readAudioDraft()??(typeof previousAudio?.audio_path==='string'?{audio_path:previousAudio.audio_path,audio_name:previousAudio.audio_name||''}:null);
@@ -96,7 +111,7 @@ async function initializeProfiles(){
   localStorage.setItem(ACTIVE_PROFILE_KEY,selectedName);refreshProfiles(selectedName);
  }catch(e){toast(e.message)}
 }
-async function restoreProfileReference(asset){if(asset!==DEFAULT_REFERENCE)throw Error('Unknown bundled profile reference');if(!backendReady)return;const response=await fetch(asset);if(!response.ok)throw Error('The bundled reference image could not be loaded');const blob=await response.blob();refs.forEach(r=>URL.revokeObjectURL(r.url));refs=[{file:new File([blob],'default-style-reference.jpg',{type:'image/jpeg'}),url:URL.createObjectURL(blob),asset}];showRefs();}
+async function restoreProfileReference(asset){if(![DEFAULT_REFERENCE,LEGACY_REFERENCE].includes(asset))throw Error('Unknown bundled profile reference');if(!backendReady)return;const response=await fetch(asset);if(!response.ok)throw Error('The bundled reference image could not be loaded');const blob=await response.blob();const filename=asset.split('/').at(-1);refs.forEach(r=>URL.revokeObjectURL(r.url));refs=[{file:new File([blob],filename,{type:blob.type||'image/png'}),url:URL.createObjectURL(blob),asset}];showRefs();}
 
 function modelHelp(){const m=imageModels.find(m=>m.id===$('imageModel').value);if(!m)return;$('modelHelp').textContent=`${m.description} ${m.license}. Allow ~${m.disk_gb} GB disk space for first download.`;$('modelLink').href='https://huggingface.co/'+m.id;}
 function initModels(cfg){initParticleEffects(cfg);promptRegenerationSupported=!!cfg.prompt_regeneration;initSpeech(cfg);setupModelControls(cfg);backendReady=!!cfg.image_models;$('generate').disabled=!backendReady;imageModels=cfg.image_models||[{id:cfg.model,name:'Current model (restart to change)',description:'The studio backend needs a restart after the active job finishes.',license:'',disk_gb:40}];if(!backendReady){const note=document.createElement('p');note.className='compatibility-note';note.textContent='Updated controls are installed. Restart Kinetic Lyrics after this job finishes to enable model selection and rebuilds.';$('studioCompatibility').append(note);$('imageModel').disabled=true;}$('imageModel').replaceChildren(...imageModels.map(m=>new Option(m.name,m.id)));$('imageModel').value=cfg.model;modelHelp();$('imageModel').onchange=()=>{const m=imageModels.find(m=>m.id===$('imageModel').value);if(m)$('steps').value=m.steps;modelHelp()};try{const saved=localStorage.getItem('lyricStudioModelFolder');if(saved)$('cache').value=saved}catch{}$('cache').onchange=()=>{try{localStorage.setItem('lyricStudioModelFolder',$('cache').value)}catch{toast('Could not remember the model folder.')}};}
