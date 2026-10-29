@@ -777,14 +777,26 @@ class Stage3D:
         if getattr(c, 'particle_intensity', 0) <= 0:
             return None
         if self.crowns is not None:
-            owned = [e for e in self.crowns.get(members[0]) or [] if e in c.effect_catalog['entrance']]
+            owned = self.owned_effects(members[0])
             if not owned:
                 return None
             pick = (directed or {}).get('particle')
-            return c.effect_catalog['entrance'][pick if pick in owned else owned[number % len(owned)]]
+            preferred = [e for e in (self.crowns or {}).get(members[0]) or [] if e in owned]
+            fallback = preferred or owned
+            return c.effect_catalog['entrance'][pick if pick in owned else fallback[number % len(fallback)]]
         recipes = [c.effect_catalog['entrance'].get(c.effect_pairs[index][0]) for index in members]
         recipes = [recipe for recipe in recipes if recipe is not None]
         return next((r for r in recipes if r.placement == 'top'), recipes[0] if recipes else None)
+
+    def owned_effects(self, line):
+        """Allowed entrances for a scene block; tree canopy alone is restricted to tree effects."""
+        c = self.c
+        pool = getattr(c, 'entrance_pool', None)
+        flow = next((f for f in c.plan.get('scene_flows', []) if f['start'] <= line < f['end']), None)
+        tree = flow is not None and flow['scene'] == 'tree-canopy'
+        choices = (self.crowns or {}).get(line) or [] if tree else c.effect_catalog['entrance']
+        return [e for e in choices
+                if e in c.effect_catalog['entrance'] and (pool is None or e in pool)]
 
     def choose_accent(self, words, ink, color=ACCENT, style=None):
         """All words in ink except one accent below the top row: the first hero there, else the longest-held word.

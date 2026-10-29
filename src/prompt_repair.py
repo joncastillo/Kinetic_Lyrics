@@ -12,7 +12,8 @@ def revise_repair_prompts(worker, job, config, items):
 
     model = resolve_prompt_model(local_json, config.get('ai_model', 'auto'))
     worker.emit('subjects', 0, message=f'Generating {len(items)} fresh image prompt(s) from the lyrics with {model}')
-    system = (
+    from verse_backgrounds import LANGUAGE_RULE
+    system = LANGUAGE_RULE+(
         'Write an entirely NEW image-generation prompt from each supplied lyric group. '
         'Reinterpret the original lyrics from scratch; do not revise, append to, paraphrase or reuse the failed image prompt. '
         'The old prompt and its invented subject description are deliberately not supplied. '
@@ -33,6 +34,7 @@ def revise_repair_prompts(worker, job, config, items):
         messages=[dict(role='system', content=system), dict(role='user', content=json.dumps([
             dict(lyrics=job['groups'][item['index']],
                  art_style=config.get('style_prompt',''),mood=config.get('theme',''),
+                 image_instructions=job.get('image_instructions',config.get('image_instructions','')),
                  layout=job.get('layouts', [{} for _ in job['prompts']])[item['index']],
                  assessment={key:item['review'][key] for key in
                              ('score', 'summary', 'issues', 'hand_checks', 'uncertain') if key in item['review']})

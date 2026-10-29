@@ -339,8 +339,7 @@ class Job:
         return select_manifest(self.folder,self.config,self.state)
 
     def ornaments(self):
-        """The small pictures the AI painted for words in the typography, shown as the transparent cutouts the
-        video uses (cached beside each picture as .cutout.png)."""
+        """Small painted and library pictures used by the stage, with cached transparent previews."""
         try:
             blocks = json.loads((self.folder/'video.blocks.json').read_text(encoding='utf-8'))['blocks']
         except (OSError, ValueError, KeyError, TypeError):
@@ -348,23 +347,32 @@ class Job:
         result = []
         for block in blocks:
             ornament = (block or {}).get('ornament') or {}
-            if not ornament.get('image'):
+            image = ornament.get('image')
+            kind = ornament.get('library')
+            if not image and not kind:
                 continue
-            path = Path(ornament['image'])
-            path = (path if path.is_absolute() else self.folder/path).resolve()
-            if not path.is_file() or not path.is_relative_to(self.folder.resolve()):
-                continue
-            shown = path.with_suffix('.cutout.png')
             try:
-                cutout_source = HERE/'glyph_art.py'
-                if not shown.exists() or shown.stat().st_mtime_ns < max(path.stat().st_mtime_ns, cutout_source.stat().st_mtime_ns):
-                    from glyph_art import cutout
-                    cutout(str(path)).save(shown)
-            except OSError:
+                if image:
+                    path = Path(image)
+                    path = (path if path.is_absolute() else self.folder/path).resolve()
+                    if not path.is_file() or not path.is_relative_to(self.folder.resolve()):
+                        continue
+                    shown = path.with_suffix('.cutout.png')
+                    cutout_source = HERE/'glyph_art.py'
+                    if not shown.exists() or shown.stat().st_mtime_ns < max(path.stat().st_mtime_ns, cutout_source.stat().st_mtime_ns):
+                        from glyph_art import cutout
+                        cutout(str(path)).save(shown)
+                else:
+                    from ornament_director import library_preview
+                    shown = library_preview(kind, self.folder)
+                    if shown is None:
+                        continue
+            except (OSError, ValueError, KeyError):
                 continue
             from ornament_director import picture_key, released_pictures
             key = picture_key(ornament)
-            result.append(dict(word=ornament.get('text', ''), subject=ornament.get('subject', ''), line=ornament.get('line'),
+            result.append(dict(word=ornament.get('text', ''), subject=ornament.get('subject') or kind or '',
+                               source='painted' if image else 'library', line=ornament.get('line'),
                                url=self.url(shown), key=key, keep=key not in released_pictures(self.folder)))
         return result
 
@@ -524,6 +532,7 @@ def start_job(fields, files):
         config = dict(name=Path(filename).stem, audio=str(audio), width=width, height=height, fps=30,
             image_cache=str(Path(fields.get('cache', '').strip() or str(default_model_cache())).expanduser().resolve()),
             style_prompt=fields.get('reference_prompt', '').strip() or STYLE_PROMPT,
+            image_instructions=fields.get('image_instructions', '').strip()[:2000],
             theme=fields.get('style', '').strip() or 'Bright, uplifting mood; flowing fabric and long flowing hair; graceful movement and luminous color.',
             artwork_mode=fields.get('artwork_mode','cutout'), image_seed=image_seed,
             cinematic=fields.get('cinematic') == 'on', encoder=fields.get('encoder', 'h264_nvenc'),
@@ -580,7 +589,8 @@ def start_job(fields, files):
         if lyrics:
             command.append(str(folder/'lyrics.txt'))
         command += [
-            '--theme', config['theme'], '--style-prompt', config['style_prompt'], '--image-cache', config['image_cache'],
+            '--theme', config['theme'], '--style-prompt', config['style_prompt'],
+            '--image-instructions', config['image_instructions'], '--image-cache', config['image_cache'],
             '--artwork-mode', config['artwork_mode'], '--image-seed', str(config['image_seed']),
             '--image-model', config['image_model'], '--image-steps', str(steps), '--illustration-lines', str(lines),
             '--width', str(width), '--height', str(height), '--encoder', config['encoder'], '--preserve-art-slots',
@@ -693,6 +703,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond((UI_ROOT/'studio.html').read_bytes(), content_type='text/html; charset=utf-8')
             if url.path == '/assets/default-style-reference.jpg':
                 return self.respond((PROJECT_ROOT/'assets'/'default-style-reference.jpg').read_bytes(), content_type='image/jpeg')
+            if url.path == '/assets/filipina-reference.png':
+                return self.respond((PROJECT_ROOT/'assets'/'filipina-reference.png').read_bytes(), content_type='image/png')
             if url.path in ('/studio.css', '/studio-profiles.js', '/studio-models.js', '/studio-particles.js'):
                 path = UI_ROOT/url.path.lstrip('/')
                 return self.respond(path.read_bytes(), content_type='text/css' if path.suffix=='.css' else 'text/javascript')
@@ -704,6 +716,14 @@ class Handler(BaseHTTPRequestHandler):
                 except FileNotFoundError as exc:
                     return self.respond(dict(error=str(exc)),404)
                 return self.respond(path.read_bytes(),content_type=mimetypes.guess_type(str(path))[0] or 'application/octet-stream')
+            if url.path == '/api/scene-preview':
+                from particle_preview import render_scene_preview
+                query = parse_qs(url.query)
+                scene = query.get('scene', [''])[0]
+                if scene not in scene_catalog():
+                    raise ValueError('Choose an available scene effect to preview')
+                settings=typography_options({key:query[key][0] for key in ('font_family','font_style','font_scale') if key in query})
+                return self.respond(render_scene_preview(scene,settings['font_family'],settings['font_style'],settings['font_scale']), content_type='image/gif')
             if url.path == '/api/particle-preview':
                 from particle_preview import render_preview
                 query = parse_qs(url.query)
@@ -728,7 +748,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond(render_preview(catalog[phase][effect],phase,intensity,speed,settings['font_family'],settings['font_style'],settings['font_scale']), content_type='image/gif')
             if url.path == '/api/config':
                 from gpu_models import PRESETS, PROMPT_MODELS, VISION_MODELS
-                return self.respond(dict(token=TOKEN, auto_accept_supported=True, new_session_regeneration_supported=True, particle_materials_version=13, ai_typography_supported=True, typography_controls_supported=True, word_animations_supported=True, video_history_supported=True, video_history_version=2, live_artwork_version=2, replacement_priority_supported=True, particle_effects=catalog_choices(), scene_effects=list(scene_catalog().values()), prompt_regeneration=True, generation_queue_version=2, prompt_audit_version=1, style_prompt=STYLE_PROMPT, model=MODEL, image_models=MODELS, model_presets=PRESETS, prompt_choices=PROMPT_MODELS, vision_choices=VISION_MODELS, asr_models=ASR_MODELS, vocal_languages=LANGUAGES, default_asr=DEFAULT_ASR,
+                return self.respond(dict(token=TOKEN, image_instructions_supported=True, auto_accept_supported=True, new_session_regeneration_supported=True, particle_materials_version=13, ai_typography_supported=True, typography_controls_supported=True, word_animations_supported=True, video_history_supported=True, video_history_version=2, live_artwork_version=2, replacement_priority_supported=True, particle_effects=catalog_choices(), scene_effects=list(scene_catalog().values()), prompt_regeneration=True, generation_queue_version=2, prompt_audit_version=1, style_prompt=STYLE_PROMPT, model=MODEL, image_models=MODELS, model_presets=PRESETS, prompt_choices=PROMPT_MODELS, vision_choices=VISION_MODELS, asr_models=ASR_MODELS, vocal_languages=LANGUAGES, default_asr=DEFAULT_ASR,
                     jobs=[dict(id=j.folder.name, name=j.config['name']) for j in reversed(list(JOBS.values()))]))
             if url.path == '/api/gpu':
                 from gpu_telemetry import gpu_usage

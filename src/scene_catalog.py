@@ -2,9 +2,10 @@
 
 Each scene is a small JSON recipe in scenes/. Its `camera` picks the renderer: "pan" (the
 real-time panning canvas, with flowing bands and a wisp tracing shapes), "still" (the real-time
-still camera, lines built inside shapes) or "blocks" (the 3D stage). A blocks scene owns a
-few particle effects (`particles`), such as the varied tree canopy entrances;
-inside that scene the AI picks one of them for each block. A blocks scene's `layout` is
+still camera, lines built inside shapes), "blocks" (the 3D stage) or "cinema" (black hole sun: one
+short phrase at a time in hairline and heavy type over the artwork). A blocks scene lists
+preferred particle effects (`particles`); the AI can choose any selected entrance, except
+Tree canopy, which is restricted to its tree effects. A blocks scene's `layout` is
 "justified" (rows of equal width, the default) or "contrast" (thin and heavy words, one
 word with a flowing textured fill, the last word set vertically, the camera zoomed and
 tilted). Pan and still scenes keep the user's per-line entrance effects, so `particles`
@@ -17,7 +18,7 @@ import warnings
 from project_paths import PROJECT_ROOT
 
 SCENE_ROOT = PROJECT_ROOT/'scenes'
-CAMERAS = ('pan', 'still', 'blocks')
+CAMERAS = ('pan', 'still', 'blocks', 'cinema')
 LAYOUTS = ('justified', 'contrast')
 
 
@@ -32,7 +33,7 @@ def read_scene(path, entrances=None):
     if not isinstance(data.get('description', ''), str) or len(data.get('description', '').split()) > 25:
         raise ValueError('Scene description must contain at most 25 words')
     if data.get('camera') not in CAMERAS:
-        raise ValueError('camera must be pan, still or blocks')
+        raise ValueError('camera must be pan, still, blocks or cinema')
     particles = data.get('particles')
     if data['camera'] == 'blocks':
         if not isinstance(particles, list) or any(not isinstance(p, str) for p in particles):
@@ -40,7 +41,7 @@ def read_scene(path, entrances=None):
         if entrances is not None and any(p not in entrances for p in particles):
             raise ValueError('Unknown particle effect in scene')
     elif particles is not None:
-        raise ValueError('Pan and still scenes use the per-line entrance effects; leave particles null')
+        raise ValueError('Pan, still and cinema scenes use the per-line entrance effects; leave particles null')
     layout = data.get('layout', 'justified')
     if layout not in LAYOUTS or (layout != 'justified' and data['camera'] != 'blocks'):
         raise ValueError('layout must be justified or contrast, and only blocks scenes take a layout')

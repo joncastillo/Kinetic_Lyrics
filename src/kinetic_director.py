@@ -300,6 +300,7 @@ class Compositor:
         self.effect_catalog = discover_effects()
         self.effect_cache = {}
         entrance_pool = parse_pool(entrance_pool, 'entrance', self.effect_catalog, strict=False)
+        self.entrance_pool = entrance_pool  # the ticked entrances (None: all); scenes' own effects honour it too
         if self.typography['reading_flow'] == 'realtime' and self.typography['kinetic']['camera'] == 'pan':
             exit_effect, exit_pool = 'none', None
         exit_pool = parse_pool(exit_pool, 'exit', self.effect_catalog, strict=False)
@@ -307,10 +308,15 @@ class Compositor:
         total=0
         planned=plan.get('word_effects') if text_animation=='ai' else None
         line_effects=plan.get('line_effects') if entrance_effect=='ai' else None
+        line_exits=plan.get('line_exits') if exit_effect=='ai' else None
         if line_effects is not None and (len(line_effects)!=len(data) or any(e not in self.effect_catalog['entrance'] and e!='none' for e in line_effects)):
             line_effects=None
+        if line_exits is not None and (len(line_exits)!=len(data) or any(e not in self.effect_catalog['exit'] and e!='none' for e in line_exits)):
+            line_exits=None
         if entrance_effect=='ai':
             entrance_effect='mixed'
+        if exit_effect=='ai':
+            exit_effect='mixed'
         if text_animation=='ai' and (not isinstance(planned,list) or len(planned)!=len(data)):
             raise ValueError('AI word animation choices must be planned before rendering')
         for index,line in enumerate(data):
@@ -324,7 +330,7 @@ class Compositor:
                     effects.append((chosen['entrance'],chosen['exit']))
                 else:
                     effects.append((line_effects[index] if line_effects else resolve_effect(entrance_effect,'entrance',self.effect_catalog,total+j,type_effect,entrance_pool),
-                                    resolve_effect(exit_effect,'exit',self.effect_catalog,total+j,type_effect,exit_pool)))
+                                    line_exits[index] if line_exits else resolve_effect(exit_effect,'exit',self.effect_catalog,total+j,type_effect,exit_pool)))
             self.word_effect_pairs.append(effects)
             total+=len(line['words'])
         self.text_animations=[motions[0] for motions in self.word_animations]
@@ -369,6 +375,9 @@ class Compositor:
         if self.typography['reading_flow'] == 'stage':
             from stage_3d import Stage3D
             self.realtime = Stage3D(self, melody, rhythm)
+        elif self.typography['reading_flow'] == 'cinema':
+            from cinema_typography import CinemaTypography
+            self.realtime = CinemaTypography(self, melody, particle_speed, rhythm, self.typography['kinetic'])
         elif self.typography['reading_flow'] == 'mixed':
             from scene_mix import SceneMix
             self.realtime = SceneMix(self, melody, particle_speed, rhythm, self.typography['kinetic'], self.plan.get('scene_flows'))
@@ -1068,6 +1077,11 @@ def _render_video(audio, output, data, plan, duration, args):
         from effect_director import ensure_line_effects
         emit('direction', 0, message='AI choosing effects for each line')
         plan = ensure_line_effects(data, plan, compositor, vars(args), Path(output).parent)
+        compositor = render_compositor(data,plan,duration,args)
+    if getattr(args, 'exit_effect', None) == 'ai' and compositor.particle_intensity > 0:
+        from effect_director import ensure_line_effects
+        emit('direction', 0, message='AI choosing exits for each line')
+        plan = ensure_line_effects(data, plan, compositor, vars(args), Path(output).parent, phase='exit')
         compositor = render_compositor(data,plan,duration,args)
     if compositor.typography['reading_flow'] == 'mixed':
         from scene_mix import ensure_scenes

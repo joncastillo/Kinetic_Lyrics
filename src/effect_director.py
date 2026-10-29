@@ -143,24 +143,24 @@ def line_contexts(data, options):
     return result
 
 
-def shortlists(contexts, backdrops, catalog, candidates, retriever):
+def shortlists(data, contexts, backdrops, catalog, candidates, retriever):
     """Readable effects ranked by relevance to each line; at least three, even on a difficult backdrop.
     Effects drawn in the line's own ink are readable by construction: line colours are already contrast-paired."""
     result = []
-    for context, backdrop in zip(contexts, backdrops):
+    for line, context, backdrop in zip(data, contexts, backdrops):
         clarity = {e: readability(lettering_colors(catalog[e], None), backdrop) if lettering_colors(catalog[e], None) else 1. for e in candidates}
         readable = [e for e in candidates if clarity[e] >= 1] or sorted(candidates, key=clarity.get, reverse=True)[:3]
-        relevance = retriever.scores(f"{context['meaning']} {context['scene']}")
+        relevance = retriever.scores(f"{line.get('text', '')} {context['meaning']} {context['scene']}")
         result.append(sorted(readable, key=lambda e: (relevance.get(e, 0), clarity[e]), reverse=True)[:SHORTLIST])
     return result
 
 
-def choose(data, contexts, backdrops, lists, catalog, model, request):
+def choose(data, contexts, backdrops, lists, catalog, model, request, phase='entrance'):
     """One effect per line, each from its own shortlist; the best-ranked one when the model cannot answer."""
     choices = [shortlist[0] if shortlist else 'none' for shortlist in lists]
     if request is None:
         return choices
-    system = ('You choose the particle entrance effect for each lyric line of a kinetic typography video. '
+    system = (f'You choose the particle {phase} effect for each lyric line of a kinetic typography video. '
               'For each line pick exactly one effect ID from that line\'s own candidates. '
               'Match the effect\'s imagery and energy to the lyric meaning and the scene. All candidates are already readable '
               'on the backdrop; still prefer a base colour that stands apart from the backdrop colours listed. '
@@ -189,11 +189,14 @@ def choose(data, contexts, backdrops, lists, catalog, model, request):
     return choices
 
 
-def ensure_line_effects(data, plan, compositor, options, folder, request=None):
-    """Plan with 'line_effects' chosen by the AI, reusing the cached choice while inputs are unchanged."""
+def ensure_line_effects(data, plan, compositor, options, folder, request=None, phase='entrance'):
+    """Plan per-line entrance or exit effects, reusing cached choices."""
     from particle_catalog import parse_pool
-    catalog = compositor.effect_catalog['entrance']
-    pool = parse_pool(options.get('entrance_pool'), 'entrance', compositor.effect_catalog, strict=False)
+    if phase not in ('entrance', 'exit'):
+        raise ValueError(f'Unknown effect phase: {phase}')
+    key = 'line_effects' if phase == 'entrance' else 'line_exits'
+    catalog = compositor.effect_catalog[phase]
+    pool = parse_pool(options.get(f'{phase}_pool'), phase, compositor.effect_catalog, strict=False)
     candidates = [e for e in (pool if pool is not None else catalog) if e in catalog]
     if not candidates:
         return plan
@@ -202,12 +205,12 @@ def ensure_line_effects(data, plan, compositor, options, folder, request=None):
     signature = hashlib.sha256(json.dumps(dict(lyrics=[line.get('text') for line in data], contexts=contexts, backdrops=backdrops,
                                                candidates=candidates, colors={e: catalog[e].base_color for e in candidates},
                                                descriptions={e: catalog[e].description for e in candidates},
-                                               model=options.get('ai_model', 'auto'), version=VERSION), sort_keys=True).encode()).hexdigest()
-    cache = Path(folder)/'video.effects.json'
+                                               model=options.get('ai_model', 'auto'), phase=phase, version=VERSION), sort_keys=True).encode()).hexdigest()
+    cache = Path(folder)/('video.effects.json' if phase == 'entrance' else 'video.exits.json')
     try:
         cached = json.loads(cache.read_text(encoding='utf-8'))
         if cached.get('signature') == signature and len(cached.get('effects', [])) == len(data):
-            return dict(plan, line_effects=cached['effects'])
+            return dict(plan, **{key: cached['effects']})
     except (OSError, ValueError):
         pass
     model, owns_model, embed = options.get('ai_model', 'test'), request is None, None
@@ -225,8 +228,8 @@ def ensure_line_effects(data, plan, compositor, options, folder, request=None):
     print(f'AI effect choice: {model}; retrieval by {"embeddings" if embed else "keywords"} over {len(candidates)} effects.', flush=True)
     try:
         retriever = Retriever(documents(catalog, candidates), embed)
-        lists = shortlists(contexts, backdrops, catalog, candidates, retriever)
-        effects = choose(data, contexts, backdrops, lists, catalog, model, request)
+        lists = shortlists(data, contexts, backdrops, catalog, candidates, retriever)
+        effects = choose(data, contexts, backdrops, lists, catalog, model, request, phase)
     finally:
         if owns_model:
             try:
@@ -235,4 +238,4 @@ def ensure_line_effects(data, plan, compositor, options, folder, request=None):
             except Exception as exc:
                 print(f'Warning: effect model cleanup: {exc}', flush=True)
     cache.write_text(json.dumps(dict(signature=signature, model=model, effects=effects, shortlists=lists), indent=2), encoding='utf-8')
-    return dict(plan, line_effects=effects)
+    return dict(plan, **{key: effects})

@@ -162,6 +162,24 @@ class PlacementTest(unittest.TestCase):
 
 
 class DirectorTest(unittest.TestCase):
+    def test_ai_exit_choice_is_applied(self):
+        from effect_director import ensure_line_effects
+        from kinetic_director import Compositor, rules_plan
+        from kinetic_lyrics import theme_for
+        data = lyrics((.2, 'quiet rain'), (2., 'distant light'))
+        plan = rules_plan(data, theme_for('autumn'))
+        c = Compositor(data, plan, 320, 180, 4., reading_flow='preview', text_animation='none', exit_effect='ai')
+        pool = ['dust-disintegrate', 'petals-scatter']
+        def request(payload):
+            return {'message': {'content': json.dumps({line['line']: line['candidates'][0]['id']
+                                                        for line in json.loads(payload['messages'][1]['content'])['lines']})}}
+        with tempfile.TemporaryDirectory() as folder:
+            directed = ensure_line_effects(data, plan, c, {'exit_pool': pool, 'ai_model': 'test'}, folder,
+                                           request=request, phase='exit')
+        self.assertEqual(len(directed['line_exits']), 2)
+        rebuilt = Compositor(data, directed, 320, 180, 4., reading_flow='preview', text_animation='none', exit_effect='ai')
+        self.assertEqual([pair[1] for pair in rebuilt.effect_pairs], directed['line_exits'])
+
     def test_answers_are_checked(self):
         from ornament_director import checked
         words = {'0:1': dict(text='RAIN', line=0, index=1), '0:2': dict(text='MOON', line=0, index=2)}
@@ -169,9 +187,11 @@ class DirectorTest(unittest.TestCase):
         rain = checked(dict(word='0:1', picture='falling raindrop', source='library', library='none', placement='letter',
                             motion='bob'), words, ['moon'])
         self.assertEqual((rain['source'], rain['placement']), ('generate', 'beside'))
-        moon = checked(dict(word='0:2', picture='library', source='library', library='moon', placement='letter',
+        self.assertIsNone(checked(dict(word='0:2', picture='library', source='library', library='moon',
+                                       placement='letter', motion='spin'), words, ['moon']))
+        moon = checked(dict(word='0:2', picture='crescent moon', source='library', library='moon', placement='letter',
                             motion='spin'), words, ['moon'])
-        self.assertEqual((moon['subject'], moon['library'], moon['placement']), ('', 'moon', 'letter'))
+        self.assertEqual((moon['subject'], moon['library'], moon['placement']), ('crescent moon', 'moon', 'letter'))
 
 
 class StageTest(unittest.TestCase):
@@ -238,14 +258,42 @@ class SceneTest(unittest.TestCase):
         from scene_catalog import scene_catalog
         catalog = scene_catalog()
         self.assertIn('autumn-maple-lettering', catalog['tree-canopy']['particles'])
-        self.assertIn('ink-bloom-lettering', catalog['tree-canopy']['particles'])
-        self.assertIn('glass-prism', catalog['tree-canopy']['particles'])
         self.assertIn('bamboo-lettering', catalog['tree-canopy']['particles'])
+        self.assertEqual(set(catalog['tree-canopy']['particles']),
+                         {'autumn-maple-lettering', 'old-oak-lettering', 'bamboo-lettering'})
         self.assertIn('mucha-silk-lettering', catalog['lace-and-paper']['particles'])
         self.assertIn('catholic-cross-lettering', catalog['crystal-and-coral']['particles'])
         self.assertNotIn('framed-lines', catalog)
         self.assertEqual(catalog['full-screen-type']['camera'], 'pan')
         self.assertEqual({catalog[s]['camera'] for s in ('panning-canvas', 'plain-blocks')}, {'pan', 'blocks'})
+
+    def test_scene_particles_honour_the_ticked_entrances(self):
+        from kinetic_director import Compositor, rules_plan
+        from kinetic_lyrics import theme_for
+        data = lyrics((.2, 'lace and silk'), (5., 'paper cranes'))
+        plan = dict(rules_plan(data, theme_for('autumn')), scene_flows=[dict(start=0, end=2, scene='lace-and-paper')])
+        pool = ['pearl-lace-lettering', 'glass-prism']
+        c = Compositor(data, plan, 320, 180, 9., reading_flow='mixed', text_animation='none', entrance_pool=pool)
+        self.assertEqual(set(c.realtime.stage.owned_effects(0)), set(pool))
+        unticked = Compositor(data, plan, 320, 180, 9., reading_flow='mixed', text_animation='none', entrance_pool=[])
+        self.assertEqual(unticked.realtime.stage.owned_effects(0), [])
+
+    def test_tree_canopy_restricts_entrances_to_trees(self):
+        from kinetic_director import Compositor, rules_plan
+        from kinetic_lyrics import theme_for
+        data = lyrics((.2, 'maple leaves'), (5., 'old branches'))
+        plan = dict(rules_plan(data, theme_for('autumn')), scene_flows=[dict(start=0, end=2, scene='tree-canopy')])
+        pool = ['glass-prism', 'old-oak-lettering', 'bamboo-lettering']
+        c = Compositor(data, plan, 320, 180, 9., reading_flow='mixed', text_animation='none', entrance_pool=pool)
+        self.assertEqual(set(c.realtime.stage.owned_effects(0)), {'old-oak-lettering', 'bamboo-lettering'})
+
+    def test_scene_effects_render_an_animated_sample(self):
+        from io import BytesIO
+        from PIL import Image
+        from particle_preview import SCENE_SIZE, _render_scene
+        sample = Image.open(BytesIO(_render_scene('black-hole-sun')))
+        self.assertEqual(sample.size, SCENE_SIZE)
+        self.assertGreater(getattr(sample, 'n_frames', 1), 20)
 
     def test_full_screen_scene_enlarges_words(self):
         from kinetic_director import Compositor, rules_plan

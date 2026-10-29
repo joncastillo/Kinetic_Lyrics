@@ -266,7 +266,7 @@ function showParticleSample(phase, id) {
   particlePreviewTimer = setTimeout(async () => {
     try {
       const query = sampleQuery(phase,id);
-      const response = await fetch('/api/particle-preview?' + query, { signal: controller.signal });
+      const response = await fetch('/api/particle-preview?' + query, { signal: controller.signal, cache: 'no-store' });
       if (!response.ok) { const result = await response.json(); throw Error(result.error || 'Preview failed'); }
       const blob = await response.blob();
       if (controller.signal.aborted) return;

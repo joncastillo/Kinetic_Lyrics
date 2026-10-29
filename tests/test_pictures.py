@@ -1,5 +1,6 @@
 """Typography pictures: kept by default, repainted only when released, and painted without stray faces."""
 import sys
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -22,6 +23,18 @@ def block(folder, line, word, image=True):
 
 
 class PictureTest(unittest.TestCase):
+    def test_library_picture_appears_in_workspace_snapshot(self):
+        from studio import Job
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root/'video.blocks.json').write_text(json.dumps({'blocks': [
+                {'ornament': {'line': 0, 'word': 1, 'text': 'AMBON', 'subject': 'fine drizzle',
+                              'source': 'library', 'library': 'drop', 'image': None}}
+            ]}), encoding='utf-8')
+            pictures = Job(root, {'name': 'test'}).ornaments()
+            self.assertEqual([(item['word'], item['source']) for item in pictures], [('AMBON', 'library')])
+            self.assertTrue((root/'video.picture-previews'/'drop.png').is_file())
+
     def test_cutout_removes_white_sticker_border(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder)/'portrait.png'
@@ -67,7 +80,8 @@ class PictureTest(unittest.TestCase):
         lamp = icon_prompt('a small, warm street lamp', 'orange', style)
         self.assertNotIn('expressive faces', lamp)
         self.assertIn('no people, faces', lamp)
-        self.assertTrue(lamp.startswith('A single small warm street lamp'))
+        self.assertTrue(lamp.startswith('Create one small painted picture of warm street lamp'))
+        self.assertGreaterEqual(len(lamp.split()), 250)
         self.assertIn('expressive faces', icon_prompt('a dancing woman', '', style))
 
 

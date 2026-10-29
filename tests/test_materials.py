@@ -8,10 +8,11 @@ from PIL import Image, ImageDraw, ImageFont
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
-from material_fx import held, paint
+from material_fx import field, held, paint
 from material_recipes import RECIPES
 from particle_catalog import discover_effects
 from particle_motion import paint_transition
+from silk_geometry import sheet, word_cloth
 
 
 def word_sprite(text='Silk', size=72):
@@ -83,7 +84,7 @@ class MaterialTest(unittest.TestCase):
         result = frame(effect, 'entrance', 1., big)
         self.assertGreater((result[..., 3] > 128).sum(), 5000)
 
-    def test_silk_letters_keep_distinct_translucent_fabrics(self):
+    def test_silk_letters_keep_distinct_translucent_dyes(self):
         sprite = word_sprite('SILK', 100)
         effect = self.catalog['entrance']['mucha-silk-lettering']
         result = frame(effect, 'entrance', 1., sprite)
@@ -98,7 +99,21 @@ class MaterialTest(unittest.TestCase):
             self.assertGreater(len(pixels), 200)
             self.assertLess(np.median(pixels[:, 3]), 220)
             means.append(pixels[:, :3].mean(axis=0))
-        self.assertTrue(all(np.linalg.norm(a-b) > 35 for a, b in zip(means, means[1:])))
+        self.assertTrue(all(np.linalg.norm(a-b) > 55 for a, b in zip(means, means[1:])))
+
+    def test_silk_sheets_billow_then_reach_their_letters(self):
+        F = field(word_sprite('SILK', 100), 5, 2.6, {})
+        cloth = word_cloth(F)
+        self.assertEqual(len(cloth['letters']), 4)
+        for index, letter in enumerate(cloth['letters']):
+            early, flapping, late = (sheet(F, t, cloth, index) for t in (.2, .28, .9))
+            target = letter['route']['points'].mean(axis=0)
+            distance = lambda mesh: np.linalg.norm(mesh['points'][..., :2].mean(axis=(0, 1))/F.u-target)
+            self.assertLess(distance(late), distance(early))
+            self.assertGreater(np.ptp(early['points'][..., 2])/F.u, .12)
+            centred = lambda mesh: mesh['points']-mesh['points'].mean(axis=(0, 1))
+            self.assertGreater(np.sqrt(np.mean((centred(early)-centred(flapping))**2))/F.u, .08)
+            self.assertTrue(np.array_equal(early['points'], sheet(F, .2, cloth, index)['points']))
 
 
 if __name__ == '__main__':

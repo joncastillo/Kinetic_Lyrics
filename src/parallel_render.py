@@ -49,7 +49,7 @@ def worker_count(args,count):
     if flow=='stage':
         by_memory=int((available-MEMORY_RESERVE)//(REALTIME_WORKER_MEMORY*scale)) if available else STAGE_WORKERS
         return max(1,min(STAGE_WORKERS,cores-1,by_memory))
-    budget=REALTIME_WORKER_MEMORY if flow in ('realtime','mixed') else WORKER_MEMORY
+    budget=REALTIME_WORKER_MEMORY if flow in ('realtime','mixed','cinema') else WORKER_MEMORY
     by_memory=int((available-MEMORY_RESERVE)//(budget*scale)) if available else cores
     return max(1,min(cores-1,MAX_AUTO_WORKERS if flow!='mixed' else STAGE_WORKERS*2,by_memory))
 

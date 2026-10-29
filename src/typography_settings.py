@@ -7,7 +7,7 @@ import os
 KINETIC_TEXT_SCALE = 3.
 
 WORD_ANIMATIONS = ('directed','highlight','karaoke','slide','fade','none')
-READING_FLOWS = ('realtime','preview','stage','mixed')
+READING_FLOWS = ('realtime','preview','stage','mixed','cinema')
 BACKDROP_KINDS = ('outline','filled','vertical','echo','giant')
 GLOW_INSTRUMENTS = ('drums','other','bass')
 CAMERA_MODES = ('pan','still')
