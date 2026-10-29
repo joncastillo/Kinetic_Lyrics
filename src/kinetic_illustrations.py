@@ -98,7 +98,7 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
     groups=[' / '.join(data[i]['text'] for i in group) for group in indices]
     references = [Path(p).resolve() for p in (references or [])]
     layouts = [illustration_layout(i, width, height, cinematic, artwork_mode, seed) for i in range(len(groups))]
-    signature = dict(version=15 if structured else 14 if artwork_mode == 'verse' else 12, director_model=director_model, artwork_mode=artwork_mode, groups=groups, model=model, steps=steps, seed=seed,
+    signature = dict(version=24 if structured else 23 if artwork_mode == 'verse' else 22, director_model=director_model, artwork_mode=artwork_mode, groups=groups, model=model, steps=steps, seed=seed,
                      width=width, height=height, cinematic=cinematic, layouts=layouts,
                      style=STYLE, style_prompt=style_prompt, image_instructions=image_instructions,
                      references=[hashlib.sha256(p.read_bytes()).hexdigest() for p in references])
@@ -121,7 +121,7 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
             'Choose the most meaningful concrete subject: an everyday object, architectural detail, '
             'a small grounded vignette, hands, a portrait, a person, or people. '
             'Choose subjects that best express the lyrics; vary compositions naturally where the meaning allows. '
-            'Describe only visible shapes, action, material, color, lighting and mood. '
+            'Describe only visible shapes, action, material, color, lighting and mood, in a detailed 120 to 180 word description. '
             'For people, specify pose and suitable ordinary clothing; for objects, specify form and material. '
             'Do not copy clothes or content from style references. '
             'Never quote, translate verbatim or transcribe lyric lines into the description. '
@@ -161,13 +161,15 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
                 for i,(group,meaning,layout) in enumerate(zip(groups,meanings,layouts))])
             audit_groups = [f'Original lyric group: {group}\nEnglish meaning: {meaning}'
                             for group, meaning in zip(groups, meanings)]
-        subjects = request_subjects(gpu_chat, payload, max_words=130 if artwork_mode == 'verse' else 60)
+        subjects = request_subjects(gpu_chat, payload, max_words=550 if artwork_mode == 'verse' else 180)
         subjects = repair_duplicate_subjects(gpu_chat, payload, subjects)
         prompts = [image_prompt(subject, layout, style_prompt, reference_images)
                    + (' Additional image direction: '+image_instructions if image_instructions else '')
                    for subject, layout in zip(subjects, layouts)]
         from prompt_audit import audit_prompts
         prompts = audit_prompts(gpu_chat,director_model,audit_groups,subjects,prompts,layouts,artwork_mode)
+        from prompt_fit import fit_prompts
+        prompts = fit_prompts(gpu_chat, director_model, model, prompts)
     finally:
         try:unload_model(director_model)
         except (OSError,ValueError) as exc:print(f'Warning: prompt model cleanup: {exc}',flush=True)
@@ -373,11 +375,11 @@ def inference_options(model, references):
     if spec['references']:
         return dict(image=references or None, guidance_scale=spec['guidance'])
     if spec['pipeline'] == 'QwenImagePipeline':
-        return dict(true_cfg_scale=spec['guidance'], negative_prompt=
+        return dict(true_cfg_scale=spec['guidance'], max_sequence_length=1024, negative_prompt=
                     'extra limbs, extra fingers, fused fingers, malformed anatomy, lettering, watermark, grainy, noisy, pixelated, blurry, over-sharpened, low quality')
     result = dict(guidance_scale=spec['guidance'])
     if spec['pipeline'] == 'FluxPipeline':
-        result['max_sequence_length'] = 256
+        result['max_sequence_length'] = 512
     return result
 
 

@@ -39,10 +39,15 @@ def request_subjects(local_json, payload, batch_size=6, max_words=60, avoid_repe
         schema.update(minItems=len(batch), maxItems=len(batch))
         query['messages'][1]['content'] = json.dumps(batch)
         query['think'] = False
-        budget = 4096 if retry else 6144
-        query['options'] = {**query.get('options', {}), 'temperature': 0, 'num_predict': budget}
+        # About three tokens per allowed word covers long descriptions plus JSON overhead.
+        budget = max(4096, len(batch)*max_words*3)
+        if not retry:
+            budget = budget*3//2
+        options = query.get('options', {})
+        query['options'] = {**options, 'temperature': 0, 'num_predict': budget,
+                            'num_ctx': max(options.get('num_ctx', 8192), budget+4096)}
         query['messages'][0]['content'] += (
-            f' Keep each description concise: at most {max_words} words.'
+            f' Keep each description to at most {max_words} words.'
             f' Return only one JSON object with exactly {len(batch)} subjects in input order.'
             ' Write the final JSON directly, without analysis, commentary or Markdown.'
             ' JSON schema: '+json.dumps(query['format'], separators=(',', ':')))
@@ -65,7 +70,7 @@ def request_subjects(local_json, payload, batch_size=6, max_words=60, avoid_repe
                 return request(batch[:middle]) + request(batch[middle:])
             if retry:
                 print(f'{model}: {exc}; retrying once with a direct JSON instruction '
-                      'and 6144 output tokens (thinking requested off)', flush=True)
+                      'and a larger output budget (thinking requested off)', flush=True)
                 return request(batch, retry=False)
             raise ValueError('Illustration director returned incomplete or invalid JSON after retries. '
                              f'{model}: {exc}. Select an installed non-thinking/instruct text model '

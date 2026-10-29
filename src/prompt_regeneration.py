@@ -22,7 +22,7 @@ def regenerate_prompts(worker,job,config,items):
         system=(DIRECTOR_PROMPT if job.get('artwork_mode')=='verse' else LANGUAGE_RULE+
             'Interpret each lyric group into one fresh English visual scene for an illustrator. '
             'The lyrics determine subject matter, including Tagalog. Describe only visible forms, '
-            'action, materials, lighting and mood. Choose subjects that best express the lyrics, '
+            'action, materials, lighting and mood in a detailed 120 to 180 word description. Choose subjects that best express the lyrics, '
             'including objects, portraits, people, gestures or small scenes; vary compositions naturally. '
             'Follow the assigned composition and orientation. '
             'No text, captions, logos or copied lyric lines. Return only JSON with a subjects array in input order. ')
@@ -49,13 +49,15 @@ def regenerate_prompts(worker,job,config,items):
                 payload['messages'][1]['content']=json.dumps(inputs)
                 audit_groups=[f'Original lyric group: {group}\nEnglish meaning: {meaning}'
                               for group,meaning in zip(groups,meanings)]
-            subjects=request_subjects(gpu_chat,payload,max_words=130 if job.get('artwork_mode')=='verse' else 60)
+            subjects=request_subjects(gpu_chat,payload,max_words=550 if job.get('artwork_mode')=='verse' else 180)
             technique=job.get('style_prompt',config.get('style_prompt',''))
             extra=job.get('image_instructions',config.get('image_instructions',''))
             prompts=[image_prompt(subject,job['layouts'][index],technique,bool(job.get('reference_paths')))
                      + (' Additional image direction: '+extra if extra else '') for index,subject in zip(indices,subjects)]
             from prompt_audit import audit_prompts
             prompts=audit_prompts(gpu_chat,model,audit_groups,subjects,prompts,[job['layouts'][i] for i in indices],job.get('artwork_mode','cutout'))
+            from prompt_fit import fit_prompts
+            prompts=fit_prompts(gpu_chat,model,job['model'],prompts)
         finally:unload_model(model)
         for item,subject,prompt in zip(batch,subjects,prompts):
             index=item['index'];updated=copy.deepcopy(job)
