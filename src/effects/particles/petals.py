@@ -72,9 +72,8 @@ def paint_petal_formation(layer,sprite,x,y,amount,effect,seed,intensity=1.,cache
             angle=values[4]*math.tau+q*effect.twist;dx,dy=math.cos(angle)*travel,math.sin(angle)*travel*.65
         dy+=math.sin(q*8+values[4]*math.tau)*sprite.height*.3*q
         dx+=math.sin(q*5+values[5]*math.tau)*sprite.height*.12*q
-        piece=leaf
         angle=(values[4]-.5)*90+q*(values[5]-.5)*540*effect.spin
-        piece=piece.rotate(angle,Image.Resampling.BICUBIC,expand=True)
+        piece=botanical_sprite(particle.kind,particle.size,values,angle=angle)
         alpha=entrance_opacity(progress)
         piece.putalpha(piece.getchannel('A').point(lambda a:round(a*alpha)))
         layer.alpha_composite(piece,(round(x+px+dx-piece.width/2),round(y+py+dy-piece.height/2)))

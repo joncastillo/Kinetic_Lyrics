@@ -16,9 +16,8 @@ def leaf_texture(sprite,seed=0,cache=None):
     for row,y in enumerate(range(-step,h+step,step)):
         for x in range(-step,w+step,step):
             values=tuple(rng.random() for _ in range(6))
-            photo=botanical_sprite('leaf',size*(.8+values[2]*.45),values)
+            photo=botanical_sprite('leaf',size*(.8+values[2]*.45),values,angle=(-38 if row%2 else 48)+(values[3]-.5)*65)
             photo=ImageEnhance.Brightness(photo).enhance(.78+values[4]*.35)
-            photo=photo.rotate((-38 if row%2 else 48)+(values[3]-.5)*65,Image.Resampling.BICUBIC,expand=True)
             cx=x+(step*.5 if row%2 else 0)+(values[0]-.5)*step*.5
             cy=y+(values[1]-.5)*step*.5
             result.alpha_composite(photo,(round(cx-photo.width/2),round(cy-photo.height/2)))

@@ -20,6 +20,16 @@ def asset(index):
 def sized_asset(index,size):
     return ImageOps.contain(asset(index),(max(2,size),max(2,size)),Image.Resampling.LANCZOS)
 
+@lru_cache(maxsize=4096)
+def turned_asset(index,size,angle):
+    """Atlas photo `index` fitted into a `size` square and rotated by `angle` degrees, resampled once."""
+    from core.imaging import SUPERSAMPLE, reduce_sprite
+    return reduce_sprite(_working_asset(index,max(2,size)*SUPERSAMPLE),max(2,size),angle)
+
+@lru_cache(maxsize=512)
+def _working_asset(index,span):
+    return ImageOps.contain(asset(index),(span,span),Image.Resampling.LANCZOS)
+
 def glyph_ranges(sprite,spans=None):
     if spans:return [(max(0,int(a)),min(sprite.width,int(b))) for a,b in spans if b>a]
     ink=np.asarray(sprite.getchannel('A'))>120;columns=np.any(ink,axis=0)
