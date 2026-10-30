@@ -308,6 +308,38 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     path.write_text(header + ''.join(events), encoding='utf-8-sig')
 
 
+def render_subtitles(audio, output, ass_path, data, duration, theme, args):
+    """The legacy renderer: ASS subtitle animation burned over a plain or photo background."""
+    write_ass(ass_path, data, duration, args.width, args.height, theme, args.font)
+    with tempfile.TemporaryDirectory(prefix='kinetic-', dir=output.parent) as temp:
+        temp = Path(temp)
+        shutil.copyfile(ass_path, temp / 'lyrics.ass')
+        fonts = ''
+        if args.font:
+            (temp / 'fonts').mkdir()
+            shutil.copyfile(args.font, temp / 'fonts' / args.font.name)
+            fonts = ':fontsdir=fonts'
+        if args.background:
+            source = ['-loop', '1', '-framerate', str(args.fps), '-i', str(args.background.resolve())]
+            base_filter = (f'scale={args.width}:{args.height}:force_original_aspect_ratio=increase,'
+                           f'crop={args.width}:{args.height},drawbox=color=black@0.45:t=fill,')
+        else:
+            source = ['-f', 'lavfi', '-i', f'color=c={theme["background"]}:s={args.width}x{args.height}:r={args.fps}']
+            base_filter = ''
+        encoding = (['-c:v', 'h264_nvenc', '-preset', 'p5', '-tune', 'hq',
+                     '-rc', 'vbr', '-cq', '18', '-b:v', '0']
+                    if args.encoder == 'h264_nvenc' else
+                    ['-c:v', 'libx264', '-preset', 'medium', '-crf', '18'])
+        command = ['ffmpeg', '-hide_banner', '-loglevel', 'warning', '-y', *source,
+                   '-i', str(audio), '-map', '0:v:0', '-map', '1:a:0',
+                   '-vf', base_filter + 'ass=lyrics.ass' + fonts + ',scale=out_color_matrix=bt709:out_range=tv', '-t', str(duration),
+                   *encoding, '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv', '-pix_fmt', 'yuv420p',
+                   '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', str(temp / 'video.mp4')]
+        print(f'Rendering moving typography with {args.encoder}...', flush=True)
+        subprocess.run(command, cwd=temp, check=True)
+        (temp / 'video.mp4').replace(output)
+
+
 def validate_ocr(video, data, duration, report_path):
     """Inspect actual encoded frames. Flags are review hints, not alignment scores."""
     try:
@@ -401,6 +433,7 @@ def main(argv=None):
     parser.add_argument('--image-seed', type=int, default=42)
     parser.add_argument('--validate-ocr', action='store_true', help='OCR one encoded frame per lyric line')
     parser.add_argument('--overwrite', action='store_true')
+    parser.add_argument('--resume', action='store_true', help='Continue an interrupted run from its last completed step (saved in <output>.graph.sqlite)')
     parser.add_argument('--review-artwork', action='store_true', help='Wait for studio approval before rendering')
     parser.add_argument('--preserve-art-slots', action='store_true', help='Keep illustration group positions even when image pixels repeat')
     parser.add_argument('--no-default-style-references', action='store_true', help='Use only explicitly supplied style references')
@@ -460,125 +493,11 @@ def main(argv=None):
     if args.timings is None and any(p and p.resolve() == timing_path for p in protected):
         parser.error('Timing output would overwrite an input.')
     for path in [output, meta_path] + ([ass_path] if args.renderer == 'ass' else []) + ([design_path] if args.renderer == 'editorial' and not args.plan else []) + ([ocr_path] if args.validate_ocr else []) + ([] if args.timings else [timing_path]) + ([] if args.lyrics else [lyrics_path]):
-        if path.exists() and not args.overwrite:
+        if path.exists() and not (args.overwrite or args.resume):
             parser.error(f'{path} exists. Use --overwrite to replace generated files.')
     try:
-        for reference in args.style_reference or []:
-            from PIL import Image
-            with Image.open(reference) as image:
-                image.verify()
-        lines = lyrics_lines(args.lyrics) if args.lyrics else None
-        duration = float(run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-                              '-of', 'default=noprint_wrappers=1:nokey=1', str(audio)]).strip())
-        if not math.isfinite(duration) or duration <= 0:
-            raise ValueError('Audio duration must be finite and positive.')
-        emit('alignment', 0, message='Aligning supplied lyrics' if lines is not None else 'Transcribing lyrics from audio')
-        if args.timings:
-            data = json.loads(args.timings.read_text(encoding='utf-8-sig'))
-        elif lines is not None:
-            data = align((args.alignment_audio or audio).resolve(), lines, args)
-        else:
-            data = transcribe((args.alignment_audio or audio).resolve(), args)
-        if lines is None:
-            lines = [line['text'] for line in data]
-            if not lines:
-                raise ValueError('No lyric lines were found in the timing data.')
-        if not args.timings:
-            repair_zero_durations(data, duration)
-        validate(data, lines, duration)
-        from vocal_onsets import refine_line_starts
-        emit('alignment', .95, message='Measuring where each line is sung')
-        moved = refine_line_starts(data, audio, output.parent)
-        from melody import ensure_melody
-        args.melody = ensure_melody(data, output.parent)
-        from rhythm import ensure_rhythm
-        args.rhythm = ensure_rhythm(audio, output.parent)
-        if moved:
-            print(f'Moved {moved} line start(s) to the measured vocal onset.', flush=True)
-            timing_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
-        from song_structure import annotate_sections
-        annotate_sections(data,args.lyrics)
-        emit('alignment', 1, message='Lyric timing validated')
-        theme = theme_for(args.theme)
-        print(f"Theme: {theme['name']}; {len(lines)} lines; {duration:.1f}s", flush=True)
-        output.parent.mkdir(parents=True, exist_ok=True)
-        if args.lyrics is None:
-            lyrics_path.write_text('\n'.join(lines)+'\n', encoding='utf-8')
-            print(f'Saved recovered lyrics: {lyrics_path}', flush=True)
-        if not args.timings:
-            timing_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
-        meta_path.write_text(json.dumps(dict(prompt=args.theme, cinematic=args.cinematic, **theme), indent=2), encoding='utf-8')
-        if args.renderer == 'editorial':
-            from kinetic_director import direct, render, validate_plan
-            if not args.no_illustrations and args.illustrations is None:
-                from kinetic_illustrations import generate
-                args.illustrations = generate(data, output.parent / (output.stem+'.artwork'), args)
-            if args.illustrations:
-                print('Illustration panels: ' + ', '.join(str(p) for p in args.illustrations), flush=True)
-                if args.review_artwork:
-                    import time
-                    approval = output.parent / 'artwork-approved'
-                    approval.unlink(missing_ok=True)
-                    emit('review', 0, message='Review illustrations, then approve to render')
-                    while not approval.exists():
-                        time.sleep(.5)
-            else:
-                print('Illustration panels: none (typography only).', flush=True)
-            emit('direction', 0, message='Planning typography and motion')
-            plan = (validate_plan(json.loads(args.plan.read_text(encoding='utf-8-sig')), data)
-                    if args.plan else direct(data, theme, args.theme, args.ai_model, args.director))
-            if args.text_animation=='ai':
-                from animation_director import ensure_word_direction
-                plan=ensure_word_direction(data,plan,vars(args))
-            if not args.plan or args.text_animation=='ai':
-                design_path.write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding='utf-8')
-            print(f"Design: {plan.get('concept', 'Custom editorial plan')}", flush=True)
-            emit('direction', 1, message='Typography plan ready')
-            from generation_queue import before_video_render,ReplacementsPending
-            while True:
-                before_video_render(output,args)
-                try:
-                    render(audio, output, data, plan, duration, args)
-                    break
-                except ReplacementsPending:
-                    emit('illustrations',1,message='Pausing video render for queued image replacements')
-            archive_legacy_subtitles(ass_path)
-            print(f'Saved {output}\nArt direction: {args.plan or design_path}\nTiming source: {args.timings or timing_path}')
-            if args.validate_ocr:
-                validate_ocr(output, data, duration, ocr_path)
-            emit('complete', 1, message='Video ready')
-            return
-        write_ass(ass_path, data, duration, args.width, args.height, theme, args.font)
-        with tempfile.TemporaryDirectory(prefix='kinetic-', dir=output.parent) as temp:
-            temp = Path(temp)
-            shutil.copyfile(ass_path, temp / 'lyrics.ass')
-            fonts = ''
-            if args.font:
-                (temp / 'fonts').mkdir()
-                shutil.copyfile(args.font, temp / 'fonts' / args.font.name)
-                fonts = ':fontsdir=fonts'
-            if args.background:
-                source = ['-loop', '1', '-framerate', str(args.fps), '-i', str(args.background.resolve())]
-                base_filter = (f'scale={args.width}:{args.height}:force_original_aspect_ratio=increase,'
-                               f'crop={args.width}:{args.height},drawbox=color=black@0.45:t=fill,')
-            else:
-                source = ['-f', 'lavfi', '-i', f'color=c={theme["background"]}:s={args.width}x{args.height}:r={args.fps}']
-                base_filter = ''
-            encoding = (['-c:v', 'h264_nvenc', '-preset', 'p5', '-tune', 'hq',
-                         '-rc', 'vbr', '-cq', '18', '-b:v', '0']
-                        if args.encoder == 'h264_nvenc' else
-                        ['-c:v', 'libx264', '-preset', 'medium', '-crf', '18'])
-            command = ['ffmpeg', '-hide_banner', '-loglevel', 'warning', '-y', *source,
-                       '-i', str(audio), '-map', '0:v:0', '-map', '1:a:0',
-                       '-vf', base_filter + 'ass=lyrics.ass' + fonts + ',scale=out_color_matrix=bt709:out_range=tv', '-t', str(duration),
-                       *encoding, '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv', '-pix_fmt', 'yuv420p',
-                       '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', str(temp / 'video.mp4')]
-            print(f'Rendering moving typography with {args.encoder}...', flush=True)
-            subprocess.run(command, cwd=temp, check=True)
-            (temp / 'video.mp4').replace(output)
-        print(f'Saved {output}\nAnimation: {ass_path}\nTiming source: {args.timings or timing_path}')
-        if args.validate_ocr:
-            validate_ocr(output, data, duration, ocr_path)
+        from pipeline_graph import run as run_pipeline
+        run_pipeline(args, audio, output, resume=args.resume)
     except (ValueError, OSError, subprocess.CalledProcessError, KeyError, TypeError) as exc:
         detail = getattr(exc, 'stderr', None) or str(exc)
         parser.exit(1, f'Error: {detail}\n')

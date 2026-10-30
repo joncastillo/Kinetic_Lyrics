@@ -32,6 +32,13 @@ instead. Timings, audio analysis and artwork are saved in the project folder, so
 rebuild after the user swaps an image reuses them instead of starting again from
 scratch.
 
+These steps run as a [LangGraph](https://langchain-ai.github.io/langgraph/) state graph
+(`src/pipeline_graph.py`). After each step the graph saves its progress to
+`<video>.graph.sqlite` in the project folder. If a run fails, starting it again with
+`--resume` continues from the step that failed. Studio does this automatically when it
+recovers a failed job. The artwork review is a pause in the graph: the run waits there
+until the user approves the illustrations, and then carries on.
+
 ## Requirements
 
 - Windows with an NVIDIA CUDA GPU. 24 GB of VRAM is recommended.
@@ -137,6 +144,7 @@ Some useful options:
 - `--reading-flow realtime|preview` chooses how words appear (see below).
 - `--kinetic '{...}'` and `--effect-speeds '{"glass-shatter": 0.5}'` fine-tune the
   motion and set the speed of individual effects.
+- `--resume` continues an interrupted run from its last completed step.
 
 Run `kinetic-lyrics.cmd --help` to see every option.
 
