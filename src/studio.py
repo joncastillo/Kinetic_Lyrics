@@ -352,10 +352,17 @@ class Job:
             defaults = illustration_starts(cues, len(job['prompts']), self.config.get('illustration_lines', 2), 1., groups)
             saved = load_art_times(self.folder/ART_TIMES)
             custom = saved if saved is not None and len(saved) == len(defaults) else None
+            from artwork_metadata import variant_metadata
+            with LOCK:
+                queued = {q['index']: q.get('action', 'regenerate') for q in self.state.get('queued_actions', [])
+                          if q.get('action', 'regenerate') in ('regenerate', 'reprompt') and 'index' in q}
+                active = set(self.state.get('active_images', []))
             for i, start in enumerate(defaults):
                 image = manifest.parent/f'{i:03d}.png'
                 art.append(dict(index=i, start=custom[i] if custom else start, default_start=start,
                                 lyrics=job['groups'][i] if i < len(job.get('groups', [])) else '',
+                                prompt=variant_metadata(image, job, i).get('prompt', job['prompts'][i]),
+                                pending='Generating' if i in active else 'Queued' if i in queued else '',
                                 url=self.url(image) if image.exists() else None))
         stems = [dict(id=name, url=self.url(path) if path.is_relative_to(self.folder) else None)
                  for name, path in stem_sources(self.folder, self.config['audio']).items()]
