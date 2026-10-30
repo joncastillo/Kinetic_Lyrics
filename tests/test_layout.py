@@ -10,7 +10,7 @@ from core.paths import PROJECT_ROOT, UI_ROOT
 
 class LayoutTest(unittest.TestCase):
     def test_ui_files_present(self):
-        for name in ('studio.html', 'studio.css', 'studio-models.js', 'studio-particles.js', 'studio-profiles.js'):
+        for name in ('studio.html', 'studio.css', 'studio-models.js', 'studio-particles.js', 'studio-profiles.js', 'studio-timeline.js', 'studio-timeline.css'):
             self.assertTrue((UI_ROOT/name).is_file(), name)
 
     def test_data_folders_present(self):
