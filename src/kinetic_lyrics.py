@@ -36,8 +36,48 @@ def archive_legacy_subtitles(path):
     print(f'Archived old subtitle layer: {target}', flush=True)
 
 
+def sanitize_lyrics(text):
+    """Deterministically strip Genius/web-scraper ad banners, recommendation blocks, and embed tags."""
+    if not text:
+        return ''
+    lines = []
+    skip_block = False
+    for raw in str(text).replace('\r', '').split('\n'):
+        line = re.sub(r'\s+', ' ', raw).strip()
+        line = re.sub(r'\d*\s*Embed$', '', line, flags=re.I).strip()
+        if not lines and re.fullmatch(r'\d*\s*Contributors?|.*Lyrics', line, re.I):
+            continue
+        if re.search(r'\bYou might also like\b', line, re.I):
+            skip_block = True
+            continue
+        if re.search(r'See\s+.*\s+Live|Get tickets as low as', line, re.I):
+            skip_block = True
+            continue
+        if skip_block:
+            if re.match(r'^\s*\[.*\]\s*$', line):
+                skip_block = False
+            elif not line:
+                skip_block = False
+                continue
+            else:
+                continue
+        if re.fullmatch(r'\d*\s*Embed', line, re.I):
+            continue
+        if line or (lines and lines[-1]):
+            lines.append(line)
+    return '\n'.join(lines).strip()
+
+
 def lyrics_lines(path):
-    lines = [s.strip() for s in path.read_text(encoding="utf-8-sig").splitlines()]
+    raw = path.read_text(encoding="utf-8-sig")
+    cleaned = sanitize_lyrics(raw)
+    if cleaned != raw.strip():
+        try:
+            path.write_text(cleaned + '\n', encoding='utf-8')
+            print('Cleaned web scraping and recommendation artifacts from lyrics.', flush=True)
+        except OSError:
+            pass
+    lines = [s.strip() for s in cleaned.splitlines()]
     lines = [s for s in lines if s and not re.fullmatch(r"\[.*\]", s)]
     if not lines:
         raise ValueError("Lyrics contain no lines. Use UTF-8 text; section labels are ignored.")
@@ -428,7 +468,8 @@ def main(argv=None):
     parser.add_argument('--image-cache', type=Path, default=default_model_cache(), help='Model cache (default: KINETIC_LYRICS_MODEL_CACHE, else OLLAMA_MODELS or ~/.ollama/models)')
     parser.add_argument('--image-model', default='Qwen/Qwen-Image-2512', help='Local image repository (default: Qwen Image 2512)')
     parser.add_argument('--image-steps', type=int, default=None, help='Illustration inference steps (default: selected model recommendation)')
-    parser.add_argument('--image-seed', type=int, default=42)
+    parser.add_argument('--image-seed', '--seed', dest='image_seed', type=int, default=None,
+                        help='Model seed for image generation, prompts and layouts (default: random per run)')
     parser.add_argument('--validate-ocr', action='store_true', help='OCR one encoded frame per lyric line')
     parser.add_argument('--overwrite', action='store_true')
     parser.add_argument('--review-artwork', action='store_true', help='Wait for studio approval before rendering')
@@ -436,6 +477,10 @@ def main(argv=None):
     parser.add_argument('--no-default-style-references', action='store_true', help='Use only explicitly supplied style references')
     args = parser.parse_args(argv)
     args.preserve_art_slots = args.preserve_art_slots or args.review_artwork
+    if args.image_seed is None or args.image_seed < 0:
+        import secrets
+        args.image_seed = secrets.randbelow(2**31)
+    print(f'Model seed: {args.image_seed}', flush=True)
     if args.cinematic and args.renderer != 'editorial':
         parser.error('--cinematic requires --renderer editorial.')
     if args.illustration_lines != 'auto':
@@ -580,7 +625,7 @@ def main(argv=None):
                 print('Illustration panels: none (typography only).', flush=True)
             emit('direction', 0, message='Planning typography and motion')
             plan = (validate_plan(json.loads(args.plan.read_text(encoding='utf-8-sig')), data)
-                    if args.plan else direct(data, theme, args.theme, args.ai_model, args.director))
+                    if args.plan else direct(data, theme, args.theme, args.ai_model, args.director, seed=args.image_seed))
             if args.text_animation=='ai':
                 from animation_director import ensure_word_direction
                 plan=ensure_word_direction(data,plan,vars(args))

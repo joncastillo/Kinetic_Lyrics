@@ -73,14 +73,8 @@ def download_audio(value, folder):
 
 
 def clean_lyrics(value):
-    lines = []
-    for raw in str(value or '').replace('\r', '').split('\n'):
-        line = re.sub(r'\s+', ' ', raw).strip()
-        if re.fullmatch(r'\d*\s*Embed|You might also like|.*Lyrics', line, re.I):
-            continue
-        if line or (lines and lines[-1]):
-            lines.append(line)
-    return '\n'.join(lines).strip()
+    from kinetic_lyrics import sanitize_lyrics
+    return sanitize_lyrics(value)
 
 
 def lrclib_candidates(session, track):

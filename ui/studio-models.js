@@ -64,6 +64,27 @@ function setupModelControls(cfg){
  $('aiModel').addEventListener('change',()=>{$('gpuPreset').value='';scheduleModelDownloads()});
  $('visionModel').addEventListener('change',()=>{$('gpuPreset').value='';scheduleModelDownloads()});
  $('imageModel').addEventListener('change',()=>{$('gpuPreset').value='';scheduleModelDownloads()});
+ if($('rollSeed')){
+  $('rollSeed').onclick=()=>{
+   $('imageSeed').value=Math.floor(Math.random()*2147483647);
+   $('randomizeSeed').checked=false;
+  };
+  $('imageSeed').oninput=()=>{
+   if($('imageSeed').value.trim()!==''){
+    $('randomizeSeed').checked=false;
+   }else{
+    $('randomizeSeed').checked=true;
+   }
+  };
+  $('randomizeSeed').onchange=()=>{
+   if($('randomizeSeed').checked){
+    $('imageSeed').value='';
+    $('imageSeed').placeholder='Random (fresh per run)';
+   }else if(!$('imageSeed').value.trim()){
+    $('imageSeed').value=Math.floor(Math.random()*2147483647);
+   }
+  };
+ }
 }
 
 
