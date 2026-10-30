@@ -355,25 +355,25 @@ def load_pipeline(model, cache, torch, offload=False):
             if any(parameter.device.type!='cuda' for parameter in component.parameters()):
                 raise ValueError('Image weights must finish CUDA preparation before automatic offload hooks can be installed.')
     remaining, _ = gpu_memory.dedicated_memory(torch)
-    offload = offload or remaining < 3*2**30
-    if offload:
-        staged=[]
-        for name,component in pipe.components.items():
-            if name not in ('transformer','unet') and hasattr(component,'parameters'):
-                component.to('cpu');staged.append(name)
-        if staged:
-            gc.collect();torch.cuda.empty_cache()
-            print('Staged inactive components in RAM before image-layer preparation: '+', '.join(staged),flush=True)
+    if not spec.get('quantize'):
+        offload = offload or remaining < 3*2**30
+        if offload:
+            staged=[]
+            for name,component in pipe.components.items():
+                if name not in ('transformer','unet') and hasattr(component,'parameters'):
+                    component.to('cpu');staged.append(name)
+            if staged:
+                gc.collect();torch.cuda.empty_cache()
+                print('Staged inactive components in RAM before image-layer preparation: '+', '.join(staged),flush=True)
     if spec['pipeline']=='QwenImagePipeline':
         from qwen_precision import protect_image_modulation
         protect_image_modulation(pipe,model,cache,torch)
-    if not offload:
-        remaining, _ = gpu_memory.dedicated_memory(torch)
-        offload = remaining < 3*2**30
-    if offload:
-        pipe.reset_device_map()
-        pipe.enable_model_cpu_offload(gpu_id=torch.cuda.current_device(), device='cuda')
-        print('Automatic image offload enabled: inactive components use RAM; computation stays on CUDA.', flush=True)
+    if offload and not spec.get('quantize') and not getattr(pipe, 'hf_device_map', None):
+        try:
+            pipe.enable_model_cpu_offload(gpu_id=torch.cuda.current_device(), device='cuda')
+            print('Automatic image offload enabled: inactive components use RAM; computation stays on CUDA.', flush=True)
+        except Exception as exc:
+            print(f'Warning: Automatic image offload could not be installed ({exc}).', flush=True)
     pipe.vae.enable_tiling()
     if hasattr(pipe.vae,'enable_slicing'):pipe.vae.enable_slicing()
     return pipe, spec['guidance']

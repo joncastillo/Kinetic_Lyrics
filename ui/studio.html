@@ -403,10 +403,12 @@ renderGallery=function(s){
   if(!actions)continue;
   const old=actions.querySelector('.skip-verify');
   if(old)old.remove();
-  if(active?.current&&active.review?.validation_pending&&(['review','complete'].includes(s.status)||s.status==='cancelled'&&s.stage==='review')){
-   const skip=button('Skip verification',()=>action('skip-verify',{index:item.index,path:active.path}),!!s.action);
+  const needsOverride = active?.review?.validation_pending || active?.review?.lettering_pending || active?.review?.rejected;
+  if(active?.current&&needsOverride&&(['review','complete'].includes(s.status)||s.status==='cancelled'&&s.stage==='review')){
+   const label = active.review?.rejected ? 'Accept anyway' : 'Skip verification';
+   const skip=button(label,()=>action('skip-verify',{index:item.index,path:active.path}),!!s.action);
    skip.classList.add('skip-verify');
-   skip.title='Use this image without an AI review. Inspect it yourself before approval.';
+   skip.title='Accept this image and proceed to render.';
    actions.append(skip);
   }
   if(active?.review?.manual_skip){
