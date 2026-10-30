@@ -16,8 +16,10 @@ VISION_MODELS = [
     dict(id='qwen3-vl:30b', name='Qwen3 VL 30B A3B', vram_gib=24.0),
 ]
 
+
 def normalize(name):
     return name if ':' in name else name+':latest'
+
 
 def supports_prompting(name, metadata):
     """Keep VL specialists for scoring; general Qwen 3.5+ can also write text."""
@@ -27,6 +29,7 @@ def supports_prompting(name, metadata):
     details=metadata.get('details') or {}
     family=details.get('family') or metadata.get('model_info',{}).get('general.architecture')
     return family=='qwen35' and '-vl' not in name.lower()
+
 
 def model_choices(local_json,review=True):
     from models.gpu.presets import PRESETS, gpu_catalog
@@ -57,6 +60,7 @@ def model_choices(local_json,review=True):
     return dict(catalog,models=vision,vision_models=vision,prompt_models=text,
                 default_model=recommended['vision_model'],default_prompt_model=recommended['ai_model'])
 
+
 def pick_prompt_model(local_json):
     catalog=model_choices(local_json)
     recommended=catalog['default_prompt_model']
@@ -70,6 +74,7 @@ def pick_prompt_model(local_json):
                          'Vision models are reserved for image scoring.')
     return recommended
 
+
 def resolve_prompt_model(local_json, selected):
     """Resolve saved VL selections to a text model before any prompting."""
     if selected in ('', 'auto', None):
@@ -82,6 +87,7 @@ def resolve_prompt_model(local_json, selected):
     print(f'Text prompting: {selected} is reserved for image scoring; '
           f'using installed text model {alternative} for direction, prompts and revisions.', flush=True)
     return alternative
+
 
 def validate_selected_models(prompt,vision,review=True):
     from models.ollama.service import local_json

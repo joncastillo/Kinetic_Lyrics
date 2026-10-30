@@ -37,6 +37,7 @@ def rules_plan(data, theme):
                      emphasis=max(range(len(line['words'])), key=lambda j: len(line['words'][j]['text'])),
                      energy=.35 if quiet else .75) for i, line in enumerate(data)])
 
+
 def validate_plan(plan, data):
     if not isinstance(plan, dict) or not isinstance(plan.get('scenes'), list) or len(plan['scenes']) != len(data):
         raise ValueError('Art direction must contain exactly one scene per lyric line.')
@@ -65,6 +66,7 @@ DIRECTION_RETRY_DELAY = 10.
 
 DIRECTION_ATTEMPTS = ((None, 16384, 12000), (None, 16384, 12000), (12, 8192, 6000))
 
+
 def direction_schema(count):
     return {'type': 'object', 'properties': {
         'concept': {'type': 'string'},
@@ -82,6 +84,7 @@ def direction_schema(count):
                 'required': ['camera', 'mode', 'style', 'palette', 'font', 'align', 'background', 'emphasis', 'energy'],
                 'additionalProperties': False}}},
         'required': ['concept', 'scenes'], 'additionalProperties': False}
+
 
 def direction_brief(prompt):
     return ('Act as a motion design art director for a polished lyric video. '
@@ -107,6 +110,7 @@ def direction_brief(prompt):
             'You only have lyrics and word timing, not audio analysis; use phrasing and text meaning. '
             f'User direction: {prompt}')
 
+
 def request_direction(data, prompt, model, num_ctx, num_predict, chunk=None):
     """One schema-bound plan, optionally requested in consecutive line chunks."""
     from models.ollama.gpu import gpu_chat
@@ -130,6 +134,7 @@ def request_direction(data, prompt, model, num_ctx, num_predict, chunk=None):
         scenes += result['scenes']
     return dict(concept=concept or 'Editorial lyric arc', scenes=scenes)
 
+
 def bounded_plan(plan, data):
     adjusted = energy_adjusted = 0
     for scene, line in zip(plan['scenes'], data):
@@ -147,6 +152,7 @@ def bounded_plan(plan, data):
     if energy_adjusted:
         print(f'Bound {energy_adjusted} AI energy value(s) to the supported 0–1 range.', flush=True)
     return validate_plan(plan, data)
+
 
 def direct(data, theme, prompt, model='auto', director='ollama'):
     """AI art direction that recovers from runner crashes and bad output without a human."""

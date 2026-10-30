@@ -14,6 +14,7 @@ def whisper_model(args):
     return stable_whisper.load_model(args.model, device=args.device,
         download_root=str((Path(getattr(args,'image_cache',None) or PROJECT_ROOT/'.cache')/'speech'/'whisper').resolve()))
 
+
 def release_whisper_memory():
     import gc
     gc.collect()

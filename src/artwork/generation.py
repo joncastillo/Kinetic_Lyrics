@@ -30,6 +30,7 @@ def run_job(manifest, cache):
     with FileLock(str(PROJECT_ROOT/'.image-generation.lock'), timeout=-1):
         return _run_job(manifest, Path(cache).expanduser().resolve())
 
+
 def _run_job(manifest, cache):
     cache.mkdir(parents=True, exist_ok=True)
     os.environ['HF_HOME'] = str(cache)

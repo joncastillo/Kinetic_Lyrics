@@ -29,6 +29,7 @@ def repair_zero_durations(data, duration):
         print(f'Warning: repaired {repaired} zero-duration aligned word(s). '
               'Review the generated timings JSON for synchronization.', file=sys.stderr)
 
+
 def validate(data, lines, duration):
     if len(data) != len(lines):
         raise ValueError("Timing file must have one entry per lyric line.")

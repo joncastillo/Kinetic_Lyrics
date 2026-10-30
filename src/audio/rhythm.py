@@ -10,6 +10,7 @@ VERSION = 1
 
 SAMPLE_RATE = 22050
 
+
 def onsets(path):
     """[time, strength 0..1] for each onset in a stem; strength is the song-relative rank."""
     import librosa
@@ -28,6 +29,7 @@ def onsets(path):
     times = librosa.frames_to_time(frames, sr=SAMPLE_RATE)
     return [[round(float(t), 3), round(float(r), 3)] for t, r in zip(times, ranks)]
 
+
 def ensure_rhythm(audio, folder):
     folder = Path(folder)
     target = folder/'video.rhythm.json'
@@ -44,11 +46,13 @@ def ensure_rhythm(audio, folder):
     target.write_text(json.dumps(result), encoding='utf-8')
     return result
 
+
 def rhythm_for(folder):
     try:
         return json.loads((Path(folder)/'video.rhythm.json').read_text(encoding='utf-8'))
     except (OSError, ValueError):
         return None
+
 
 def envelope(events, t, decay, window=1.):
     """Strongest decaying pulse from events at or just before t (events sorted by time)."""

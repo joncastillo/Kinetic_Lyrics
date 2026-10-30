@@ -22,6 +22,7 @@ def vocal_stem(audio, folder):
         stems[0].replace(target)
     return target
 
+
 def separate(audio, folder):
     """Four Demucs stems cached in the project's stems/ folder, or None when unavailable."""
     target = Path(folder)/'stems'

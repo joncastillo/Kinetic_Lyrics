@@ -20,12 +20,15 @@ def archive_legacy_subtitles(path):
     path.rename(target)
     print(f'Archived old subtitle layer: {target}', flush=True)
 
+
 def timestamp(t):
     cs = max(0, round(t * 100))
     return f"{cs // 360000}:{cs // 6000 % 60:02}:{cs // 100 % 60:02}.{cs % 100:02}"
 
+
 def escape(text):
     return text.replace('\\', '／').replace('{', '｛').replace('}', '｝').replace('\n', ' ')
+
 
 def write_ass(path, data, duration, width, height, theme, font_path=None):
     from PIL import ImageFont
@@ -123,6 +126,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 events.append(f"Dialogue: 0,{timestamp(start)},{timestamp(end)},Lyric,,0,0,0,,{{{tags}}}{escape(word['text'])}\n")
                 x += length + space
     path.write_text(header + ''.join(events), encoding='utf-8-sig')
+
 
 def render_subtitles(audio, output, ass_path, data, duration, theme, args):
     """The legacy renderer: ASS subtitle animation burned over a plain or photo background."""

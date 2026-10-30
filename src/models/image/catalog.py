@@ -8,6 +8,7 @@ MODELS = [
     dict(id='black-forest-labs/FLUX.1-schnell', name='FLUX.1 Schnell', pipeline='FluxPipeline', steps=4, guidance=0., references=False, quantize=['transformer','text_encoder_2'], vram_gib=14, disk_gb=40, license='Apache 2.0 / gated', description='Fast alternative with 4-bit loading. Written style only.'),
 ]
 
+
 def model_spec(model):
     for spec in MODELS:
         if spec['id'] == model:

@@ -9,16 +9,19 @@ SUSTAIN_DB = 15.
 
 ONSET_VERSION = 2
 
+
 def read_mono(path):
     import soundfile
     samples, rate = soundfile.read(str(path))
     return (samples.mean(1) if samples.ndim > 1 else samples), rate
+
 
 def loudness(samples, rate):
     hop = int(rate*.01)
     frames = len(samples)//hop
     rms = np.sqrt(np.mean(samples[:frames*hop].reshape(frames, hop)**2, 1))
     return np.convolve(20*np.log10(rms+1e-6), np.ones(3)/3, 'same')
+
 
 def rising_edge(db, floor, start, end):
     """Strongest jump into sustained singing inside the aligned word, in seconds, or None."""
@@ -30,6 +33,7 @@ def rising_edge(db, floor, start, end):
         if rise > best and db[k+8:k+20].min() > floor+SUSTAIN_DB:
             best, at = rise, k
     return None if at is None else (at+5)/100
+
 
 def syllable_onset(samples, rate, start, end):
     """Strongest spectral onset inside the word: a new syllable even when singing never paused."""
@@ -45,6 +49,7 @@ def syllable_onset(samples, rate, start, end):
     if not len(flux) or flux.max() <= 0:
         return None
     return (first+int(np.argmax(flux >= .6*flux.max())))/100
+
 
 def refine_line_starts(data, audio, folder):
     """Aligners often stretch a line's first word back over the silence before it. Returns lines moved."""

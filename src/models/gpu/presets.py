@@ -14,6 +14,7 @@ PRESETS = [
     dict(vram_gib=32, image_model=QWEN_IMAGE, ai_model='qwen3:32b', vision_model='qwen3-vl:30b'),
 ]
 
+
 def gpu_catalog(installed=(), running=(), review=True):
     """Return hardware and explicit presets without modifying model residency."""
     from models.image.catalog import model_spec

@@ -33,6 +33,7 @@ def transcribe(audio, args):
     print('Whisper lyrics are an estimate: review the saved .lyrics.txt and .timings.json.', flush=True)
     return data
 
+
 def align(audio, lines, args):
     from models.speech.catalog import ALIGN_LANGUAGES, qwen_alignment
     import copy
