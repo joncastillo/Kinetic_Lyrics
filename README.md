@@ -32,6 +32,13 @@ instead. Timings, audio analysis and artwork are saved in the project folder, so
 rebuild after the user swaps an image reuses them instead of starting again from
 scratch.
 
+These steps run as a [LangGraph](https://langchain-ai.github.io/langgraph/) state graph
+(`src/pipeline_graph.py`). After each step the graph saves its progress to
+`<video>.graph.sqlite` in the project folder. If a run fails, starting it again with
+`--resume` continues from the step that failed. Studio does this automatically when it
+recovers a failed job. The artwork review is a pause in the graph: the run waits there
+until the user approves the illustrations, and then carries on.
+
 ## Requirements
 
 - Windows with an NVIDIA CUDA GPU. 24 GB of VRAM is recommended.
@@ -124,6 +131,24 @@ Before the video renders, the user reviews each illustration and can replace or 
 that do not fit. After a video is finished, the user can swap a single image and
 rebuild only the parts that changed, and earlier exports remain available.
 
+### Timeline editor
+
+If some words come out of sync, the user can fix them in Studio's **Timeline editor**, which
+appears once a video is finished. It shows the illustrations, the lyric lines and each word
+above the waveforms of the full mix and of the separated vocals, drums, bass and other
+instruments, so the user can see where each word is really sung. The colour of each waveform
+can be changed, and any of them can be played on its own.
+
+- Drag a word to move it, or drag its edges to change when it starts and ends. Drag a line to
+  move all its words together. Holding Shift moves everything after it as well, which fixes a
+  song that drifts out of sync from one point onwards.
+- Drag an illustration to change when it appears.
+- Double-click a word or a line to correct its text. Each line keeps the same number of words.
+- Press T while the song plays to set the selected word to start at the playhead.
+
+**Save & rebuild video** writes the new timing and renders the video again. The edits are kept
+in `video.timings.json`, `lyrics.txt` and `video.art-times.json` in the project folder.
+
 ## Command line
 
 A video can also be made without opening Studio:
@@ -139,6 +164,8 @@ Some useful options:
   makes a typography-only video.
 - `--illustration-lines N` sets how many lyric lines share each illustration;
   `--illustration-lines auto` asks the local text model after alignment.
+- `--artwork-mode cutout|fullscreen|verse|matte` chooses the artwork layout. `matte`
+  is greenscreen scenery (see below).
 - `--audio-mode karaoke` exports the instrumental mix while retaining the original
   audio for timing and stem analysis.
 - `--language tl` sets the lyric language.
@@ -147,8 +174,32 @@ Some useful options:
 - `--reading-flow realtime|preview` chooses how words appear (see below).
 - `--kinetic '{...}'` and `--effect-speeds '{"glass-shatter": 0.5}'` fine-tune the
   motion and set the speed of individual effects.
+- `--resume` continues an interrupted run from its last completed step.
 
 Run `kinetic-lyrics.cmd --help` to see every option.
+
+## Greenscreen scenery
+
+The `matte` artwork mode ("Greenscreen scenery with lyrics in the sky" in Studio) builds
+each scene from two generated images instead of one:
+
+1. A scenery painting with a horizon or skyline (hills, water, rooftops, trees) and no
+   main character. Everything above the skyline is painted flat chroma-key green.
+2. A plain painting of the sky that belongs above that scenery, with the same light and
+   palette.
+
+The green is keyed out into a matte, and the finished artwork is the plain sky seen
+through the scenery. When the video renders, the plain sky goes down first, the kinetic
+typography is drawn on it, and the keyed scenery is laid over both. The lyrics can only
+be seen where the green was, so a word that runs past the skyline disappears behind the
+land. Lines are placed inside the open sky, and while two scenes blend the scenery of
+both covers the lyrics. With a panning camera the camera travels along the horizon.
+
+If a generated scenery has too little green sky, it is retried with a new seed and then
+flagged for review. The matte is stored inside the artwork PNG, so selecting, archiving
+or repairing an image keeps it. A replacement image without a stored matte uses its own
+transparency as the sky, or keys any chroma green it contains. With neither, the whole
+replacement image is treated as the sky.
 
 ## Real-time kinetic flow
 
