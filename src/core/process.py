@@ -8,7 +8,8 @@ from core.paths import SRC_ROOT
 
 
 def run(command):
-    return subprocess.run(command, check=True, capture_output=True, text=True).stdout
+    return subprocess.run(command, check=True, capture_output=True, text=True,
+                          encoding='utf-8', errors='replace').stdout
 
 
 def module_command(module, *args, python=None):

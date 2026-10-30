@@ -32,7 +32,7 @@ from core.progress import emit
 
 APPROVAL = 'artwork-approved'
 # Step results that the step functions read back from the command-line options.
-CARRIED = ('melody', 'rhythm', 'illustrations', 'review_artwork', 'image_seed', 'illustration_lines')
+CARRIED = ('melody', 'rhythm', 'illustrations', 'review_artwork', 'image_seed', 'illustration_lines', 'instruments_found')
 
 
 class PipelineState(TypedDict, total=False):
@@ -49,6 +49,7 @@ class PipelineState(TypedDict, total=False):
     review_artwork: bool
     image_seed: int
     illustration_lines: int
+    instruments_found: Optional[list]
     plan: dict
     replacements_pending: bool
 
@@ -107,8 +108,10 @@ def align(state, runtime: Runtime[Run]):
         lines = [line['text'] for line in data]
         if not lines:
             raise ValueError('No lyric lines were found in the timing data.')
-    if not args.timings:
-        repair_zero_durations(data, state['duration'])
+    repaired = repair_zero_durations(data, state['duration'])
+    timings = paths(state)['timings']
+    if args.timings and repaired and timings.exists():
+        timings.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
     validate(data, lines, state['duration'])
     return dict(data=data, lines=lines)
 
@@ -125,11 +128,28 @@ def analyse(state, runtime: Runtime[Run]):
     melody = ensure_melody(data, output.parent)
     from audio.rhythm import ensure_rhythm
     rhythm = ensure_rhythm(Path(state['audio']), output.parent)
+    found = None
+    if getattr(args, 'instruments', 'off') != 'off':
+        from audio.instruments import ensure_instruments
+        found = ensure_instruments(Path(state['audio']), output.parent, state['duration'], getattr(args, 'image_cache', None))
     if moved:
         print(f'Moved {moved} line start(s) to the measured vocal onset.', flush=True)
+        from pipeline.timing import repair_zero_durations, validate
+        repair_zero_durations(data, state['duration'])
+        validate(data, lines, state['duration'])
         files['timings'].write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
     from direction.song_structure import annotate_sections
     annotate_sections(data, args.lyrics)
+    if args.illustration_lines == 'auto':
+        from direction.image_grouping import estimate_lines
+        emit('direction', 0, message='Choosing how many lyric lines each image should cover')
+        args.illustration_lines = estimate_lines(data, args.ai_model)
+        studio_config = output.parent/'config.json'
+        if studio_config.is_file():
+            saved = json.loads(studio_config.read_text(encoding='utf-8'))
+            saved['illustration_lines'] = args.illustration_lines
+            saved['illustration_lines_mode'] = 'auto'
+            studio_config.write_text(json.dumps(saved, indent=2), encoding='utf-8')
     emit('alignment', 1, message='Lyric timing validated')
     theme = theme_for(args.theme)
     print(f"Theme: {theme['name']}; {len(lines)} lines; {state['duration']:.1f}s", flush=True)
@@ -140,7 +160,8 @@ def analyse(state, runtime: Runtime[Run]):
     if not args.timings:
         files['timings'].write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
     files['theme'].write_text(json.dumps(dict(prompt=args.theme, cinematic=args.cinematic, **theme), indent=2), encoding='utf-8')
-    return dict(data=data, theme=theme, melody=melody, rhythm=rhythm)
+    return dict(data=data, theme=theme, melody=melody, rhythm=rhythm, instruments_found=found,
+                illustration_lines=args.illustration_lines)
 
 
 def renderer(state, runtime: Runtime[Run]):
@@ -185,7 +206,7 @@ def direct(state, runtime: Runtime[Run]):
     from direction.typography import direct as plan_typography, validate_plan
     emit('direction', 0, message='Planning typography and motion')
     plan = (validate_plan(json.loads(args.plan.read_text(encoding='utf-8-sig')), data)
-            if args.plan else plan_typography(data, state['theme'], args.theme, args.ai_model, args.director))
+            if args.plan else plan_typography(data, state['theme'], args.theme, args.ai_model, args.director, seed=args.image_seed))
     if args.text_animation == 'ai':
         from direction.animation import ensure_word_direction
         plan = ensure_word_direction(data, plan, vars(args))

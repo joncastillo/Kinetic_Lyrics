@@ -131,6 +131,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 def render_subtitles(audio, output, ass_path, data, duration, theme, args):
     """The legacy renderer: ASS subtitle animation burned over a plain or photo background."""
     write_ass(ass_path, data, duration, args.width, args.height, theme, args.font)
+    from audio.rhythm import audio_for_mode
+    export_audio = audio_for_mode(audio, output.parent, args.audio_mode)
     with tempfile.TemporaryDirectory(prefix='kinetic-', dir=output.parent) as temp:
         temp = Path(temp)
         shutil.copyfile(ass_path, temp / 'lyrics.ass')
@@ -151,7 +153,7 @@ def render_subtitles(audio, output, ass_path, data, duration, theme, args):
                     if args.encoder == 'h264_nvenc' else
                     ['-c:v', 'libx264', '-preset', 'medium', '-crf', '18'])
         command = ['ffmpeg', '-hide_banner', '-loglevel', 'warning', '-y', *source,
-                   '-i', str(audio), '-map', '0:v:0', '-map', '1:a:0',
+                   '-i', str(export_audio), '-map', '0:v:0', '-map', '1:a:0',
                    '-vf', base_filter + 'ass=lyrics.ass' + fonts + ',scale=out_color_matrix=bt709:out_range=tv', '-t', str(duration),
                    *encoding, '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv', '-pix_fmt', 'yuv420p',
                    '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', str(temp / 'video.mp4')]

@@ -111,7 +111,7 @@ def direction_brief(prompt):
             f'User direction: {prompt}')
 
 
-def request_direction(data, prompt, model, num_ctx, num_predict, chunk=None):
+def request_direction(data, prompt, model, num_ctx, num_predict, chunk=None, seed=None):
     """One schema-bound plan, optionally requested in consecutive line chunks."""
     from models.ollama.gpu import gpu_chat
     size = chunk or len(data)
@@ -121,8 +121,11 @@ def request_direction(data, prompt, model, num_ctx, num_predict, chunk=None):
         brief = direction_brief(prompt)
         if chunk:
             brief += f' This request covers lines {first} to {first+len(part)-1} of {len(data)}; keep the arc consistent with a full song.'
+        options = dict(temperature=.55, num_ctx=num_ctx, num_predict=num_predict)
+        if seed is not None:
+            options['seed'] = int(seed % (2**31))
         response = gpu_chat('chat', dict(model=model, stream=False, think=False,
-            keep_alive=0, format=direction_schema(len(part)), options=dict(temperature=.55, num_ctx=num_ctx, num_predict=num_predict),
+            keep_alive=0, format=direction_schema(len(part)), options=options,
             messages=[dict(role='system', content=brief), dict(role='user', content=json.dumps([
                 dict(line=first+i, words=[w['text'] for w in line['words']],
                      start=line['words'][0]['start'], end=line['words'][-1]['end'])
@@ -154,7 +157,7 @@ def bounded_plan(plan, data):
     return validate_plan(plan, data)
 
 
-def direct(data, theme, prompt, model='auto', director='ollama'):
+def direct(data, theme, prompt, model='auto', director='ollama', seed=None):
     """AI art direction that recovers from runner crashes and bad output without a human."""
     if director == 'rules':
         return rules_plan(data, theme)
@@ -168,7 +171,7 @@ def direct(data, theme, prompt, model='auto', director='ollama'):
         print(f'AI art direction: {model}; planning {len(data)} scenes locally...', flush=True)
         for attempt, (chunk, num_ctx, num_predict) in enumerate(DIRECTION_ATTEMPTS, 1):
             try:
-                plan = bounded_plan(request_direction(data, prompt, model, num_ctx, num_predict, chunk), data)
+                plan = bounded_plan(request_direction(data, prompt, model, num_ctx, num_predict, chunk, seed=seed), data)
                 plan.update(version=1, director='ollama', model=model)
                 return plan
             except (urllib.error.URLError, OSError, KeyError, ValueError, json.JSONDecodeError) as exc:

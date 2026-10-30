@@ -10,7 +10,7 @@ from pathlib import Path
 from core.paths import PROJECT_ROOT
 import random
 
-from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFilter
+from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFilter, ImageOps
 from effects.particles.materials import make_material, blend_material
 from effects.particles.morph import prepare_morph
 from effects.particles.choreography import dynamics, terminal_particles, entrance_opacity
@@ -25,6 +25,23 @@ class Fragment:
     material: Image.Image | None = None
     morph: object = None
     children: tuple = ()
+
+
+def paint_letter_outline(layer, sprite, x, y, progress, cache=None):
+    """Keep organic material lettering legible without darkening its colored fill."""
+    if progress <= 0:
+        return
+    width = max(2, min(6, round(sprite.height * .02)))
+    key = ('organic-letter-outline-v1', sprite_key(sprite), width)
+    mask = cache.get(key) if cache is not None else None
+    if mask is None:
+        glyph = ImageOps.expand(sprite.getchannel('A'), border=width)
+        mask = ImageChops.subtract(glyph.filter(ImageFilter.MaxFilter(width * 2 + 1)), glyph)
+        if cache is not None:
+            cache[key] = mask
+    outline = Image.new('RGBA', mask.size, (0, 0, 0, 255))
+    outline.putalpha(mask.point(lambda alpha: round(alpha * entrance_opacity(progress))))
+    layer.alpha_composite(outline, (round(x) - width, round(y) - width))
 
 
 def _glass_children(image, seed):
@@ -375,6 +392,10 @@ def paint_transition(
     measured = measured_pacing(phase, effect) if paced else None
     if measured:
         amount = 1-warp(1-amount, measured, READABLE_AT) if phase == 'entrance' else warp(amount, measured, GONE_AT)
+    if phase == 'entrance' and intensity > 0 and (effect.family == 'petals' or effect.id in
+            ('jeweled-brocade-lettering', 'luminous-coral-lettering', 'bamboo-lettering',
+             'catholic-cross-lettering')):
+        paint_letter_outline(layer, sprite, x, y, 1-amount, cache)
     if phase=='entrance' and effect.trajectory=='grow' and intensity>0:
         if effect.family=='petals':
             from effects.growth.botanical import paint_growth, grown_sprite
@@ -407,6 +428,10 @@ def paint_transition(
         layer.alpha_composite(sprite, (round(x), round(y)))
         return
     if amount >= 1:
+        return
+    if effect.family == 'material':
+        from effects.materials.fx import paint
+        paint(layer, sprite, x, y, phase, amount if phase == 'exit' else 1-amount, effect, seed, intensity, cache)
         return
     if effect.family == 'cinematic':
         from effects.particles.cinematic import paint_cinematic

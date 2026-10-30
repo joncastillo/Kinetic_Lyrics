@@ -32,7 +32,8 @@ def generate(data, folder, args):
                 args.style_reference, args.image_steps, args.image_seed,
                 args.style_prompt+' Visual mood and materials: '+getattr(args,'theme',''), args.ai_model)
     layout_args = dict(width=getattr(args, 'width', 1920), height=getattr(args, 'height', 1080),
-                       cinematic=getattr(args, 'cinematic', False), artwork_mode=getattr(args, 'artwork_mode', 'cutout'))
+                       cinematic=getattr(args, 'cinematic', False), artwork_mode=getattr(args, 'artwork_mode', 'cutout'),
+                       image_instructions=getattr(args, 'image_instructions', ''))
     manifest = prepare_job(*job_args, lookup_only=True, **layout_args)
     if manifest.exists():
         job = json.loads(manifest.read_text(encoding='utf-8'))

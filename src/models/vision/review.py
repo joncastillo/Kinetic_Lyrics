@@ -60,6 +60,7 @@ def vision_review(image, model, lyrics, prompt, subject="", threshold=DEFAULT_TH
         '- Apply a SEVERE, HIGH PENALTY (score must drop below 35, triggering rejection) ONLY for: '
         '  * Extra digits (6 or more fingers on a hand, extra thumbs, duplicate fingers, polydactyly) '
         '  * Abnormal appendages (extra arms, extra legs, extra hands, duplicated limbs, disconnected floating body parts) '
+        '  * One body that mixes male and female sex characteristics, such as a woman with a moustache, beard or stubble, a beard combined with breasts, or exposed genitals '
         '  * Clearly legible unwanted lettering, words, numbers or logos in the generated image. Do not mistake decorative strokes for letters. '
         '- A missing focal subject, unrelated scene or severely cropped important subject is a substantial defect and should score below 50. '
         '- Clearly impossible construction or physical relationships central to the subject are substantial defects and should score below 50. '

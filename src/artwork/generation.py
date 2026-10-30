@@ -13,7 +13,8 @@ from core.paths import PROJECT_ROOT
 import shutil
 from PIL import Image
 from core.progress import emit, diffusion_callback
-from direction.illustration_prompts import subject_kind
+from direction.illustration_prompts import subject_kind, uses_reference, with_reference_role
+from models.image.catalog import model_spec
 from models.image.pipeline import inference_options, load_pipeline, release_pipeline
 from models.matting.cutout import remove_negative_space
 from models.ocr.lettering import detected_lettering
@@ -104,10 +105,10 @@ def _run_job(manifest, cache):
             layout = dict(job['layouts'][i])
             from models.image.catalog import image_dimensions
             layout['image_width'],layout['image_height'] = image_dimensions(layout['image_width'],layout['image_height'],min(total,gpu_memory.dedicated_memory(torch)[0]+torch.cuda.memory_reserved())/2**30)
-            reference_input = references if job.get('artwork_mode') not in ('verse', 'matte') and subject_kind(job['visual_descriptions'][i]) != 'object' else []
+            reference_input = references if model_spec(model)['references'] and uses_reference(job.get('artwork_mode'), job['visual_descriptions'][i]) else []
             best_path=None;best_lettering=None;best_rank=None
             for attempt in range(3):
-                retry_prompt=job['prompts'][i]
+                retry_prompt=with_reference_role(job['prompts'][i]) if reference_input else job['prompts'][i]
                 if attempt and manifest.parent.parent.name=='video.artwork':
                     retry_prompt+=' Replace any written sign or neon lettering with unlettered geometric light tubes. All signs, screens, walls and panels are completely blank. No alphabetic marks, captions, numerals or logos anywhere.'
                 if attempt and matte:

@@ -15,7 +15,7 @@ from core.progress import emit
 def keyframe_times(video):
     probe = json.loads(subprocess.check_output(['ffprobe','-v','error','-select_streams','v:0',
         '-skip_frame','nokey','-show_frames','-show_entries','frame=best_effort_timestamp_time',
-        '-of','json',str(video)],text=True))
+        '-of','json',str(video)],text=True,encoding='utf-8',errors='replace'))
     return [float(f['best_effort_timestamp_time']) for f in probe.get('frames',[]) if 'best_effort_timestamp_time' in f]
 
 
@@ -63,6 +63,10 @@ def generate_candidate(root, job, index, cache, prompt):
     for key in ('prompts','plate_prompts','layouts','visual_descriptions','reference_modes','groups'):
         if key in candidate_job:candidate_job[key]=[candidate_job[key][index]]
     candidate_job['seed']+=time.time_ns()%1000000
+    from models.image.catalog import model_spec, selected_model
+    config_path=root/'config.json'
+    model=selected_model(job,json.loads(config_path.read_text(encoding='utf-8')) if config_path.is_file() else {})
+    if model!=job['model']:candidate_job.update(model=model,steps=model_spec(model)['steps'])
     if prompt.strip():candidate_job['prompts'][0]=prompt.strip()
     manifest=folder/'illustrations.json'
     manifest.write_text(json.dumps(candidate_job,indent=2),encoding='utf-8')
@@ -143,7 +147,8 @@ def main():
             (args.folder/'video.design.json').write_text(json.dumps(plan,ensure_ascii=False,indent=2),encoding='utf-8')
         video = args.folder/'video.mp4'
         duration = float(subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries',
-            'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', str(video)], text=True))
+            'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', str(video)],
+            text=True, encoding='utf-8', errors='replace'))
         illustrations = [manifest.parent/f'{i:03d}.png' for i in range(len(job['prompts']))]
         from render.realtime import melody_for
         from audio.rhythm import rhythm_for
@@ -155,9 +160,11 @@ def main():
             font=None, background=None, lead_in=1., illustrations=illustrations, **typography_options(config),
             artwork_mode=config.get('artwork_mode','cutout'), image_seed=config.get('image_seed',42),
             illustration_lines=config['illustration_lines'], cinematic=config['cinematic'], encoder=config['encoder'], preserve_art_slots=True,
-            text_animation=config.get('text_animation','directed'), entrance_pool=config.get('entrance_pool'), exit_pool=config.get('exit_pool'),
+            text_animation=config.get('text_animation','directed'), audio_mode=config.get('audio_mode','original'), entrance_pool=config.get('entrance_pool'), exit_pool=config.get('exit_pool'),
             entrance_effect=config.get('entrance_effect'), exit_effect=config.get('exit_effect'),
-            type_effect=config.get('type_effect','none'), particle_intensity=config.get('particle_intensity',1.), particle_speed=config.get('particle_speed',1.))
+            type_effect=config.get('type_effect','none'), particle_intensity=config.get('particle_intensity',1.), particle_speed=config.get('particle_speed',1.),
+            stage_pictures=config.get('stage_pictures','ai-painted'), ai_model=config.get('ai_model','auto'), image_model=config.get('image_model'),
+            image_cache=config.get('image_cache'), style_prompt=config.get('style_prompt',''))
         if args.action == 'rerender':
             updated = args.folder/'rerendered.mp4'
             render(Path(config['audio']), updated, data, plan, duration, options)

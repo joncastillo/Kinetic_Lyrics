@@ -125,6 +125,26 @@ class ModelSession:
             self.release()
             print('Image batch complete; released image weights before the validation batch.',flush=True)
 
+    def before_prompting(self, model):
+        """Make room for the prompt model, unloading vision before the costlier image weights."""
+        if self.phase == ('prompting',model):return
+        self.phase = ('prompting',model)
+        from models.ollama.service import local_json
+        from models.ollama.catalog import budget_for_model
+        required=budget_for_model(model,local_json('tags').get('models',[]))+.5*GIB
+        def free():
+            if self.torch is None:return 0
+            self.torch.cuda.empty_cache()
+            return gpu_memory.dedicated_memory(self.torch)[0]
+        if self.pipe is None or free()<required:
+            self.unload_vision()
+        if self.pipe is None:return
+        if free()>=required:
+            print('Image and prompt models fit together; retaining image weights.',flush=True)
+        else:
+            self.release()
+            print('Released image weights to fit the prompt model.',flush=True)
+
     def unload_vision(self):
         from models.ollama.gpu import unload_model
         for name in sorted(self.vision_models):unload_model(name)

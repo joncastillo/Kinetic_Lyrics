@@ -39,10 +39,15 @@ def request_subjects(local_json, payload, batch_size=6, max_words=60, avoid_repe
         schema.update(minItems=len(batch), maxItems=len(batch))
         query['messages'][1]['content'] = json.dumps(batch)
         query['think'] = False
-        budget = 4096 if retry else 6144
-        query['options'] = {**query.get('options', {}), 'temperature': 0, 'num_predict': budget}
+        # About three tokens per allowed word covers long descriptions plus JSON overhead.
+        budget = max(4096, len(batch)*max_words*3)
+        if not retry:
+            budget = budget*3//2
+        options = query.get('options', {})
+        query['options'] = {**options, 'temperature': options.get('temperature', 0), 'num_predict': budget,
+                            'num_ctx': max(options.get('num_ctx', 8192), budget+4096)}
         query['messages'][0]['content'] += (
-            f' Keep each description concise: at most {max_words} words.'
+            f' Keep each description to at most {max_words} words.'
             f' Return only one JSON object with exactly {len(batch)} subjects in input order.'
             ' Write the final JSON directly, without analysis, commentary or Markdown.'
             ' JSON schema: '+json.dumps(query['format'], separators=(',', ':')))
@@ -65,7 +70,7 @@ def request_subjects(local_json, payload, batch_size=6, max_words=60, avoid_repe
                 return request(batch[:middle]) + request(batch[middle:])
             if retry:
                 print(f'{model}: {exc}; retrying once with a direct JSON instruction '
-                      'and 6144 output tokens (thinking requested off)', flush=True)
+                      'and a larger output budget (thinking requested off)', flush=True)
                 return request(batch, retry=False)
             raise ValueError('Illustration director returned incomplete or invalid JSON after retries. '
                              f'{model}: {exc}. Select an installed non-thinking/instruct text model '
@@ -118,10 +123,52 @@ def repair_duplicate_subjects(local_json, payload, subjects, max_rounds=2):
         query['messages'].append(dict(role='user', content=(
             'Keep these other scenes unchanged and avoid repeating any of them: '
             +json.dumps(list(dict.fromkeys(result))))))
+        query['options'] = {**query.get('options', {}), 'temperature': 0.75}
         replacements = request_subjects(local_json, query)
         for index, replacement in zip(repeated, replacements):
             result[index] = replacement
-    if repeated_indices():
-        raise ValueError('Illustration director still repeated scenes after two automatic '
-                         'revision attempts. Choose another text prompting model and retry.')
+    remaining = repeated_indices()
+    if remaining:
+        print(f'Applied visual perspective variations to {len(remaining)} scene(s) to resolve remaining duplicates.', flush=True)
+        perspectives = [
+            ' Viewed from an extreme low angle looking upward, with dramatic chiaroscuro shadows and expressive edge rim lighting.',
+            ' Framed as an intimate cinematic close-up with soft atmospheric depth-of-field and warm directional light.',
+            ' Captured in an expansive wide establishing perspective with moody mist, deep cool ambient backlight, and rich environmental details.',
+            ' Seen from a high overhead vantage point, revealing geometric patterns and striking contrast between light and dark silhouettes.',
+            ' Rendered with intense side-lighting, long raking cast shadows, and vivid atmospheric contrast.'
+        ]
+        seen_all = {normalized(result[idx]) for idx in fixed}
+        for i, idx in enumerate(remaining):
+            variation = perspectives[i % len(perspectives)]
+            candidate = result[idx].rstrip('. ') + '.' + variation
+            if normalized(candidate) in seen_all:
+                candidate = candidate.rstrip('. ') + f' (Perspective alternative {i+1}).'
+            result[idx] = candidate
+            seen_all.add(normalized(candidate))
+    return result
+
+
+def lengthen_short_subjects(local_json, payload, subjects, minimum, max_words, max_rounds=2):
+    """Send scenes shorter than the requested length back to be expanded with more detail of the same scene."""
+    inputs = json.loads(payload['messages'][1]['content'])
+    result = list(subjects)
+    for attempt in range(max_rounds):
+        short = [index for index, subject in enumerate(result) if len(subject.split()) < minimum]
+        if not short:
+            break
+        print(f'Expanding {len(short)} short scene description(s) to at least {minimum} words '
+              f'(attempt {attempt+1}/{max_rounds}).', flush=True)
+        query = copy.deepcopy(payload)
+        query['messages'][0]['content'] += (
+            f' These scene descriptions are too short. Rewrite each as a long, richly detailed description of at '
+            f'least {minimum} words. Keep the same subject, action, setting and meaning, and add concrete visible '
+            'detail: the arrangement of foreground, middle ground and background, materials and textures, clothing, '
+            'gestures and expressions, light direction and colour, weather and atmosphere. Do not add new events or '
+            'people that the lyric does not support.')
+        query['messages'][1]['content'] = json.dumps([
+            dict(scene=inputs[index], previous_description=result[index]) for index in short])
+        expanded = request_subjects(local_json, query, batch_size=2, max_words=max_words, avoid_repeats=False)
+        for index, subject in zip(short, expanded):
+            if len(subject.split()) > len(result[index].split()):
+                result[index] = subject
     return result

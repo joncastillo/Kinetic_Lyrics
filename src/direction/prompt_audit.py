@@ -34,7 +34,11 @@ def audit_prompts(request,model,groups,subjects,prompts,layouts,mode='cutout'):
           if mode=='fullscreen' else
           'These are cutout illustrations. Keep the subject and essential immediate supporting scene on '
           'a uniform removable background. Do not erase essential props, surfaces or cast shadows from the described subject. ')
-        +'Keep each complete image prompt clear and concise. Return only JSON.'
+        +('Keep each complete verse image prompt richly detailed, about 600 to 750 words. '
+          'Retain the scene-specific action, setting, material, weather, viewpoint and lighting. '
+          'Do not compress a detailed prompt into a short summary. ' if mode=='verse' else
+          'Keep each complete image prompt clear and detailed. ')
+        +'Return only JSON.'
     )
     payload=dict(model=model,stream=False,think=False,keep_alive=-1,options=dict(num_ctx=8192),
         format=dict(type='object',properties=dict(subjects=dict(type='array',items=dict(type='string'))),required=['subjects']),
@@ -43,7 +47,20 @@ def audit_prompts(request,model,groups,subjects,prompts,layouts,mode='cutout'):
             for lyrics,subject,prompt,layout in zip(groups,subjects,prompts,layouts)]))])
     from models.ollama.trace import trace_stage
     with trace_stage('Second pass / image prompt review'):
-        reviewed=request_subjects(request,payload,batch_size=2,max_words=180,avoid_repeats=False)
+        reviewed=request_subjects(request,payload,batch_size=2,max_words=780 if mode=='verse' else 300,avoid_repeats=False)
     if len(reviewed)!=len(prompts):raise ValueError('Prompt review must return one corrected prompt per scene')
+    if mode=='verse':
+        marker='Preserve the described subjects, actions, relationships and setting. '
+        expanded=[]
+        for original,candidate in zip(prompts,reviewed):
+            if len(original.split())>=220 and len(candidate.split())<max(200,int(len(original.split())*.7)) and marker in original:
+                # Keep the review's corrected scene, then restore the detailed material, composition,
+                # and style directions. The original scene may have been the very thing the review fixed.
+                candidate=(candidate.strip().rstrip('.')+'. '+marker+original.split(marker,1)[1]
+                           +' Keep the central visual event unambiguous at a glance, with natural spatial '
+                           'relationships, restrained supporting detail, and enough surface variation to give '
+                           'the painted environment depth without distracting from the lyric.')
+            expanded.append(candidate)
+        reviewed=expanded
     emit('subjects',1,message='Second pass complete: image prompts reviewed')
     return reviewed
