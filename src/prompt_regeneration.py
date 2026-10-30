@@ -64,7 +64,8 @@ def regenerate_prompts(worker,job,config,items):
             from prompt_audit import audit_prompts
             prompts=audit_prompts(gpu_chat,model,audit_groups,subjects,prompts,[job['layouts'][i] for i in indices],job.get('artwork_mode','cutout'))
             from prompt_fit import fit_prompts
-            prompts=fit_prompts(gpu_chat,model,job['model'],prompts,technique)
+            from image_models import selected_model
+            prompts=fit_prompts(gpu_chat,model,selected_model(job,config),prompts,technique)
         finally:unload_model(model)
         for item,subject,prompt in zip(batch,subjects,prompts):
             index=item['index'];updated=copy.deepcopy(job)

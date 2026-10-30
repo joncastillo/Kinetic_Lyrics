@@ -4,7 +4,10 @@ import json
 # Prompt token limits per pipeline, and a word budget that leaves room for retry wording.
 TOKEN_LIMITS = dict(QwenImagePipeline=1024, ZImagePipeline=512)
 WORD_BUDGETS = dict(QwenImagePipeline=700, ZImagePipeline=350)
-FLUX_TOKENS, FLUX_WORDS = 512, 250
+# FLUX.2 cuts the prompt at 512 tokens, chat template included. 280 words (~380 tokens) leaves room for the
+# template, the reference-image sentence put in front at generation time, and the no-lettering wording a retry
+# appends, which would otherwise be the part cut off.
+FLUX_TOKENS, FLUX_WORDS = 512, 280
 TOKENS_PER_WORD = 1.35
 
 
@@ -15,6 +18,23 @@ def budget(image_model):
     if pipeline.startswith('Flux'):
         return FLUX_WORDS, FLUX_TOKENS
     return (WORD_BUDGETS[pipeline], TOKEN_LIMITS[pipeline]) if pipeline in WORD_BUDGETS else None
+
+
+def over_budget(prompt, image_model):
+    limit = budget(image_model)
+    return bool(limit) and estimate(prompt)[1] > limit[1]
+
+
+def refit(prompts, image_model, config, style=''):
+    """Fit prompts written for another image model to `image_model`'s budget with the prompt model."""
+    from gpu_models import resolve_prompt_model
+    from ollama_gpu import gpu_chat, unload_model
+    from ollama_service import local_json
+    model = resolve_prompt_model(local_json, config.get('ai_model', 'auto'))
+    try:
+        return fit_prompts(gpu_chat, model, image_model, prompts, style)
+    finally:
+        unload_model(model)
 
 
 def estimate(prompt):

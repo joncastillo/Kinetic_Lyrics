@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
-from prompt_fit import fit_prompts
+from prompt_fit import FLUX_WORDS, fit_prompts
 
 FLUX = 'black-forest-labs/FLUX.2-klein-4B'
 QWEN = 'Qwen/Qwen-Image-2512'
@@ -32,7 +32,7 @@ class PromptFitTest(unittest.TestCase):
         fitted = fit_prompts(self.request, 'test', FLUX, ['word '*400], style)
         self.assertTrue(fitted[0].startswith('Art style, the top priority for how everything is rendered: '+style))
         self.assertTrue(fitted[0].endswith('Fitted scene.'))
-        self.assertLess(self.calls[0][0]['target_words'], 250)
+        self.assertLess(self.calls[0][0]['target_words'], FLUX_WORDS)
 
     def test_overlong_rewrite_is_condensed_again(self):
         replies = iter(['word '*600, 'Shorter scene.'])
