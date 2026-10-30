@@ -39,6 +39,23 @@ def subject_kind(subject):
     return 'people' if human else 'detail' if detail else 'object'
 
 
+REFERENCE_ROLE = ('Reference image: match only its rendering technique, brushwork and colour treatment; '
+                  'do not copy its people, objects or composition. ')
+REFERENCE_MARKERS = ('REFERENCE ROLE', 'Reference images guide', 'Reference image:')
+
+
+def uses_reference(artwork_mode, subject):
+    """Every picture is conditioned on the style references except cutout object studies, which must stay
+    isolated on plain white for a clean cutout."""
+    return not (artwork_mode in (None, 'cutout') and subject_kind(subject) == 'object')
+
+
+def with_reference_role(prompt):
+    """Lead with what the reference image is for, unless the prompt already says it. It goes first so FLUX.2's
+    512-token cut can never drop it."""
+    return prompt if any(marker in prompt for marker in REFERENCE_MARKERS) else REFERENCE_ROLE+prompt
+
+
 def image_prompt(subject, layout, style_prompt=STYLE_PROMPT, has_references=False):
     if layout.get('artwork_mode') == 'verse':
         from verse_backgrounds import image_prompt as background_prompt
@@ -191,7 +208,7 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
     folder.mkdir(parents=True, exist_ok=True)
     manifest.write_text(json.dumps(dict(**signature, reference_paths=[str(p) for p in references],
         lyric_meanings=meanings, song_gist=gist, visual_descriptions=subjects, prompt_audit=dict(version=1,model=director_model),
-        reference_modes=['technique_prompt_only' if artwork_mode == 'verse' or subject_kind(s) == 'object' or not reference_images else 'image_conditioning' for s in subjects],
+        reference_modes=['image_conditioning' if reference_images and uses_reference(artwork_mode, s) else 'technique_prompt_only' for s in subjects],
         prompts=prompts), ensure_ascii=False, indent=2), encoding='utf-8')
     return manifest
 
@@ -382,7 +399,8 @@ def load_pipeline(model, cache, torch, offload=False):
 def inference_options(model, references):
     spec = model_spec(model)
     if spec['references']:
-        return dict(image=references or None, guidance_scale=spec['guidance'])
+        from prompt_fit import FLUX_TOKENS
+        return dict(image=references or None, guidance_scale=spec['guidance'], max_sequence_length=FLUX_TOKENS)
     if spec['pipeline'] == 'QwenImagePipeline':
         return dict(true_cfg_scale=spec['guidance'], max_sequence_length=1024, negative_prompt=
                     'extra limbs, extra fingers, fused fingers, malformed anatomy, mixed male and female anatomy on one body, moustache or beard on a woman, nudity, see-through clothing, lettering, watermark, grainy, noisy, pixelated, blurry, over-sharpened, low quality')
@@ -473,10 +491,10 @@ def _run_job(manifest, cache):
             layout = dict(job['layouts'][i])
             from gpu_models import image_dimensions
             layout['image_width'],layout['image_height'] = image_dimensions(layout['image_width'],layout['image_height'],min(total,gpu_memory.dedicated_memory(torch)[0]+torch.cuda.memory_reserved())/2**30)
-            reference_input = references if job.get('artwork_mode') != 'verse' and subject_kind(job['visual_descriptions'][i]) != 'object' else []
+            reference_input = references if model_spec(model)['references'] and uses_reference(job.get('artwork_mode'), job['visual_descriptions'][i]) else []
             best_path=None;best_lettering=None
             for attempt in range(3):
-                retry_prompt=job['prompts'][i]
+                retry_prompt=with_reference_role(job['prompts'][i]) if reference_input else job['prompts'][i]
                 if attempt and manifest.parent.parent.name=='video.artwork':
                     retry_prompt+=' Replace any written sign or neon lettering with unlettered geometric light tubes. All signs, screens, walls and panels are completely blank. No alphabetic marks, captions, numerals or logos anywhere.'
                 image = pipe(prompt=retry_prompt, **inference_options(model, reference_input),

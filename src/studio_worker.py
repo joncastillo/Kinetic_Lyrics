@@ -165,6 +165,10 @@ def generate_candidate(root, job, index, cache, prompt):
     for key in ('prompts','layouts','visual_descriptions','reference_modes','groups'):
         if key in candidate_job:candidate_job[key]=[candidate_job[key][index]]
     candidate_job['seed']+=time.time_ns()%1000000
+    from image_models import model_spec,selected_model
+    config_path=root/'config.json'
+    model=selected_model(job,json.loads(config_path.read_text(encoding='utf-8')) if config_path.is_file() else {})
+    if model!=job['model']:candidate_job.update(model=model,steps=model_spec(model)['steps'])
     if prompt.strip():candidate_job['prompts'][0]=prompt.strip()
     manifest=folder/'illustrations.json'
     manifest.write_text(json.dumps(candidate_job,indent=2),encoding='utf-8')

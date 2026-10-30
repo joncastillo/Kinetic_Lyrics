@@ -55,7 +55,8 @@ def revise_repair_prompts(worker, job, config, items, variants=1):
         with trace_stage('Repair / fresh prompt from lyrics'):
             prompts = request_subjects(gpu_chat, payload, batch_size=2, max_words=660)
         from prompt_fit import fit_prompts
-        prompts = fit_prompts(gpu_chat, model, job['model'], prompts, job.get('style_prompt', config.get('style_prompt', '')))
+        from image_models import selected_model
+        prompts = fit_prompts(gpu_chat, model, selected_model(job, config), prompts, job.get('style_prompt', config.get('style_prompt', '')))
     finally:
         try:
             unload_model(model)
