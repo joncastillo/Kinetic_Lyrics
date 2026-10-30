@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 import numpy as np
 from PIL import Image, ImageDraw
 
-import greenscreen
+import artwork.greenscreen as greenscreen
 
 
 def scenery(skyline=380, land=(60, 80, 50), size=(1344, 768)):
@@ -61,7 +61,7 @@ class GreenscreenTest(unittest.TestCase):
         self.assertEqual(matte.getextrema(), (0, 0))
 
     def test_scenery_layer_covers_both_scenes_while_blending(self):
-        from kinetic_director import Compositor, rules_plan
+        from render.compositor import Compositor; from direction.typography import rules_plan
         paths = [self.artwork('000', 380, (60, 80, 50), (240, 170, 120)),
                  self.artwork('001', 460, (40, 40, 90), (120, 160, 230))]
         data = [dict(text=t, words=[dict(text=w, start=s+i*.4, end=s+i*.4+.35) for i, w in enumerate(t.split())])
@@ -81,7 +81,7 @@ class GreenscreenTest(unittest.TestCase):
         self.assertTrue(np.array_equal(blending, union))
 
     def test_layout_reserves_the_sky(self):
-        from kinetic_layout import illustration_layout
+        from render.layout import illustration_layout
         layout = illustration_layout(0, 1280, 720, artwork_mode='matte')
         self.assertIn('#00FF00', layout['visual_prompt'])
         self.assertLess(layout['text_box'][1]+layout['text_box'][3], 720*layout['sky'])
