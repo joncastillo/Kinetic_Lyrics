@@ -46,7 +46,7 @@ import glyph_art
 from lyric_blocks import TARGET_RATIO, group_lines, layout_block
 from realtime_typography import (BACKDROP_COLORS, CURL_TIME, FUNCTION_WORDS, HEAD_FADE, TRACE_TIME, SHAPE_LIFE, SHAPES, THREAD_LIFE, assign_roles, bare, curl_route, hex_rgb,
                                   dying_tail, loop_duration, swash_route,
-                                  insert_thread_loop, monotone_keys, overshoot, role_font, sample_thread, smooth, thread_distance)
+                                  insert_thread_loop, monotone_keys, overshoot, role_font, sample_thread, settle_keys, smooth, thread_distance)
 
 FOV = 38.
 BLOCK_WIDTH = 4.
@@ -55,6 +55,12 @@ REFERENCE = 200
 OVERSAMPLE = 1.25
 FONT_LIMITS = (16, 440)
 MOVE, MOVE_LEAD = 1.8, 1.1
+# The ribbon's route is rounded over this many seconds of travel either side of each point, so a loop spliced
+# in at an angle (or any other corner) turns smoothly instead of making the wisp bounce back in one frame.
+ROUND_TIME = .15
+# The wisps' swim is measured across the route's direction over this many seconds of travel either way, so on
+# a tight turn the swim swings across the route gradually instead of flipping sides within a frame.
+TURN_TIME = .35
 CRUISE = .14
 DEPTHS = (-1.2, .6)
 VIEW_TILT = .55
@@ -522,6 +528,75 @@ def soft_dot(size=64):
     return image
 
 
+
+def route_table(run):
+    """Cached (segment starts, ends, cumulative distances, cruising speed) for looking up points on a run."""
+    if '_route' not in run:
+        starts = np.array([p for p, _ in run['segments']], dtype=float)
+        ends = np.array([q for _, q in run['segments']], dtype=float)
+        edges = np.concatenate([[0.], np.cumsum(np.linalg.norm(ends-starts, axis=1))])
+        times, distances, _ = run['keys']
+        cruise = (distances[-1]-distances[0])/max(1e-6, times[-1]-times[0]) if len(times) > 1 else 0.
+        run['_route'] = (starts, ends, edges, cruise)
+    return run['_route']
+
+
+def route_point(run, distance):
+    """The point `distance` along the run's route."""
+    starts, ends, edges, _ = route_table(run)
+    k = int(np.clip(np.searchsorted(edges, distance, side='right')-1, 0, len(starts)-1))
+    span = edges[k+1]-edges[k]
+    return starts[k]+(ends[k]-starts[k])*(0. if span <= 1e-9 else min(1., max(0., (distance-edges[k])/span)))
+
+
+def steady_tangent(run, distance):
+    """The route's direction at `distance`, measured from TURN_TIME of travel behind to TURN_TIME ahead."""
+    starts, ends, edges, cruise = route_table(run)
+    reach = max(1e-3, cruise*TURN_TIME)
+    chord = route_point(run, min(edges[-1], distance+reach))-route_point(run, max(0., distance-reach))
+    if np.linalg.norm(chord) > 1e-6:
+        return normalized(chord)
+    k = int(np.clip(np.searchsorted(edges, distance, side='right')-1, 0, len(starts)-1))
+    return normalized(ends[k]-starts[k])
+
+def rounded_run(run):
+    """The run's route resampled evenly and averaged along its length over ROUND_TIME of travel either side,
+    which rounds every corner (a spliced-in loop's entry and exit included). Timing keys and fill distances
+    are remapped to the rounded lengths, so the head still passes each point at the time it was planned."""
+    segments = run['segments']
+    times, distances, _ = run['keys']
+    if len(segments) < 2 or len(times) < 2:
+        return run
+    starts = np.array([p for p, _ in segments], dtype=float)
+    ends = np.array([q for _, q in segments], dtype=float)
+    lengths = np.linalg.norm(ends-starts, axis=1)
+    edges = np.concatenate([[0.], np.cumsum(lengths)])
+    total = edges[-1]
+    cruise = (distances[-1]-distances[0])/max(1e-6, times[-1]-times[0])
+    radius = cruise*ROUND_TIME
+    if total <= 0 or radius <= 0:
+        return run
+    step = radius/3
+    grid = np.linspace(0., total, max(2, int(total/step)+1))
+    which = np.clip(np.searchsorted(edges, grid, side='right')-1, 0, len(segments)-1)
+    u = np.clip((grid-edges[which])/np.maximum(lengths[which], 1e-9), 0., 1.)[:, None]
+    points = starts[which]+(ends[which]-starts[which])*u
+    reach = max(1, round(radius/(grid[1]-grid[0])))
+    rounded = points
+    for _ in range(2):  # two passes weight neighbours as a triangle, so even the acceleration turns smoothly
+        padded = np.concatenate([np.repeat(rounded[:1], reach, 0), rounded, np.repeat(rounded[-1:], reach, 0)])
+        summed = np.concatenate([np.zeros((1, points.shape[1])), np.cumsum(padded, axis=0)])
+        rounded = (summed[2*reach+1:]-summed[:-2*reach-1])/(2*reach+1)
+    rounded[0], rounded[-1] = points[0], points[-1]  # the route still starts and ends where it did
+    remapped = np.concatenate([[0.], np.cumsum(np.linalg.norm(np.diff(rounded, axis=0), axis=1))])
+    remap = lambda d: float(np.interp(d, grid, remapped))  # noqa: E731
+    pieces = which[:-1]
+    fills = [dict(fill, start_distance=remap(fill['start_distance']), end_distance=remap(fill['end_distance']))
+             for fill in run['shape_fills']]
+    return dict(run, segments=list(zip(rounded[:-1], rounded[1:])), colors=[run['colors'][k] for k in pieces],
+                paint=[run['paint'][k] for k in pieces], keys=settle_keys(monotone_keys(list(times), [remap(d) for d in distances])),
+                shape_fills=fills)
+
 class Stage3D:
     def __init__(self, compositor, melody=None, rhythm=None, seed=None, only=None, breaks=(), crowns=None, layouts=None):
         from typography_settings import kinetic_options
@@ -570,7 +645,7 @@ class Stage3D:
             rng = random.Random(self.seed*7919+number*104729)
             directed = direction.get(members[0]) if direction is not None else None
             scene = c.plan['scenes'][members[0]]
-            palette = [hex_rgb(v) for v in PALETTES[scene['palette']]]
+            palette = [hex_rgb(v) for v in c.scene_palette(scene)]
             words = self.block_words(members, palette)
             accent = self.artwork_accent(words[0]['start'], palette[3])
             style = self.contrast_style(words, rng, accent) if self.layouts.get(members[0]) == 'contrast' else None
@@ -1001,8 +1076,8 @@ class Stage3D:
                 segments.extend(zip(points, points[1:]))
                 colors.extend([piece['color']]*(len(points)-1))
                 paint.extend([not piece.get('shape', False)]*(len(points)-1))
-            runs.append(dict(segments=segments, colors=colors, paint=paint, keys=flow['keys'],
-                             shape_fills=flow.get('shape_fills', [])))
+            runs.append(rounded_run(dict(segments=segments, colors=colors, paint=paint, keys=flow['keys'],
+                                         shape_fills=flow.get('shape_fills', []))))
         return runs
 
     def shape_fill_items(self, gl, t):
@@ -1240,6 +1315,7 @@ class Stage3D:
         bands = []
         for samples in groups:
             whens = self.head_times(number, [distance for _, distance, _ in samples])
+            tangents = [steady_tangent(run, distance) for _, distance, _ in samples]
             for wisp in (0, 1):
                 opacity = 1. if wisp == 0 else presence
                 if opacity <= .001:
@@ -1253,8 +1329,7 @@ class Stage3D:
                     rows = []
                     for k in chosen:
                         point, distance, color = samples[k]
-                        before, after = samples[max(0, k-1)][0], samples[min(len(samples)-1, k+1)][0]
-                        tangent = normalized(after-before)
+                        tangent = tangents[k]
                         side = normalized(np.cross(tangent, eye-point))
                         up = normalized(np.cross(side, tangent))
                         pinch = smooth(min(finish-distance, distance-begin)/(BAND_WIDTH*14))
@@ -1324,18 +1399,12 @@ class Stage3D:
 
     @lru_cache(maxsize=4096)
     def head_at(self, number, t):
-        """Position and direction of a ribbon run's head at time t (cached: motes ask about recent times)."""
+        """Position and steady direction of a ribbon run's head at time t."""
         run = self.ribbon[number]
         head = thread_distance(run['keys'], t)
-        if head is None:
+        if head is None or not run['segments']:
             return None
-        travelled = 0.
-        for p, q in run['segments']:
-            length = float(np.linalg.norm(q-p))
-            if travelled+length >= head and length > 1e-6:
-                return p+(q-p)*max(0., min(1., (head-travelled)/length)), normalized(q-p)
-            travelled += length
-        return None
+        return route_point(run, head), steady_tangent(run, head)
 
     # Camera.
 
@@ -1350,14 +1419,15 @@ class Stage3D:
         number = max(0, bisect.bisect_right([b['move'] for b in blocks], t)-1)
         block = blocks[number]
         eye, target = self.hold_pose(block, t)
-        if number and t < block['move']+MOVE:
-            u = max(0., min(1., (t-block['move'])/MOVE))
-            old_eye, old_target = self.hold_pose(blocks[number-1], block['move'])
-            next_eye, next_target = self.hold_pose(block, block['move']+MOVE)
-            eye = old_eye+(next_eye-old_eye)*u
-            target = old_target+(next_target-old_target)*u
         roll = block['shot_roll']
         if number and t < block['move']+MOVE:
+            # Blend from the old shot to the new one while both keep drifting, with an eased weight: the glide
+            # leaves at the old shot's own velocity and arrives at the new one's, so nothing on screen (the wisp
+            # least of all) lurches when a glide starts or stops.
+            u = smooth(max(0., min(1., (t-block['move'])/MOVE)))
+            old_eye, old_target = self.hold_pose(blocks[number-1], t)
+            eye = old_eye+(eye-old_eye)*u
+            target = old_target+(target-old_target)*u
             roll = blocks[number-1]['shot_roll']+(roll-blocks[number-1]['shot_roll'])*u
         forward = normalized(target-eye)
         angle = math.radians(roll)
@@ -1416,7 +1486,14 @@ class Stage3D:
                 position = block['placement']@np.array([x+math.sin(t*.2*speed+phase)*.15, y+math.cos(t*.17*speed+phase)*.12, z, 1.])
                 items.append((self.billboard(position[:3], view, size*(.7+.3*twinkle)), dot, .45*twinkle*opacity, (1., 1., 1.)))
             for word in block['words']:
-                if t >= word['start']-ENTRY_LEAD:
+                if word['effect']:
+                    recipe = word['effect']
+                    lead = (GROW_ENTRY if recipe.trajectory == 'grow' else PARTICLE_ENTRY)/c.effect_speed(recipe.id)
+                else:
+                    entry, stagger = (BOUNCE_ENTRY, BOUNCE_STAGGER) if word.get('bouncy') else (ENTRY, LETTER_STAGGER)
+                    letters = word['motion'] in ('wave', 'bounce') or word['letter'] is not None or word.get('bouncy')
+                    lead = entry+(len(word['text'])-1)*stagger if letters else entry
+                if t >= word['start']-lead:
                     items.extend(self.word_items(gl, block, word, t, opacity, beat))
         depth = lambda item: (view@item[0]@np.array([0., 0., 0., 1.]))[2]
         for item in sorted(items, key=depth):
@@ -1455,7 +1532,7 @@ class Stage3D:
         """A top-row word forming through the block's particle effect, drawn flat and turned gently in 3D."""
         c, recipe = self.c, word['effect']
         length = (GROW_ENTRY if recipe.trajectory == 'grow' else PARTICLE_ENTRY)/c.effect_speed(recipe.id)
-        progress = min(1., (t-word['start']+ENTRY_LEAD)/length)
+        progress = min(1., (t-word['start']+length)/length)
         if progress <= 0:
             return []
         size = max(FONT_LIMITS[0], min(EFFECT_FONT, round(REFERENCE*word['scale']*self.ppu)))
@@ -1494,6 +1571,7 @@ class Stage3D:
         pieces = list(enumerate(word['text'])) if letters else [(None, word['text'])]
         font = stage_font(word['font'], size)
         entry, stagger = (BOUNCE_ENTRY, BOUNCE_STAGGER) if word.get('bouncy') else (ENTRY, LETTER_STAGGER)
+        lead = entry+(len(word['text'])-1)*stagger if letters else entry
         sweet = bool(word.get('sweet'))
         items = []
         for number, text in pieces:
@@ -1501,7 +1579,7 @@ class Stage3D:
                 continue
             offset = font.getlength(word['text'][:number])*k if number is not None else 0.
             delay = (number or 0)*stagger
-            progress = min(1., (t-word['start']+ENTRY_LEAD-delay)/entry)
+            progress = min(1., (t-word['start']+lead-delay)/entry)
             if progress <= 0:
                 continue
             color = (255, 255, 255) if sweet else word['color']

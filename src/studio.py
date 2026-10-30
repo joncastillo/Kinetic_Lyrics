@@ -323,7 +323,7 @@ class Job:
         result.update(logs=logs[cursor:], cursor=len(logs), images=self.images(), ornaments=self.ornaments(),
                       rejected_images=self.rejected_selections(),
                       elapsed=round(self.state.get('finished', time.time())-self.state['started']),
-                      render_settings=dict(**typography_options(self.config),text_animation=self.config.get('text_animation','directed'), auto_accept=self.config.get('auto_accept',False), type_effect=self.config.get('type_effect','none'), entrance_effect=self.config.get('entrance_effect','legacy'), exit_effect=self.config.get('exit_effect','legacy'), entrance_pool=self.config.get('entrance_pool'), exit_pool=self.config.get('exit_pool'), particle_speed=self.config.get('particle_speed',1.), particle_intensity=self.config.get('particle_intensity',1.)))
+                      render_settings=dict(**typography_options(self.config),text_animation=self.config.get('text_animation','directed'), audio_mode=self.config.get('audio_mode','original'), auto_accept=self.config.get('auto_accept',False), type_effect=self.config.get('type_effect','none'), entrance_effect=self.config.get('entrance_effect','legacy'), exit_effect=self.config.get('exit_effect','legacy'), entrance_pool=self.config.get('entrance_pool'), exit_pool=self.config.get('exit_pool'), particle_speed=self.config.get('particle_speed',1.), particle_intensity=self.config.get('particle_intensity',1.)))
         if (self.folder/'video.mp4').exists():
             result['video'] = self.url(self.folder/'video.mp4')
         if (self.folder/'poster.png').exists():
@@ -512,9 +512,11 @@ def start_job(fields, files):
         spec = next((m for m in MODELS if m['id'] == image_model), None)
         if spec is None:
             raise ValueError('Choose a supported image model')
-        steps, lines = int(fields.get('steps') or spec['steps']), int(fields.get('lines', 2))
-        if not 1 <= steps <= 150 or not 1 <= lines <= 50:
-            raise ValueError('Steps must be 1–150; lines per image must be 1–50')
+        steps, lines = int(fields.get('steps') or spec['steps']), str(fields.get('lines', 'auto')).strip().lower()
+        if not 1 <= steps <= 150 or (lines != 'auto' and (not lines.isdecimal() or not 1 <= int(lines) <= 50)):
+            raise ValueError('Steps must be 1–150; lines per image must be Auto or 1–50')
+        if lines != 'auto':
+            lines = int(lines)
         if is_restart:
             folder = ROOT / project_id
         else:
@@ -539,7 +541,7 @@ def start_job(fields, files):
             illustration_lines=lines, steps=steps, image_model=image_model, asr_model=asr_model, alignment_model=alignment_model,
             particle_intensity=float(fields.get('particle_intensity', 1.)),
             particle_speed=float(fields.get('particle_speed', 1.)),
-            text_animation=fields.get('text_animation','directed'), entrance_effect=fields.get('entrance_effect', 'legacy'), exit_effect=fields.get('exit_effect', 'legacy'),
+            text_animation=fields.get('text_animation','directed'), audio_mode=fields.get('audio_mode','original'), entrance_effect=fields.get('entrance_effect', 'legacy'), exit_effect=fields.get('exit_effect', 'legacy'),
             type_effect=fields.get('type_effect','mixed'), language=fields.get('language','').strip(),
             ai_model=ai_model, start_step=start_step, project_id=folder.name,
             vision_model=fields.get('vision_model','').strip(),auto_verify=fields.get('auto_verify')=='on',
@@ -556,6 +558,8 @@ def start_job(fields, files):
             raise ValueError('Particle density must be between 0 and 2')
         if config['text_animation'] not in TEXT_ANIMATIONS:
             raise ValueError('Invalid word animation')
+        if config['audio_mode'] not in ('original', 'karaoke'):
+            raise ValueError('Invalid audio mode')
         catalog = discover_effects()
         validate_choice(config['entrance_effect'], 'entrance', catalog)
         validate_choice(config['exit_effect'], 'exit', catalog)
@@ -597,7 +601,7 @@ def start_job(fields, files):
             '--asr-model',config['asr_model'], '--alignment-model',config['alignment_model'],
             '--type-effect',config['type_effect'], '--particle-intensity', str(config['particle_intensity']), '--particle-speed', str(config.get('particle_speed', 1.)),
             '-o', str(folder/'video.mp4')]
-        command += ['--text-animation', config['text_animation'], '--text-pool',json.dumps(config['text_pool']),
+        command += ['--text-animation', config['text_animation'], '--audio-mode', config['audio_mode'], '--text-pool',json.dumps(config['text_pool']),
                     '--font-family',config['font_family'],'--font-style',config['font_style'],'--font-scale',str(config['font_scale']),'--lettering-styles',json.dumps(config['lettering_styles']),'--reading-flow',config['reading_flow'],'--kinetic',json.dumps(config['kinetic']),'--effect-speeds',json.dumps(config['effect_speeds']),
                     '--effect-intensities',json.dumps(config['effect_intensities']),
                     '--stage-pictures',config.get('stage_pictures','ai-painted')]
@@ -860,6 +864,10 @@ class Handler(BaseHTTPRequestHandler):
                 name,content=files['audio'][0]
                 path=store_profile_audio(PROJECT_ROOT/'profiles'/'audio',name,content,AUDIO_SUFFIXES)
                 return self.respond(dict(path=str(path)),201)
+            if route == '/api/import-youtube':
+                from youtube_import import import_youtube
+                args=json.loads(body)
+                return self.respond(import_youtube(args.get('url',''), PROJECT_ROOT/'profiles'/'audio'),201)
             if route == '/api/jobs':
                 fields, files = parse_form(body, self.headers['Content-Type'])
                 return self.respond(dict(id=start_job(fields, files).folder.name), 201)
@@ -954,11 +962,14 @@ class Handler(BaseHTTPRequestHandler):
                     text_animation = args.get('text_animation', job.config.get('text_animation','directed'))
                     if text_animation not in TEXT_ANIMATIONS:
                         raise ValueError('Invalid word animation')
+                    audio_mode = args.get('audio_mode', job.config.get('audio_mode', 'original'))
+                    if audio_mode not in ('original', 'karaoke'):
+                        raise ValueError('Invalid audio mode')
                     typography = typography_options(dict(job.config,**args))
                     pictures = args.get('stage_pictures') or job.config.get('stage_pictures','ai-painted')
                     if pictures not in ('ai-painted','ai-library','keywords','off'):
                         raise ValueError('Invalid 3D stage picture setting')
-                    job.config.update(**typography,text_animation=text_animation, entrance_pool=entrance_pool, exit_pool=exit_pool, type_effect=effect, particle_intensity=density, particle_speed=speed,
+                    job.config.update(**typography,text_animation=text_animation, audio_mode=audio_mode, entrance_pool=entrance_pool, exit_pool=exit_pool, type_effect=effect, particle_intensity=density, particle_speed=speed,
                                       entrance_effect=entrance, exit_effect=exit_effect, stage_pictures=pictures)
                     (job.folder/'config.json').write_text(json.dumps(job.config, indent=2), encoding='utf-8')
                     command = [sys.executable, '-u', str(HERE/'studio_worker.py'), 'rerender', str(job.folder)]

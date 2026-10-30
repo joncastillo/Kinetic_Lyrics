@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
-from verse_backgrounds import lyric_meanings, notes_for_group, translation_notes
+from verse_backgrounds import lyric_meanings, notes_for_group, translation_notes, uses_definition
 from verse_backgrounds import image_prompt
 
 
@@ -17,6 +17,11 @@ class VerseMeaningTest(unittest.TestCase):
         self.assertEqual(notes_for_group("Salita ko'y tulad ng ambon", notes), {'ambon': 'drizzle'})
         self.assertEqual(translation_notes('"ambon" means drizzle, not a seashell.'), {'ambon': 'drizzle'})
         self.assertEqual(notes_for_group('Yumuko at nagdasal', notes), {})
+
+    def test_gloss_is_honored_in_any_word_form(self):
+        self.assertTrue(uses_definition('drizzle rain', 'A light drizzle falls on the town.'))
+        self.assertTrue(uses_definition('drizzle rain', 'Drizzling rain echoes in the well.'))
+        self.assertFalse(uses_definition('drizzle rain', 'A seashell on a beach.'))
 
     def test_wrong_initial_meaning_is_retried_with_binding_gloss(self):
         calls = []

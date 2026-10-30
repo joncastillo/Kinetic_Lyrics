@@ -169,19 +169,34 @@ def align(audio, lines, args):
 
 
 def repair_zero_durations(data, duration):
-    """Give collapsed automatic alignments a short, reviewable duration."""
+    """Give collapsed or non-chronological automatic alignments a valid, reviewable duration."""
     repaired = 0
+    previous = 0.0
     for line in data:
-        for word in line['words']:
-            start, end = float(word['start']), float(word['end'])
-            if math.isfinite(start) and start == end and 0 <= start <= duration:
-                word['end'] = min(duration, start + .08)
-                if word['end'] == start:
-                    word['start'] = max(0, start - .08)
+        for word in line.get('words', []):
+            start = float(word.get('start', 0.0))
+            end = float(word.get('end', 0.0))
+            if not math.isfinite(start) or not math.isfinite(end):
+                continue
+            if start < previous:
+                word['start'] = previous
+                start = previous
                 repaired += 1
+            if end <= start:
+                word['end'] = min(duration, start + .08)
+                if word['end'] <= word['start']:
+                    word['start'] = max(0.0, word['end'] - .08)
+                repaired += 1
+            if word['end'] > duration + 0.05:
+                word['end'] = duration
+                if word['start'] >= word['end']:
+                    word['start'] = max(0.0, word['end'] - .08)
+                repaired += 1
+            previous = float(word['start'])
     if repaired:
-        print(f'Warning: repaired {repaired} zero-duration aligned word(s). '
+        print(f'Warning: repaired {repaired} timing issue(s) (zero duration or non-chronological). '
               'Review the generated timings JSON for synchronization.', file=sys.stderr)
+    return repaired
 
 
 def validate(data, lines, duration):
@@ -384,6 +399,8 @@ def main(argv=None):
     parser.add_argument('--font-scale',type=float,default=1.25,help='Relative font size, 0.6 to 2; long lines still fit the reading area')
     parser.add_argument('--text-pool',default=None,help='JSON list of word animations enabled in mixed mode')
     parser.add_argument('--text-animation', choices=TEXT_ANIMATIONS, default='directed', help='Word highlighting, timed sweep, slide, fade or scene-directed motion')
+    parser.add_argument('--audio-mode', choices=('original', 'karaoke'), default='original',
+                        help='Use the original song or export an instrumental mix without the vocal stem')
     parser.add_argument('--entrance-pool', default=None, help='JSON list of enabled entrance IDs for mixed mode')
     parser.add_argument('--exit-pool', default=None, help='JSON list of enabled exit IDs for mixed mode')
     parser.add_argument('--entrance-effect', default=None, help='Entrance recipe filename without .json, mixed, ai (chosen per line from scene, lyrics and readable colours), or none')
@@ -403,7 +420,7 @@ def main(argv=None):
     art_options = parser.add_mutually_exclusive_group()
     art_options.add_argument('--illustrations', type=Path, nargs='+', help='Illustration files in sequence; transparent PNGs blend with typography (editorial only)')
     art_options.add_argument('--no-illustrations', action='store_true', help='Render typography without illustration panels')
-    parser.add_argument('--illustration-lines', type=int, default=2, help='Generate and hold one unique illustration per this many lyric lines (default: 2)')
+    parser.add_argument('--illustration-lines', default='2', help='Lyric lines per illustration (1–50), or auto to let the text model choose after alignment')
     parser.add_argument('--style-reference', type=Path, nargs='+', help='One or more reference images for generated linework, palette and paint style')
     from kinetic_illustrations import STYLE_PROMPT
     parser.add_argument('--style-prompt', default=STYLE_PROMPT, help='Art style instruction accompanying reference images')
@@ -421,8 +438,11 @@ def main(argv=None):
     args.preserve_art_slots = args.preserve_art_slots or args.review_artwork
     if args.cinematic and args.renderer != 'editorial':
         parser.error('--cinematic requires --renderer editorial.')
-    if args.illustration_lines < 1:
-        parser.error('--illustration-lines must be positive.')
+    if args.illustration_lines != 'auto':
+        try:args.illustration_lines = int(args.illustration_lines)
+        except ValueError:parser.error('--illustration-lines must be auto or an integer from 1 to 50.')
+        if not 1 <= args.illustration_lines <= 50:
+            parser.error('--illustration-lines must be auto or an integer from 1 to 50.')
     if args.image_steps is None:
         from image_models import model_spec
         args.image_steps = model_spec(args.image_model)['steps']
@@ -501,8 +521,9 @@ def main(argv=None):
             lines = [line['text'] for line in data]
             if not lines:
                 raise ValueError('No lyric lines were found in the timing data.')
-        if not args.timings:
-            repair_zero_durations(data, duration)
+        repaired = repair_zero_durations(data, duration)
+        if args.timings and repaired and timing_path.exists():
+            timing_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
         validate(data, lines, duration)
         from vocal_onsets import refine_line_starts
         emit('alignment', .95, message='Measuring where each line is sung')
@@ -516,9 +537,21 @@ def main(argv=None):
             args.instruments_found = ensure_instruments(audio, output.parent, duration, getattr(args, 'image_cache', None))
         if moved:
             print(f'Moved {moved} line start(s) to the measured vocal onset.', flush=True)
+            repair_zero_durations(data, duration)
+            validate(data, lines, duration)
             timing_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
         from song_structure import annotate_sections
         annotate_sections(data,args.lyrics)
+        if args.illustration_lines == 'auto':
+            from image_grouping import estimate_lines
+            emit('direction', 0, message='Choosing how many lyric lines each image should cover')
+            args.illustration_lines = estimate_lines(data, args.ai_model)
+            studio_config = output.parent/'config.json'
+            if studio_config.is_file():
+                saved = json.loads(studio_config.read_text(encoding='utf-8'))
+                saved['illustration_lines'] = args.illustration_lines
+                saved['illustration_lines_mode'] = 'auto'
+                studio_config.write_text(json.dumps(saved, indent=2), encoding='utf-8')
         emit('alignment', 1, message='Lyric timing validated')
         theme = theme_for(args.theme)
         print(f"Theme: {theme['name']}; {len(lines)} lines; {duration:.1f}s", flush=True)
@@ -570,6 +603,8 @@ def main(argv=None):
             emit('complete', 1, message='Video ready')
             return
         write_ass(ass_path, data, duration, args.width, args.height, theme, args.font)
+        from rhythm import audio_for_mode
+        export_audio = audio_for_mode(audio, output.parent, args.audio_mode)
         with tempfile.TemporaryDirectory(prefix='kinetic-', dir=output.parent) as temp:
             temp = Path(temp)
             shutil.copyfile(ass_path, temp / 'lyrics.ass')
@@ -590,7 +625,7 @@ def main(argv=None):
                         if args.encoder == 'h264_nvenc' else
                         ['-c:v', 'libx264', '-preset', 'medium', '-crf', '18'])
             command = ['ffmpeg', '-hide_banner', '-loglevel', 'warning', '-y', *source,
-                       '-i', str(audio), '-map', '0:v:0', '-map', '1:a:0',
+                       '-i', str(export_audio), '-map', '0:v:0', '-map', '1:a:0',
                        '-vf', base_filter + 'ass=lyrics.ass' + fonts + ',scale=out_color_matrix=bt709:out_range=tv', '-t', str(duration),
                        *encoding, '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv', '-pix_fmt', 'yuv420p',
                        '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', str(temp / 'video.mp4')]

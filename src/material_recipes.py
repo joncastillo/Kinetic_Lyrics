@@ -1774,3 +1774,6 @@ def architectural_sketch(F, canvas, t, intensity):
         canvas.add(np.ones(3)*glint[..., None]*.8, .5)
 TIFFANY = (rgb(214, 150, 40), rgb(232, 196, 96), rgb(120, 140, 50), rgb(40, 130, 120), rgb(150, 30, 30), rgb(236, 226, 196),
            rgb(90, 60, 140))
+
+
+import garden_recipes  # noqa: E402,F401  (registers the succulent garden and meadow grass recipes)

@@ -6,13 +6,13 @@ import os
 
 KINETIC_TEXT_SCALE = 3.
 
-WORD_ANIMATIONS = ('directed','highlight','karaoke','slide','fade','none')
+WORD_ANIMATIONS = ('directed','highlight','karaoke','slide','fade','mask-rise','cartoon-pop','none')
 READING_FLOWS = ('realtime','preview','stage','mixed','cinema')
 BACKDROP_KINDS = ('outline','filled','vertical','echo','giant')
 GLOW_INSTRUMENTS = ('drums','other','bass')
 CAMERA_MODES = ('pan','still')
 KINETIC_DEFAULTS = dict(camera='pan',pan_speed=.05,backdrop_rate=.6,backdrops=list(BACKDROP_KINDS),traces=True,
-                        geometry=.8,frames=.1,glows=list(GLOW_INSTRUMENTS),glow_words=.15,glow_strength=.55,glitch=True,text_pulse=0.,word_shapes=0.,scenes=None,fade=True)
+                        geometry=.8,frames=.1,glows=list(GLOW_INSTRUMENTS),glow_words=.15,glow_strength=.55,glitch=True,text_pulse=0.,word_shapes=0.,drum_reactivity=.8,chorus_fx=.75,scenes=None,fade=True)
 
 
 def effect_speeds(value):
@@ -58,7 +58,7 @@ def kinetic_options(value):
     if not isinstance(value,dict) or set(value)-set(KINETIC_DEFAULTS):
         raise ValueError('Invalid kinetic effect settings')
     result=dict(KINETIC_DEFAULTS,**value)
-    for key,low,high in (('pan_speed',0.,.15),('backdrop_rate',0.,1.),('geometry',0.,1.),('frames',0.,1.),('glow_strength',0.,1.),('text_pulse',0.,1.),('glow_words',0.,1.),('word_shapes',0.,1.)):
+    for key,low,high in (('pan_speed',0.,.15),('backdrop_rate',0.,1.),('geometry',0.,1.),('frames',0.,1.),('glow_strength',0.,1.),('text_pulse',0.,1.),('glow_words',0.,1.),('word_shapes',0.,1.),('drum_reactivity',0.,1.),('chorus_fx',0.,1.)):
         number=float(result[key])
         if not math.isfinite(number) or not low<=number<=high:raise ValueError(f'Kinetic setting {key} is out of range')
         result[key]=number
@@ -107,7 +107,7 @@ def typography_options(values):
         raise ValueError('Invalid text style set')
     flow = values.get('reading_flow','realtime') or 'realtime'
     if flow not in READING_FLOWS:
-        raise ValueError('Choose the real-time, preview, 3D stage or scene mix reading flow')
+        raise ValueError('Choose the real-time, preview, 3D stage, scene mix or cinema reading flow')
     instructions = values.get('instructions') or ''
     if not isinstance(instructions,str) or len(instructions) > 2000:
         raise ValueError('Special instructions must be text of at most 2000 characters')

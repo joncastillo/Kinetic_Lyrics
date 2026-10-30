@@ -79,10 +79,33 @@ class PictureTest(unittest.TestCase):
         style = 'Delicate linework, expressive faces, flowing hair, inspired by Alphonse Mucha.'
         lamp = icon_prompt('a small, warm street lamp', 'orange', style)
         self.assertNotIn('expressive faces', lamp)
-        self.assertIn('no people, faces', lamp)
-        self.assertTrue(lamp.startswith('Create one small painted picture of warm street lamp'))
-        self.assertGreaterEqual(len(lamp.split()), 250)
+        self.assertIn('No people, faces', lamp)
+        self.assertTrue(lamp.startswith('Create one small vector-style clipart illustration of warm street lamp'))
         self.assertIn('expressive faces', icon_prompt('a dancing woman', '', style))
+
+    def test_detailed_ai_subject_does_not_become_a_generic_library_cloud(self):
+        word = {'line': 0, 'index': 1, 'text': 'VENOM', 'bare': 'venom'}
+        answer = dict(word='0:1', picture='a spreading cloud of toxic green mist',
+                      source='library', library='cloud', placement='beside', motion='pulse')
+        ornament = ornament_director.checked(answer, {'0:1': word}, ornament_director.library_kinds())
+        self.assertEqual(ornament['subject'], 'a spreading cloud of toxic green mist')
+        self.assertEqual((ornament['source'], ornament['library']), ('generate', None))
+        prompt = icon_prompt(ornament['subject'], 'red')
+        self.assertIn('Keep any colour named in the subject as its dominant colour', prompt)
+        self.assertNotIn('mainly red', prompt)
+
+    def test_failed_ai_picture_does_not_switch_to_library_art(self):
+        entry = dict(ornament=dict(subject='green poison bottle with skull-and-crossbones pictogram',
+                                   source='generate', library='cloud', image=None), accent_name='red')
+        original = ornament_director.paint_icons
+        ornament_director.paint_icons = lambda *args, **kwargs: [None]
+        try:
+            ornament_director.paint([entry], 'unused', {})
+        finally:
+            ornament_director.paint_icons = original
+        self.assertEqual(entry['ornament']['source'], 'generate')
+        self.assertIsNone(entry['ornament']['library'])
+        self.assertIsNone(entry['ornament']['image'])
 
 
 class InstrumentOverlayTest(unittest.TestCase):

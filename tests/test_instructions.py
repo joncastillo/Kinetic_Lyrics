@@ -6,7 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
 from particle_catalog import discover_effects
-from render_instructions import parse_instructions, word_directives
+from render_instructions import parse_instructions, typography_colors, word_directives
 
 
 def song(*lines):
@@ -36,6 +36,13 @@ class InstructionTest(unittest.TestCase):
         self.assertIsNone(named[0]['effect'])
         self.assertEqual(hexed[0]['color'], (51, 102, 255))
 
+    def test_song_wide_lettering_colours(self):
+        self.assertEqual(typography_colors('Make all lyrics gold'), ((255, 201, 60), None))
+        self.assertEqual(typography_colors('Accent colour #FF5DA2'), (None, (255, 93, 162)))
+        self.assertEqual(typography_colors('Text in white\nmake "love" red'), ((255, 255, 255), None))
+        directives, problems = word_directives(song('all my love'), 'Make all lyrics gold', self.entrances)
+        self.assertEqual((directives, problems), ({}, []))
+
     def test_unclear_lines_are_reported_not_fatal(self):
         results = parse_instructions('something vague\nsparkle "x" with zzzz', self.entrances)
         self.assertTrue(all(directive is None and problem for directive, problem in results))
@@ -56,6 +63,17 @@ class InstructionTest(unittest.TestCase):
         self.assertEqual(c.word_effect_pairs[0][1][0], 'neon-tube-ignite')
         self.assertEqual(c.word_effect_pairs[0][0][0], 'none')
         self.assertEqual(c.effect_pairs[0][0], 'none')  # the line keeps its own effect
+
+    def test_compositor_applies_song_wide_lettering_colours(self):
+        from kinetic_director import Compositor
+        data = song('one two', 'three four')
+        plan = dict(scenes=[dict(mode='push', style='swiss', palette='midnight', font='condensed', align='center',
+                                 background='glow', camera='hold', emphasis=0, energy=.5) for _ in data])
+        c = Compositor(data, plan, 320, 180, 4., entrance_effect='none', exit_effect='none',
+                       instructions='Make all lyrics gold\nAccent colour #FF5DA2')
+        self.assertEqual(c.scene_palette(plan['scenes'][0]), ('#101725', '#223348', '#FFC93C', '#FF5DA2'))
+        pixels = c.frame(1.).convert('RGB').getdata()
+        self.assertTrue(any(r > 220 and 170 < g < 230 and b < 110 for r, g, b in pixels))  # gold lettering drawn
 
 
 if __name__ == '__main__':

@@ -16,7 +16,7 @@ from kinetic_progress import emit
 
 from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageOps, ImageFilter
 from kinetic_layout import illustration_layout
-from kinetic_effects import EFFECTS, TEXT_ANIMATIONS, paint_word, highlight_word, highlight_overlay
+from kinetic_effects import EFFECTS, TEXT_ANIMATIONS, paint_word, highlight_word, highlight_overlay, mask_rise, cartoon_scale
 from particle_catalog import discover_effects, resolve_effect, parse_pool
 from line_arrival import line_arrivals, reading_lanes, reading_regions
 from typography_settings import KINETIC_TEXT_SCALE, typography_options, selected_font, selected_word_animation
@@ -283,6 +283,11 @@ class Compositor:
             raise ValueError('Unknown word animation: '+str(text_animation))
         self.text_animation = text_animation
         self.typography = typography_options(dict(font_family=font_family,font_style=font_style,font_scale=font_scale,text_pool=text_pool,lettering_styles=lettering_styles,reading_flow=reading_flow,kinetic=kinetic,instructions=instructions,effect_speeds=effect_speeds,effect_intensities=effect_intensities))
+        from chorus_fx import ChorusFX
+        self.chorus_fx = ChorusFX(data, (rhythm or {}).get('drums'), self.typography['kinetic']['chorus_fx'])
+        # Song-wide lettering colours typed in the special instructions replace each scene palette's ink and accent.
+        from render_instructions import typography_colors
+        self.ink_override, self.accent_override = typography_colors(self.typography['instructions'])
         self.word_animations=[[selected_word_animation(text_animation,self.typography['text_pool'],index)]*len(line['words'])
                               for index,line in enumerate(data)]
         self.text_animations=[motions[0] for motions in self.word_animations]
@@ -439,6 +444,13 @@ class Compositor:
         if not line_effects:
             self.keep_effects_readable(entrance_effect, entrance_pool)
 
+    def scene_palette(self, scene):
+        """The scene's (background, gradient, ink, accent) hex colours, with song-wide lettering colours applied."""
+        background, gradient, ink, accent = PALETTES[scene['palette']]
+        hexed = lambda color: '#%02X%02X%02X' % tuple(color)  # noqa: E731
+        return (background, gradient, hexed(self.ink_override) if self.ink_override else ink,
+                hexed(self.accent_override) if self.accent_override else accent)
+
     def effect_speed(self, effect_id):
         """An effect's own particle speed from the profile, or the global speed."""
         return self.typography['effect_speeds'].get(effect_id, self.particle_speed)
@@ -471,7 +483,7 @@ class Compositor:
         for index, (entrance, exit_effect) in enumerate(self.effect_pairs):
             if entrance not in self.effect_catalog['entrance']:
                 continue
-            ink = rgb(PALETTES[self.plan['scenes'][index]['palette']][2])
+            ink = rgb(self.scene_palette(self.plan['scenes'][index])[2])
             neighbours = {self.effect_pairs[i][0] for i in (index-1, index+1) if 0 <= i < len(self.effect_pairs)}
             chosen = readable_effect(entrance, candidates, ink, backdrops[index], neighbours)
             if chosen != entrance:
@@ -534,7 +546,7 @@ class Compositor:
             _, (x,y,w,h) = self.composition(current)
             if self.reading_band:
                 x,y,w,h = self.default_text_box
-            ink=rgb(PALETTES[scene['palette']][2])
+            ink=rgb(self.scene_palette(scene)[2])
             tone=(12,16,24) if sum(ink)>384 else (246,241,230)
             mask=Image.new('L',frame.size)
             ImageDraw.Draw(mask).rectangle((x,y,x+w,y+h),fill=185)
@@ -705,7 +717,7 @@ class Compositor:
         particle_entry = self.effect_pairs[index][0] in self.effect_catalog['entrance'] and self.effect_intensity(self.effect_pairs[index][0])>0
         if self.plan.get('word_layouts'):
             from free_typography import build_layout
-            scene_colors=dict(scene,colors=PALETTES[scene['palette']][2:])
+            scene_colors=dict(scene,colors=self.scene_palette(scene)[2:])
             botanical=self.effect_catalog['entrance'].get(self.effect_pairs[index][0]) is not None and self.effect_catalog['entrance'][self.effect_pairs[index][0]].family=='petals'
             self.layout=build_layout(line,self.plan['word_layouts'][index],scene_colors,w,h,
                 lambda size:font_at(scene['font'],size,self.custom_font),self.typography['font_scale'],botanical)
@@ -728,7 +740,7 @@ class Compositor:
         top = (h - len(rows)*pitch) / 2 + size*above
         center = (self.text_box[0]+w/2)/self.width
         align = 'left' if center < 1/3 else 'right' if center > 2/3 else 'center'
-        ink, accent = PALETTES[scene['palette']][2:]
+        ink, accent = self.scene_palette(scene)[2:]
         words = []
         for r, row in enumerate(rows):
             row_width = sum(length for _, length in row) + gap * (len(row)-1)
@@ -835,6 +847,7 @@ class Compositor:
             image = self.instrument_stage.paint(image, t)
         if text_only:
             return image
+        image = self.chorus_fx.paint(image, t)
         # The encoder reads raw rgb24: any other mode would shift every later frame and end the video early.
         image = image if image.mode == 'RGB' else image.convert('RGB')
         if self.typography['kinetic']['fade']:
@@ -866,7 +879,7 @@ class Compositor:
             mode = 'letters'
         if text_animation == 'slide':
             mode = 'slide'
-        elif text_animation in ('fade','none','highlight','karaoke'):
+        elif text_animation in ('fade','none','highlight','karaoke','mask-rise','cartoon-pop'):
             mode = 'letters'
         fade_end = self.effect_end_times[index] if exit_effect != 'none' and self.effect_intensity(exit_effect) > 0 else self.ends[index]
         exit_start = self.exit_starts[index]
@@ -900,10 +913,12 @@ class Compositor:
             word = self.data[index]['words'][item['index']]
             entrance,exit_effect=line_entrance,'none'
             text_animation=self.word_animations[index][item['index']]
+            if text_animation in ('mask-rise','cartoon-pop'):
+                entrance='none'
             particle_in = entrance in self.effect_catalog['entrance'] and self.effect_intensity(entrance) > 0
             mode = 'letters' if particle_in or self.plan.get('word_layouts') else scene['mode']
             if text_animation == 'slide':mode = 'slide'
-            elif text_animation in ('fade','none'):mode = 'letters'
+            elif text_animation in ('fade','none','mask-rise','cartoon-pop'):mode = 'letters'
             if particle_in:
                 progress = self.arrivals[index].progress(t)
             else:
@@ -932,6 +947,8 @@ class Compositor:
                 y += dy*(1-motion)*size*1.2
             elif mode != 'letters':
                 x += (1-motion)*size*1.2
+            if text_animation == 'cartoon-pop':
+                scale = cartoon_scale(progress)
             sprite = item['sprite']
             overlay = None
             box_fraction = 0.
@@ -940,7 +957,7 @@ class Compositor:
                 if text_animation == 'karaoke':
                     fraction = max(0., min(1., (t-word['start']) / max(.001, word['end']-word['start'])))
                 if self.plan.get('word_layouts') and t>=word['end']:fraction=0.
-                highlight_color = item.get('highlight_color',rgb(PALETTES[scene['palette']][0] if item['boxed'] else HIGHLIGHT_COLORS.get(scene['palette'],PALETTES[scene['palette']][3])))
+                highlight_color = item.get('highlight_color',rgb(PALETTES[scene['palette']][0] if item['boxed'] else (self.scene_palette(scene)[3] if self.accent_override else HIGHLIGHT_COLORS.get(scene['palette'],PALETTES[scene['palette']][3]))))
                 held = self.effect_catalog['entrance'].get(entrance)
                 if item.get('backdrop'):
                     box_fraction = fraction
@@ -952,6 +969,8 @@ class Compositor:
                 sprite = sprite.resize((max(1, round(sprite.width*scale)), max(1, round(sprite.height*scale))), Image.Resampling.BICUBIC)
                 if overlay is not None:
                     overlay = overlay.resize(sprite.size, Image.Resampling.BICUBIC)
+            if text_animation == 'mask-rise':
+                sprite = mask_rise(sprite, progress)
             spans = item['glyph_spans']
             if scale != 1:
                 spans = [(round(a*scale),round(b*scale)) for a,b in spans]
@@ -974,7 +993,7 @@ class Compositor:
             span = max(1, math.ceil(font.getlength(text)))
             offset = -((t-self.starts[index]) * w * (.025+energy*.035)) % span - span
             draw = ImageDraw.Draw(text_layer)
-            ink = rgb(PALETTES[scene['palette']][2])
+            ink = rgb(self.scene_palette(scene)[2])
             for k in range(math.ceil(w/span)+2):
                 draw.text((offset+k*span, h*.88), text, font=font, fill=(*ink, round(70*fade)))
         if camera != 1:
@@ -1072,6 +1091,8 @@ def ffmpeg_failure(log, code):
 
 def _render_video(audio, output, data, plan, duration, args):
     import tempfile
+    from rhythm import audio_for_mode
+    export_audio = audio_for_mode(audio, Path(output).parent, getattr(args, 'audio_mode', 'original'))
     compositor = render_compositor(data,plan,duration,args)
     if getattr(args, 'entrance_effect', None) == 'ai' and compositor.particle_intensity > 0:
         from effect_director import ensure_line_effects
@@ -1114,7 +1135,7 @@ def _render_video(audio, output, data, plan, duration, args):
             raise ValueError('Invalid render interval')
         command = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-f', 'rawvideo',
                    '-pixel_format', 'rgb24', '-video_size', f'{args.width}x{args.height}',
-                   '-framerate', str(args.fps), '-i', 'pipe:0', '-ss', str(start), '-i', str(audio),
+                   '-framerate', str(args.fps), '-i', 'pipe:0', '-ss', str(start), '-i', str(export_audio),
                    '-map', '0:v:0', '-map', '1:a:0', '-t', str(span), *encoding,
                    '-force_key_frames', 'expr:gte(t,n_forced*1)',
                    *(BT709_OUTPUT if getattr(args, 'color', 'bt709') == 'bt709' else []),

@@ -14,6 +14,7 @@ function of time.
 from functools import lru_cache
 import math
 import random
+from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageSequence
@@ -227,10 +228,20 @@ def image_pose(motion, t, beat):
 
 @lru_cache(maxsize=32)
 def cutout(path):
-    from staging_matte import remove_staging
-    from scipy.ndimage import binary_dilation, binary_propagation, label
     with Image.open(path) as source:
         image = source.convert('RGBA')
+    if Path(path).with_suffix('.svg').is_file():
+        # The vector renderer already made a clean transparent matte. Avoid the
+        # expensive raster background-removal pass, which can erase white details.
+        bounds = image.getchannel('A').getbbox()
+        if bounds:
+            image = image.crop(bounds)
+        square = Image.new('RGBA', (max(image.size),)*2)
+        square.paste(image, ((square.width-image.width)//2, (square.height-image.height)//2))
+        square.thumbnail((SIZE, SIZE), Image.Resampling.LANCZOS)
+        return square
+    from staging_matte import remove_staging
+    from scipy.ndimage import binary_dilation, binary_propagation, label
     image = remove_staging(image)  # any flat staging backdrop left around the subject becomes transparent
     pixels = np.array(image)
     rgb = pixels[..., :3].astype(int)

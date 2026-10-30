@@ -221,7 +221,8 @@ class CinemaTypography:
         push = 1+PUSH*smooth(hold)
         leaving = (t-(chunk['end']-EXIT))/EXIT
         for word in chunk['words']:
-            arrive = (t-(word['start']-LEAD))/(ENTRY/self.speed)
+            entry = ENTRY/self.speed
+            arrive = (t-word['start']+entry)/entry
             if arrive <= 0:
                 continue
             p = ease(arrive)
@@ -282,7 +283,10 @@ class CinemaTypography:
             else:
                 image = image.filter(ImageFilter.GaussianBlur(blur))
         image = image.point(lambda v: round(v*min(1., state['alpha'])))
-        colour = tuple(round(a+(b-a)*state['grey']) for a, b in zip(WHITE, GREY))
+        # A song-wide lettering colour from the special instructions replaces white; its dimmed tone replaces grey.
+        light = getattr(self.c, 'ink_override', None)
+        light, dim = (light, tuple(round(v*.61) for v in light)) if light else (WHITE, GREY)
+        colour = tuple(round(a+(b-a)*state['grey']) for a, b in zip(light, dim))
         x = self.c.width/2+state['shift']-image.width/2
         y = word['y']-image.height/2
         # A faint shadow keeps white hairlines readable over a pale sky.
