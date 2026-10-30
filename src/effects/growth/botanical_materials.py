@@ -31,10 +31,22 @@ def photo_index(kind, values):
     return 10
 
 
-def botanical_sprite(kind,size,values):
+def botanical_sprite(kind,size,values,angle=0.,squash=1.):
+    """The photograph for `kind`, fitted into a `size` square, squashed then rotated in a single resample."""
+    return _sprite(photo_index(kind,values),max(4,round(size*2)),round(angle)%360,max(1,min(20,round(squash*20)))).copy()
+
+
+@lru_cache(maxsize=8192)
+def _sprite(index,half_pixels,angle,twentieths):
+    from core.imaging import SUPERSAMPLE, reduce_sprite
+    return reduce_sprite(_working_photo(index,max(2,round(half_pixels/2*SUPERSAMPLE))),half_pixels/2,angle,twentieths/20)
+
+
+@lru_cache(maxsize=1024)
+def _working_photo(index,span):
+    """The photograph reduced once to the working size of one sprite size, shared by every angle."""
     from PIL import ImageOps
-    source=botanical_photo(photo_index(kind,values))
-    return ImageOps.contain(source,(max(2,round(size)),max(2,round(size))),Image.Resampling.LANCZOS)
+    return ImageOps.contain(botanical_photo(index),(span,span),Image.Resampling.LANCZOS)
 
 
 def procedural_botanical_sprite(kind, size, values):
