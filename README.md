@@ -152,6 +152,24 @@ video renders, the user reviews each illustration and can replace or regenerate 
 that do not fit. After a video is finished, the user can swap a single image and
 rebuild only the parts that changed, and earlier exports remain available.
 
+### Timeline editor
+
+If some words come out of sync, the user can fix them in Studio's **Timeline editor**, which
+appears once a video is finished. It shows the illustrations, the lyric lines and each word
+above the waveforms of the full mix and of the separated vocals, drums, bass and other
+instruments, so the user can see where each word is really sung. The colour of each waveform
+can be changed, and any of them can be played on its own.
+
+- Drag a word to move it, or drag its edges to change when it starts and ends. Drag a line to
+  move all its words together. Holding Shift moves everything after it as well, which fixes a
+  song that drifts out of sync from one point onwards.
+- Drag an illustration to change when it appears.
+- Double-click a word or a line to correct its text. Each line keeps the same number of words.
+- Press T while the song plays to set the selected word to start at the playhead.
+
+**Save & rebuild video** writes the new timing and renders the video again. The edits are kept
+in `video.timings.json`, `lyrics.txt` and `video.art-times.json` in the project folder.
+
 ## Command line
 
 A video can also be made without opening Studio:

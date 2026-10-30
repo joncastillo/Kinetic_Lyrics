@@ -147,7 +147,11 @@ def main():
         illustrations = [manifest.parent/f'{i:03d}.png' for i in range(len(job['prompts']))]
         from render.realtime import melody_for
         from audio.rhythm import rhythm_for
-        options = SimpleNamespace(width=config['width'], height=config['height'], fps=config['fps'], melody=melody_for(args.folder), rhythm=rhythm_for(args.folder),
+        from audio.melody import ensure_melody
+        from render.timeline import ART_TIMES, load_art_times
+        melody = ensure_melody(data, args.folder) or melody_for(args.folder)
+        options = SimpleNamespace(width=config['width'], height=config['height'], fps=config['fps'], melody=melody, rhythm=rhythm_for(args.folder),
+            art_times=load_art_times(args.folder/ART_TIMES),
             font=None, background=None, lead_in=1., illustrations=illustrations, **typography_options(config),
             artwork_mode=config.get('artwork_mode','cutout'), image_seed=config.get('image_seed',42),
             illustration_lines=config['illustration_lines'], cinematic=config['cinematic'], encoder=config['encoder'], preserve_art_slots=True,
@@ -163,10 +167,8 @@ def main():
             promote_render_metadata(updated, video)
             emit('complete', 1, message='Video rebuilt with updated letter effects and selected images')
             return
-        from render.compositor import tighten_line_starts
-        from render.realtime import melody_for
-        from audio.rhythm import rhythm_for
-        c = Compositor(tighten_line_starts(data), plan, options.width, options.height, duration, melody=melody_for(args.folder), rhythm=rhythm_for(args.folder),
+        from render.timeline import tighten_line_starts
+        c = Compositor(tighten_line_starts(copy.deepcopy(data)), plan, options.width, options.height, duration, melody=melody, rhythm=options.rhythm, art_times=options.art_times,
             illustrations=illustrations, illustration_lines=options.illustration_lines, cinematic=options.cinematic, preserve_art_slots=True, artwork_mode=options.artwork_mode, layout_seed=options.image_seed,
             type_effect=options.type_effect, entrance_effect=options.entrance_effect, exit_effect=options.exit_effect,
             particle_intensity=options.particle_intensity, particle_speed=options.particle_speed,
