@@ -1,7 +1,27 @@
 """Shared composition contract for image prompts and video placement."""
 
 
+FULL_FRAME = ('fullscreen', 'verse', 'matte')
+
+
 def illustration_layout(number, width, height, cinematic=False, artwork_mode="cutout", layout_seed=42):
+    if artwork_mode == 'matte':
+        import random
+        rng = random.Random(f'{layout_seed}:{number}:matte-layout')
+        sky = rng.uniform(.48, .62)
+        margin_x, margin_y = width*.06, height*.05
+        text_box = tuple(round(v) for v in (margin_x, margin_y, width-2*margin_x, height*sky-margin_y-height*.06))
+        visual = (f'Full-bleed scenery seen from a low viewpoint. The horizon and the scenery along and below it fill the '
+                  f'lower {1-sky:.0%} of the canvas. Everything above the skyline, about the upper {sky:.0%} of the canvas, '
+                  'is empty sky painted as one flat, perfectly uniform pure chroma-key green (#00FF00): no clouds, sun, moon, '
+                  'stars, birds, gradient, texture or shading anywhere in the green. The skyline is a crisp clean edge '
+                  'against the green. No main character or dominant figure silhouette; any people are small and below '
+                  'the skyline. No border or typography.')
+        scale = 1344/max(width, height)
+        return dict(position='top', orientation='landscape' if width >= height else 'portrait',
+                    art_box=(0, 0, width, height), text_box=text_box, prompt=visual, visual_prompt=visual,
+                    artwork_mode=artwork_mode, sky=round(sky, 3), image_width=max(64, round(width*scale/64)*64),
+                    image_height=max(64, round(height*scale/64)*64))
     if artwork_mode in ('fullscreen', 'verse'):
         import random
         rng = random.Random(f'{layout_seed}:{number}:background-layout')
