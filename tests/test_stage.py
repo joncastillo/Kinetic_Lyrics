@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
-from lyric_blocks import group_lines, justify, layout_block
+from render.lyric_blocks import group_lines, justify, layout_block
 
 
 def lyrics(*lines):
@@ -26,8 +26,9 @@ def lyrics(*lines):
 class BlockTest(unittest.TestCase):
     def test_background_crossing_starts_with_valid_seam(self):
         from PIL import Image
-        from kinetic_director import Compositor, rules_plan
-        from kinetic_lyrics import theme_for
+        from render.compositor import Compositor
+        from direction.typography import rules_plan
+        from direction.theme import theme_for
         data = lyrics((.2, 'silk'), (5.2, 'wind'))
         c = Compositor(data, rules_plan(data, theme_for('autumn')), 100, 60, 8.,
                        artwork_mode='verse', reading_flow='preview', text_animation='none')
@@ -38,7 +39,7 @@ class BlockTest(unittest.TestCase):
 
     def test_wisp_partner_visits_once_in_the_second_half_on_stem_events(self):
         from types import SimpleNamespace
-        from stage_3d import Stage3D
+        from render.stage_3d import Stage3D
         stage = Stage3D.__new__(Stage3D)
         notes = [float(n) for n in range(1, 41)]
         stage._music = dict(times=notes[::2], strengths=[.9]*20, tune_times=notes, tune=[.2, .8]*20)
@@ -55,7 +56,7 @@ class BlockTest(unittest.TestCase):
     def test_pseudo_3d_backdrop_uses_one_flat_composite_per_frame(self):
         from types import SimpleNamespace
         from PIL import Image
-        from stage_3d import Stage3D
+        from render.stage_3d import Stage3D
         stage = Stage3D.__new__(Stage3D)
         calls = []
         def background(index, t, veil=False):
@@ -90,7 +91,7 @@ class BlockTest(unittest.TestCase):
         self.assertEqual(len(gl.quads), 2)
 
     def test_directed_picture_joins_its_word_even_on_effect_row(self):
-        from stage_3d import Stage3D
+        from render.stage_3d import Stage3D
         word = dict(line=0, index=0, text='MOON', bare='moon', role='hero', effect=object())
         picture = dict(line=0, word=0, image='painted.png', source='generate', placement='letter', motion='pulse')
         Stage3D.choose_motion(None, [word], random.Random(1), picture)
@@ -125,8 +126,8 @@ class FlowTest(unittest.TestCase):
     def test_band_turns_gently_and_never_brakes(self):
         import math
         import numpy as np
-        from flow_path import build_flows, SLOWEST
-        from realtime_typography import thread_distance
+        from render.flow_path import build_flows, SLOWEST
+        from render.realtime import thread_distance
         times = [0., 1., 1.4, 5., 6., 20., 21.5]
         points = [(0, 0), (300, 40), (320, 60), (360, 300), (700, 260), (900, 100), (1300, 200)]
         lines = [0, 1, 2, 3, 4, 9, 10]
@@ -146,13 +147,13 @@ class FlowTest(unittest.TestCase):
 
 class PlacementTest(unittest.TestCase):
     def test_growing_effects_are_top_only(self):
-        from particle_catalog import discover_effects
+        from effects.particles.catalog import discover_effects
         catalog = discover_effects()['entrance']
         self.assertEqual(catalog['autumn-maple-lettering'].placement, 'top')
         self.assertTrue(all(e.placement in ('any', 'top') for e in catalog.values()))
 
     def test_unknown_placement_is_rejected(self):
-        from particle_catalog import read_effect
+        from effects.particles.catalog import read_effect
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder)/'entrance'/'bad-placement.json'
             path.parent.mkdir()
@@ -163,9 +164,10 @@ class PlacementTest(unittest.TestCase):
 
 class DirectorTest(unittest.TestCase):
     def test_ai_exit_choice_is_applied(self):
-        from effect_director import ensure_line_effects
-        from kinetic_director import Compositor, rules_plan
-        from kinetic_lyrics import theme_for
+        from direction.effects import ensure_line_effects
+        from render.compositor import Compositor
+        from direction.typography import rules_plan
+        from direction.theme import theme_for
         data = lyrics((.2, 'quiet rain'), (2., 'distant light'))
         plan = rules_plan(data, theme_for('autumn'))
         c = Compositor(data, plan, 320, 180, 4., reading_flow='preview', text_animation='none', exit_effect='ai')
@@ -181,7 +183,7 @@ class DirectorTest(unittest.TestCase):
         self.assertEqual([pair[1] for pair in rebuilt.effect_pairs], directed['line_exits'])
 
     def test_answers_are_checked(self):
-        from ornament_director import checked
+        from direction.ornaments import checked
         words = {'0:1': dict(text='RAIN', line=0, index=1), '0:2': dict(text='MOON', line=0, index=2)}
         self.assertIsNone(checked(dict(word='9:9'), words, ['moon']))
         rain = checked(dict(word='0:1', picture='falling raindrop', source='library', library='none', placement='letter',
@@ -194,7 +196,7 @@ class DirectorTest(unittest.TestCase):
         self.assertEqual((moon['subject'], moon['library'], moon['placement']), ('crescent moon', 'moon', 'letter'))
 
     def test_pictures_are_translated_and_never_hang_on_function_words(self):
-        from ornament_director import checked, content_word
+        from direction.ornaments import checked, content_word
         words = {'15:3': dict(text='ambon', bare='ambon', line=15, index=3), '16:3': dict(text='balon', bare='balon', line=16, index=3)}
         lyrics = {'salita', "ko'y", 'tulad', 'ng', 'ambon', 'na', 'umalingawngaw', 'sa', 'balon'}
         answer = dict(word='15:3', picture='ambon', source='generate', library='none', placement='beside', motion='bob')
@@ -213,7 +215,7 @@ class StageTest(unittest.TestCase):
         import colorsys
         from types import SimpleNamespace
         from PIL import Image, ImageDraw
-        from stage_3d import Stage3D
+        from render.stage_3d import Stage3D
 
         art = Image.new('RGB', (100, 100), (116, 78, 151))
         ImageDraw.Draw(art).rectangle((0, 0, 24, 99), fill=(168, 116, 63))
@@ -230,9 +232,10 @@ class StageTest(unittest.TestCase):
             moderngl.create_standalone_context(require=330).release()
         except Exception as exc:
             self.skipTest(f'No OpenGL 3.3 context: {exc}')
-        from kinetic_director import Compositor, rules_plan
-        from kinetic_lyrics import theme_for
-        from stage_3d import close_stage
+        from render.compositor import Compositor
+        from direction.typography import rules_plan
+        from direction.theme import theme_for
+        from render.stage_3d import close_stage
         data = lyrics((.2, 'maple leaves turning gold'), (1.8, 'under the silver moon'), (6, 'we were running home'))
         c = Compositor(data, rules_plan(data, theme_for('autumn')), 320, 180, 9., entrance_effect='autumn-maple-lettering',
                        reading_flow='stage', text_animation='none')
@@ -242,7 +245,7 @@ class StageTest(unittest.TestCase):
             for block in blocks:
                 self.assertTrue(all((w['effect'] is not None) == (w['row'] == 0) for w in block['words']))
                 self.assertEqual(sum(w['color'] == block['palette'][3] for w in block['words']), 1)
-            from stage_3d import MOVE
+            from render.stage_3d import MOVE
             transition = blocks[1]['move']
             before = c.realtime.camera(transition-1e-5)
             at = c.realtime.camera(transition)
@@ -269,7 +272,7 @@ class StageTest(unittest.TestCase):
 
 class SceneTest(unittest.TestCase):
     def test_scene_catalog_owns_particles(self):
-        from scene_catalog import scene_catalog
+        from direction.scene_catalog import scene_catalog
         catalog = scene_catalog()
         self.assertIn('autumn-maple-lettering', catalog['tree-canopy']['particles'])
         self.assertIn('bamboo-lettering', catalog['tree-canopy']['particles'])
@@ -283,8 +286,9 @@ class SceneTest(unittest.TestCase):
         self.assertEqual({catalog[s]['camera'] for s in ('panning-canvas', 'plain-blocks')}, {'pan', 'blocks'})
 
     def test_scene_particles_honour_the_ticked_entrances(self):
-        from kinetic_director import Compositor, rules_plan
-        from kinetic_lyrics import theme_for
+        from render.compositor import Compositor
+        from direction.typography import rules_plan
+        from direction.theme import theme_for
         data = lyrics((.2, 'lace and silk'), (5., 'paper cranes'))
         plan = dict(rules_plan(data, theme_for('autumn')), scene_flows=[dict(start=0, end=2, scene='lace-and-paper')])
         pool = ['pearl-lace-lettering', 'glass-prism']
@@ -294,8 +298,9 @@ class SceneTest(unittest.TestCase):
         self.assertEqual(unticked.realtime.stage.owned_effects(0), [])
 
     def test_tree_canopy_restricts_entrances_to_trees(self):
-        from kinetic_director import Compositor, rules_plan
-        from kinetic_lyrics import theme_for
+        from render.compositor import Compositor
+        from direction.typography import rules_plan
+        from direction.theme import theme_for
         data = lyrics((.2, 'maple leaves'), (5., 'old branches'))
         plan = dict(rules_plan(data, theme_for('autumn')), scene_flows=[dict(start=0, end=2, scene='tree-canopy')])
         pool = ['glass-prism', 'old-oak-lettering', 'bamboo-lettering']
@@ -305,14 +310,15 @@ class SceneTest(unittest.TestCase):
     def test_scene_effects_render_an_animated_sample(self):
         from io import BytesIO
         from PIL import Image
-        from particle_preview import SCENE_SIZE, _render_scene
+        from effects.particles.preview import SCENE_SIZE, _render_scene
         sample = Image.open(BytesIO(_render_scene('black-hole-sun')))
         self.assertEqual(sample.size, SCENE_SIZE)
         self.assertGreater(getattr(sample, 'n_frames', 1), 20)
 
     def test_full_screen_scene_enlarges_words(self):
-        from kinetic_director import Compositor, rules_plan
-        from kinetic_lyrics import theme_for
+        from render.compositor import Compositor
+        from direction.typography import rules_plan
+        from direction.theme import theme_for
         data = lyrics((.2, 'vast sky'), (5., 'vast sky'))
         plan = dict(rules_plan(data, theme_for('autumn')), scene_flows=[
             dict(start=0, end=1, scene='full-screen-type'),
@@ -322,8 +328,8 @@ class SceneTest(unittest.TestCase):
         self.assertGreater(lines[0]['layout'].words[0].size, lines[1]['layout'].words[0].size*1.5)
 
     def test_sections_split_and_repeat(self):
-        from scene_mix import rule_scenes, segments
-        from scene_catalog import scene_catalog
+        from render.scene_mix import rule_scenes, segments
+        from direction.scene_catalog import scene_catalog
         data = lyrics(*((i*2., f'line {i} goes here') for i in range(12)))
         for i, line in enumerate(data):
             line.update(section_id=0 if i < 10 else 1, section_label='Verse' if i < 10 else 'Chorus')
@@ -342,10 +348,11 @@ class SceneTest(unittest.TestCase):
             moderngl.create_standalone_context(require=330).release()
         except Exception as exc:
             self.skipTest(f'No OpenGL 3.3 context: {exc}')
-        from kinetic_director import Compositor, rules_plan
-        from kinetic_lyrics import theme_for
-        from scene_catalog import scene_catalog
-        from stage_3d import close_stage
+        from render.compositor import Compositor
+        from direction.typography import rules_plan
+        from direction.theme import theme_for
+        from direction.scene_catalog import scene_catalog
+        from render.stage_3d import close_stage
         data = lyrics((.2, 'maple leaves turning gold'), (1.8, 'every word you never told'),
                       (5, 'under the silver moon'), (6.6, 'i hold your love so tight'))
         for i, line in enumerate(data):
@@ -371,9 +378,10 @@ class SceneTest(unittest.TestCase):
         except Exception as exc:
             self.skipTest(f'No OpenGL 3.3 context: {exc}')
         import numpy as np
-        from kinetic_director import Compositor, rules_plan
-        from kinetic_lyrics import theme_for
-        from stage_3d import BLOCK_WIDTH, close_stage
+        from render.compositor import Compositor
+        from direction.typography import rules_plan
+        from direction.theme import theme_for
+        from render.stage_3d import BLOCK_WIDTH, close_stage
         data = lyrics((.2, 'maple leaves are turning gold'), (2.4, 'every word you never told'))
         for line in data:
             line.update(section_id=0, section_label='Verse')

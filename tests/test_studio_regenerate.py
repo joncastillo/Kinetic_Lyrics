@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
-import studio
+import studio.server as studio
 
 
 class RegenerateSessionTest(unittest.TestCase):

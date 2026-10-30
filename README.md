@@ -33,7 +33,7 @@ rebuild after the user swaps an image reuses them instead of starting again from
 scratch.
 
 These steps run as a [LangGraph](https://langchain-ai.github.io/langgraph/) state graph
-(`src/pipeline_graph.py`). After each step the graph saves its progress to
+(`src/pipeline/graph.py`). After each step the graph saves its progress to
 `<video>.graph.sqlite` in the project folder. If a run fails, starting it again with
 `--resume` continues from the step that failed. Studio does this automatically when it
 recovers a failed job. The artwork review is a pause in the graph: the run waits there
@@ -102,12 +102,40 @@ terms were accepted with the same account that owns the token.
 
 ## Project layout
 
-- `src/` holds the Python code: the command line, the Studio server, the renderer
-  and the model workers.
-- `ui/` holds the Studio web front end (HTML, CSS and JavaScript).
-- `tests/` holds the test suite, which runs with
-  `python -m unittest discover -s tests`.
+All code lives in `src/`, one folder per area. Each AI model family has its own folder
+under `src/models/`, so the code that loads and calls a model is kept apart from the code
+that decides what to ask it.
+
+```
+src/
+  pipeline/      Command line (pipeline/cli.py), the LangGraph graph and its steps
+  models/        One folder per AI model family:
+    ollama/        Local text language models: Ollama service, GPU admission, catalog, traces
+    vision/        Vision-model review of artwork, and the score policy
+    image/         Diffusion image models: catalog, pipeline loading, Qwen precision
+    speech/        Whisper, Qwen3-ASR, Qwen3 aligner and Parakeet
+    separation/    Demucs vocal and instrument stems
+    matting/       BiRefNet background removal
+    ocr/           RapidOCR lettering and frame checks
+    gpu/           GPU detection, VRAM accounting, presets and model sessions
+    downloads.py   Background downloads for every model family
+  direction/     What the language model is asked to plan: scenes, image prompts,
+                 typography, effects, song structure
+  audio/         Melody, vocal onsets and instrument rhythm from the separated stems
+  artwork/       Illustration files: generation jobs, gallery, review state, queues,
+                 greenscreen mattes
+  render/        Frame compositor, layouts, real-time typography, camera canvas, encoding
+  effects/       Lettering effects: particles/ and growth/
+  studio/        Studio web server, background worker, batches and exports
+  core/          Paths, progress events, subprocess and text helpers
+  frontend/      Studio web front end (HTML, CSS and JavaScript)
+```
+
+- `tests/` holds the test suite, which runs with `python -m unittest discover -s tests`.
 - `assets/`, `particles/` and `shaders/` hold images, effect recipes and GLSL shaders.
+
+The packages are imported with `src/` on `PYTHONPATH`. The `.cmd` launchers set this and
+run `python -P -m pipeline.cli` (command line) or `python -P -m studio.server` (Studio).
 
 ## Studio
 

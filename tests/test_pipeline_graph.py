@@ -13,7 +13,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
-import pipeline_graph
+import pipeline.graph as pipeline_graph
 
 TIMINGS = [dict(text='hello from the hills', words=[dict(text=w, start=.5+i*.4, end=.8+i*.4) for i, w in enumerate('hello from the hills'.split())]),
            dict(text='down to the sea', words=[dict(text=w, start=3+i*.4, end=3.3+i*.4) for i, w in enumerate('down to the sea'.split())])]
@@ -103,6 +103,18 @@ class PipelineGraphTest(unittest.TestCase):
         self.visited.clear()
         pipeline_graph.run(self.args(), self.audio, self.output, resume=True)
         self.assertEqual(self.visited[0], 'align', 'a finished run starts again from the beginning')
+
+    def test_replaced_audio_is_not_resumed(self):
+        def broken(state, runtime):
+            raise ValueError('typography model unavailable')
+        with mock.patch.object(pipeline_graph, 'direct', self.recorder('direct', broken)):
+            with self.assertRaises(ValueError):
+                pipeline_graph.run(self.args(), self.audio, self.output)
+        # A different track saved under the same name.
+        subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=660:duration=5', str(self.audio)], check=True)
+        self.visited.clear()
+        pipeline_graph.run(self.args(), self.audio, self.output, resume=True)
+        self.assertEqual(self.visited[0], 'align')
 
     def test_render_repeats_while_replacements_are_queued(self):
         outcomes = iter([True, False])

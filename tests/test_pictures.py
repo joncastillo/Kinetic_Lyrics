@@ -10,9 +10,9 @@ from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
-import ornament_director
-from glyph_art import cutout
-from ornament_director import icon_prompt, picture_key, released_pictures, repaint_released, set_picture_kept
+import direction.ornaments as ornament_director
+from render.glyph_art import cutout
+from direction.ornaments import icon_prompt, picture_key, released_pictures, repaint_released, set_picture_kept
 
 
 def block(folder, line, word, image=True):
@@ -24,7 +24,7 @@ def block(folder, line, word, image=True):
 
 class PictureTest(unittest.TestCase):
     def test_library_picture_appears_in_workspace_snapshot(self):
-        from studio import Job
+        from studio.server import Job
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             (root/'video.blocks.json').write_text(json.dumps({'blocks': [
@@ -110,7 +110,7 @@ class PictureTest(unittest.TestCase):
 
 class InstrumentOverlayTest(unittest.TestCase):
     def test_overlay_keeps_the_frame_rgb_for_the_encoder(self):
-        from instrument_stage import InstrumentStage
+        from render.instrument_stage import InstrumentStage
         stage = InstrumentStage.__new__(InstrumentStage)
         stage.width, stage.height, stage.size = 64, 36, 9
         picture = Image.new('RGBA', (9, 9), (200, 120, 40, 255))

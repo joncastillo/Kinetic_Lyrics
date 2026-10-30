@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
 class LyricsSanitizerTest(unittest.TestCase):
     def test_sanitize_lyrics_removes_genius_recommendations(self):
-        from kinetic_lyrics import sanitize_lyrics
+        from pipeline.timing import sanitize_lyrics
 
         raw_lyrics = """[Verse 1]
 Hello, darkness, my old friend
@@ -38,7 +38,7 @@ Silence, like a cancer, grows123Embed"""
         self.assertIn("Silence, like a cancer, grows", cleaned)
 
     def test_sanitize_lyrics_removes_header_and_blank_line_breaks(self):
-        from kinetic_lyrics import sanitize_lyrics
+        from pipeline.timing import sanitize_lyrics
 
         raw = """14 Contributors
 The Sound of Silence Lyrics

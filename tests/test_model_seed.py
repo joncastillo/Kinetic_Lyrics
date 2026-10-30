@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 class ModelSeedTest(unittest.TestCase):
     def test_cli_seed_randomized_when_unspecified(self):
         import argparse
-        from kinetic_lyrics import main
+        from pipeline.cli import main
 
         # Verify argparser handles --image-seed and --seed
         parser = argparse.ArgumentParser()

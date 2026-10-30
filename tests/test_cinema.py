@@ -20,15 +20,16 @@ def lyrics(*lines):
 
 
 def compositor(data, duration=8., flow='cinema'):
-    from kinetic_director import Compositor, rules_plan
-    from kinetic_lyrics import theme_for
+    from render.compositor import Compositor
+    from direction.typography import rules_plan
+    from direction.theme import theme_for
     return Compositor(data, rules_plan(data, theme_for('bright')), 360, 640, duration, reading_flow=flow,
                       entrance_effect='none', exit_effect='none', kinetic=dict(fade=False))
 
 
 class CinemaTest(unittest.TestCase):
     def test_lines_split_into_short_chunks_with_one_heavy_word(self):
-        from cinema_typography import CinemaTypography
+        from render.cinema import CinemaTypography
         c = compositor(lyrics((1., 'black hole sun'), (3.5, 'and wash away the rain')))
         self.assertIsInstance(c.realtime, CinemaTypography)
         chunks = c.realtime.plan()
@@ -48,8 +49,8 @@ class CinemaTest(unittest.TestCase):
         self.assertTrue(np.array_equal(held, np.asarray(c.frame(1.6))))
 
     def test_scene_mix_films_a_section_in_the_cinema_scene(self):
-        from scene_catalog import scene_catalog
-        from scene_mix import SceneMix
+        from direction.scene_catalog import scene_catalog
+        from render.scene_mix import SceneMix
         self.assertEqual(scene_catalog()['black-hole-sun']['camera'], 'cinema')
         c = compositor(lyrics((1., 'black hole sun')), flow='mixed')
         mix = SceneMix(c, flows=[dict(start=0, end=1, scene='black-hole-sun')])

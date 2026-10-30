@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
 class WordMotionTest(unittest.TestCase):
     def test_mask_rises_and_cartoon_title_overshoots(self):
-        from kinetic_effects import mask_rise, cartoon_scale
+        from render.text_effects import mask_rise, cartoon_scale
 
         sprite = Image.new('RGBA', (20, 20), '#ffffff')
         self.assertEqual(mask_rise(sprite, 0).getbbox(), None)
@@ -21,8 +21,9 @@ class WordMotionTest(unittest.TestCase):
         self.assertEqual(cartoon_scale(1), 1)
 
     def test_first_word_enters_before_its_cue(self):
-        from kinetic_director import Compositor, rules_plan
-        from kinetic_lyrics import theme_for
+        from render.compositor import Compositor
+        from direction.typography import rules_plan
+        from direction.theme import theme_for
 
         data = [dict(text='THUNDER', words=[dict(text='THUNDER', start=1., end=1.6)])]
         for mode in ('mask-rise', 'cartoon-pop'):

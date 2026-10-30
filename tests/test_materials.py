@@ -8,11 +8,11 @@ from PIL import Image, ImageDraw, ImageFont
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
-from material_fx import field, held, paint
-from material_recipes import RECIPES
-from particle_catalog import discover_effects
-from particle_motion import paint_transition
-from silk_geometry import sheet, word_cloth
+from effects.materials.fx import field, held, paint
+from effects.materials.recipes import RECIPES
+from effects.particles.catalog import discover_effects
+from effects.particles.motion import paint_transition
+from effects.silk.geometry import sheet, word_cloth
 
 
 def word_sprite(text='Silk', size=72):

@@ -17,8 +17,9 @@ FPS = 30
 class HandoverTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        from kinetic_director import Compositor, rules_plan
-        from kinetic_lyrics import theme_for
+        from render.compositor import Compositor
+        from direction.typography import rules_plan
+        from direction.theme import theme_for
         lines = [(1.+k*3.2, 'the quiet river carries every word home') for k in range(9)]
         data = lyrics(*lines)
         for i, line in enumerate(data):
@@ -70,7 +71,7 @@ class HandoverTest(unittest.TestCase):
             moderngl.create_standalone_context(require=330).release()
         except Exception as exc:
             self.skipTest(f'No OpenGL 3.3 context: {exc}')
-        from stage_3d import close_stage
+        from render.stage_3d import close_stage
         try:
             for h in self.handovers:
                 for moment in (h['glide'][0], sum(h['glide'])/2, h['glide'][1]-1e-3):

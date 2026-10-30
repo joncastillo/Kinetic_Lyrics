@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
 class WispFormsTest(unittest.TestCase):
     def test_lyric_forms_and_blending(self):
-        from wisp_forms import form_for, forms_at
+        from render.wisp_forms import form_for, forms_at
 
         for lyric, expected in [('the ball rolls', 'ball'), ('an airplane turns', 'airplane'),
                                 ('the jet flies', 'jet'), ('a comet falls', 'comet'),
@@ -23,7 +23,7 @@ class WispFormsTest(unittest.TestCase):
         self.assertAlmostEqual(sum(weight for _, weight in mixed), 1.)
 
     def test_heading_rotates_smoothly_around_a_bend(self):
-        from wisp_forms import heading_at, paint_head
+        from render.wisp_forms import heading_at, paint_head
 
         points = [(100+50*math.cos(k*math.pi/36), 100+50*math.sin(k*math.pi/36))
                   for k in range(19)]

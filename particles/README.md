@@ -55,7 +55,7 @@ material families, plus a few petal, ink and thread lettering effects. For exits
 are the glass, petals, smoke, cinematic and material families. The other recipes on disk are kept so
 that older projects still load, but choosing one of them gives plain type and a
 warning. A new family is made available by adding it to the filter in
-`discover_effects` in `src/particle_catalog.py`.
+`discover_effects` in `src/effects/particles/catalog.py`.
 
 Here is `exit/glass-shatter.json`:
 
@@ -86,9 +86,9 @@ Here is `exit/glass-shatter.json`:
 | `description` | Optional. Overrides the entry in `descriptions.json` |
 | `placement: "top"` | Optional. Marks an effect that grows above the word, such as maple trees or gold filigree. The 3D stage uses it only on the top row of a block, where nothing sits above it. The default is `"any"` |
 
-The allowed range of each number is defined in `src/particle_catalog.py`. New looks
+The allowed range of each number is defined in `src/effects/particles/catalog.py`. New looks
 can be built by combining these settings, but a brand-new material or simulation
-needs code changes in `src/particle_motion.py`.
+needs code changes in `src/effects/particles/motion.py`.
 
 Every recipe should have a description in `descriptions.json` of no more than ten
 words. Studio's search uses it, and so does AI selection.
@@ -113,8 +113,8 @@ words. Studio's search uses it, and so does AI selection.
   dissolve it into, a physical substance. A sandstone block is worn away by centuries
   of wind under a time-lapse sun; gold is poured into letter moulds; Mucha-style satin
   billows in and drapes into the glyphs; paper burns behind a glowing ember edge.
-  Each one is a painter in `src/material_recipes.py`, built from the shared pieces in
-  `src/material_fx.py`: signed distances to the glyph, noise and Voronoi cells,
+  Each one is a painter in `src/effects/materials/recipes.py`, built from the shared pieces in
+  `src/effects/materials/fx.py`: signed distances to the glyph, noise and Voronoi cells,
   height-field shading for stone, metal, satin, glass and ice, and particles whose
   paths are solved in closed form. Their JSON recipes only name them, so a new
   material needs a painter as well as a recipe. They run at an ink height of at most

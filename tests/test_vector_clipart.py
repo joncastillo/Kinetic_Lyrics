@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
 class VectorClipartTest(unittest.TestCase):
     def test_validation_rejects_unsafe_or_unrenderable_shapes(self):
-        from vector_clipart import validate_icon
+        from artwork.vector_clipart import validate_icon
 
         with self.assertRaises(ValueError):
             validate_icon(dict(shapes=[dict(kind='script', color='#FFFFFF')]*3))
@@ -20,8 +20,8 @@ class VectorClipartTest(unittest.TestCase):
                                             cx=50, cy=50, radius=20)]*3))
 
     def test_model_geometry_saves_svg_and_transparent_png(self):
-        from vector_clipart import paint_icons
-        from glyph_art import cutout
+        from artwork.vector_clipart import paint_icons
+        from render.glyph_art import cutout
 
         shapes = [dict(kind='circle', color='#F4F4F4', cx=50, cy=50, radius=29),
                   dict(kind='ellipse', color='#FF789A', cx=42, cy=40, rx=11, ry=8),
@@ -47,7 +47,7 @@ class VectorClipartTest(unittest.TestCase):
             self.assertEqual(len(calls), 1)
 
     def test_familiar_tiny_subjects_use_legible_vector_silhouettes(self):
-        from vector_clipart import familiar_icon, paint_icons
+        from artwork.vector_clipart import familiar_icon, paint_icons
         from PIL import Image
 
         for subject in ('moth', 'flower', 'airplane', 'heart', 'star', 'leaf', 'comet'):

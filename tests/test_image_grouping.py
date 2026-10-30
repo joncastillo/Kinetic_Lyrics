@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
 class ImageGroupingTest(unittest.TestCase):
     def test_llm_estimates_illustration_span(self):
-        from image_grouping import estimate_lines
+        from direction.image_grouping import estimate_lines
 
         data = [dict(text=f'Line {i}', section_label='Chorus' if i >= 6 else 'Verse') for i in range(12)]
         def request(endpoint, payload, timeout):
@@ -18,7 +18,7 @@ class ImageGroupingTest(unittest.TestCase):
         self.assertEqual(estimate_lines(data, 'qwen3:14b', request), 3)
 
     def test_invalid_model_choice_uses_bounded_fallback(self):
-        from image_grouping import estimate_lines
+        from direction.image_grouping import estimate_lines
 
         data = [dict(text='A lyric') for _ in range(90)]
         self.assertEqual(estimate_lines(data, 'qwen3:14b',

@@ -38,7 +38,7 @@ class Session:
 
 class YouTubeImportTest(unittest.TestCase):
     def test_video_url_rejects_playlists_and_foreign_hosts(self):
-        from youtube_import import video_url
+        from studio.youtube_import import video_url
 
         self.assertEqual(video_url('https://youtu.be/abcdefghijk?t=10'),
                          'https://www.youtube.com/watch?v=abcdefghijk')
@@ -49,7 +49,7 @@ class YouTubeImportTest(unittest.TestCase):
                 video_url(url)
 
     def test_import_compares_candidates_and_saves_selected_lyrics(self):
-        from youtube_import import import_youtube
+        from studio.youtube_import import import_youtube
 
         def downloader(url, folder):
             path = Path(folder)/'audio.wav'
@@ -70,7 +70,7 @@ class YouTubeImportTest(unittest.TestCase):
             self.assertEqual([item['score'] for item in result['candidates']], [75, 96, 18])
 
     def test_rejected_lyric_candidates_leave_transcription_available(self):
-        from youtube_import import choose_lyrics
+        from studio.youtube_import import choose_lyrics
 
         candidates = [dict(source='Genius', title='Different Song', artist='Someone',
                            lyrics='Some unrelated words repeated across an unrelated chorus')]

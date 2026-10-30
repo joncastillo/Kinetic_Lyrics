@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
 class ChorusFXTest(unittest.TestCase):
     def test_lyric_motifs_and_section_windows(self):
-        from chorus_fx import chorus_windows, motif_for
+        from render.chorus_fx import chorus_windows, motif_for
 
         self.assertEqual(motif_for('I give you my heart'), 'heart')
         self.assertEqual(motif_for('Leaves in the wind'), 'leaf')
@@ -28,7 +28,7 @@ class ChorusFXTest(unittest.TestCase):
         self.assertEqual(chorus_windows(data), [(1., 1.8, 1, 'heart')])
 
     def test_glowing_shapes_and_lights_are_time_pure(self):
-        from chorus_fx import ChorusFX
+        from render.chorus_fx import ChorusFX
 
         data = [dict(text='Stars in the sky', section_id=0, section_label='Chorus',
                      words=[dict(text='Stars', start=1., end=2.5)])]
@@ -41,8 +41,9 @@ class ChorusFXTest(unittest.TestCase):
         self.assertIs(effect.paint(base, 3.3), base)
 
     def test_chorus_overlay_reaches_other_reading_flows(self):
-        from kinetic_director import Compositor, rules_plan
-        from kinetic_lyrics import theme_for
+        from render.compositor import Compositor
+        from direction.typography import rules_plan
+        from direction.theme import theme_for
 
         words = [dict(text='Shining', start=1., end=1.4),
                  dict(text='stars', start=1.5, end=1.9)]
