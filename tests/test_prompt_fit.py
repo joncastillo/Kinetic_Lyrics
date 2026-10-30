@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
-from prompt_fit import FLUX_WORDS, fit_prompts
+from direction.prompt_fit import FLUX_WORDS, fit_prompts
 
 FLUX = 'black-forest-labs/FLUX.2-klein-4B'
 QWEN = 'Qwen/Qwen-Image-2512'

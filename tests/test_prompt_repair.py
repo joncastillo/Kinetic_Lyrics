@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
-from prompt_repair import revise_repair_prompts
+from direction.prompt_repair import revise_repair_prompts
 
 
 class Worker:
@@ -28,9 +28,9 @@ class PromptRepairTest(unittest.TestCase):
         job = dict(model='Qwen/Qwen-Image-2512', groups=['first line', 'second line'], prompts=['old one', 'old two'],
                    layouts=[{}, {}], song_gist='A song about isolation.')
         items = [dict(index=0, review=dict(score=20)), dict(index=1, review=dict(score=30))]
-        with patch('ollama_gpu.gpu_chat', chat), patch('ollama_gpu.unload_model'), \
-                patch('gpu_models.resolve_prompt_model', return_value='test'), \
-                patch('prompt_fit.fit_prompts', side_effect=lambda request, model, image_model, prompts, style='': prompts):
+        with patch('models.ollama.gpu.gpu_chat', chat), patch('models.ollama.gpu.unload_model'), \
+                patch('models.ollama.catalog.resolve_prompt_model', return_value='test'), \
+                patch('direction.prompt_fit.fit_prompts', side_effect=lambda request, model, image_model, prompts, style='': prompts):
             planned = revise_repair_prompts(Worker(), job, {}, items, variants=2)
         self.assertEqual([plan['prompts'][0] for plan in planned[0]], ['first line variant 1', 'first line variant 2'])
         self.assertEqual([plan['prompts'][1] for plan in planned[1]], ['second line variant 1', 'second line variant 2'])

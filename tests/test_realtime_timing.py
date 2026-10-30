@@ -11,8 +11,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
 class RealtimeTimingTest(unittest.TestCase):
     def test_hero_particle_is_readable_at_word_start(self):
-        from kinetic_director import Compositor, rules_plan
-        from kinetic_lyrics import theme_for
+        from render.compositor import Compositor
+        from direction.typography import rules_plan
+        from direction.theme import theme_for
 
         data = [dict(text='THUNDER', words=[dict(text='THUNDER', start=1., end=1.6)])]
         c = Compositor(data, rules_plan(data, theme_for('bright')), 640, 360, 3.,

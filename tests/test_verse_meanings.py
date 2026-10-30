@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
-from verse_backgrounds import lyric_meanings, notes_for_group, translation_notes, uses_definition
-from verse_backgrounds import image_prompt
+from direction.verse import lyric_meanings, notes_for_group, translation_notes, uses_definition
+from direction.verse import image_prompt
 
 
 class VerseMeaningTest(unittest.TestCase):
@@ -47,21 +47,21 @@ class VerseMeaningTest(unittest.TestCase):
             lyric_meanings(request, 'test', ['ambon'], image_instructions='ambon means drizzle')
 
     def test_verse_prompt_keeps_scene_detail_after_review(self):
-        from prompt_audit import audit_prompts
+        from direction.prompt_audit import audit_prompts
         subject = 'The speaker stands on a wet street while fine drizzle falls into an old well.'
         layout = {'visual_prompt': 'Full-bleed painted scene with quiet space for the lyrics.'}
         original = image_prompt(subject, layout, 'Delicate linework and soft painterly shading.')
         self.assertGreaterEqual(len(original.split()), 235)
-        with patch('subject_director.request_subjects', return_value=['A wet street in fine drizzle.']):
+        with patch('direction.scenes.request_subjects', return_value=['A wet street in fine drizzle.']):
             result = audit_prompts(None, 'test', ['ambon means drizzle'], [subject], [original], [layout], 'verse')
         self.assertGreaterEqual(len(result[0].split()), 235)
         self.assertIn('fine drizzle', result[0])
 
     def test_short_review_does_not_restore_wrong_subject(self):
-        from prompt_audit import audit_prompts
+        from direction.prompt_audit import audit_prompts
         original = image_prompt('A seashell lies on the shore.', {'visual_prompt': 'Full-bleed painted scene.'},
                                 'Delicate linework and soft painterly shading.')
-        with patch('subject_director.request_subjects', return_value=['Fine drizzle falls into a well.']):
+        with patch('direction.scenes.request_subjects', return_value=['Fine drizzle falls into a well.']):
             result = audit_prompts(None, 'test', ['ambon means drizzle'], ['shell'], [original],
                                    [{'visual_prompt': 'Full-bleed painted scene.'}], 'verse')
         self.assertIn('drizzle', result[0])

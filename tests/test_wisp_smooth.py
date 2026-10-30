@@ -41,7 +41,7 @@ class WispSmoothTest(unittest.TestCase):
         self.assertLess(max(second_differences(self.heads)), float(np.median(speeds)))
 
     def test_runs_brake_to_a_stop(self):
-        from realtime_typography import thread_distance
+        from render.realtime import thread_distance
         for run in self.stage.ribbon:
             times, distances, _ = run['keys']
             cruise = (distances[-1]-distances[0])/(times[-1]-times[0])/30  # per frame

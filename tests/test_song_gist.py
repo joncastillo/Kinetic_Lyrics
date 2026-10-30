@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
-from song_gist import attach_gist, song_gist
+from direction.song_gist import attach_gist, song_gist
 
 
 class SongGistTest(unittest.TestCase):

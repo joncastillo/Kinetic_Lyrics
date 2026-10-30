@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
-from review_policy import anatomy_only, CANDIDATES_PER_REPAIR
+from models.vision.policy import anatomy_only, CANDIDATES_PER_REPAIR
 
 SIX_FINGERS = dict(score=20, summary='', uncertain=False, issues=[
     dict(issue='Six fingers on the left hand', severity='high', location='left')],
@@ -37,7 +37,7 @@ class AnatomyOnlyTest(unittest.TestCase):
 
 class RepairBatchTest(unittest.TestCase):
     def test_reseeds_and_keeps_first_passing_candidate(self):
-        import studio_batches
+        import studio.batches as studio_batches
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             manifest = root/'artwork'/'key'/'illustrations.json'
@@ -73,9 +73,9 @@ class RepairBatchTest(unittest.TestCase):
             self.assertTrue(any(e.get('repaired') for e in events))
 
     def test_scene_problem_writes_every_rounds_prompts_once(self):
-        import studio_batches
+        import studio.batches as studio_batches
         from unittest import mock
-        from review_policy import MAX_AUTO_REPAIRS
+        from models.vision.policy import MAX_AUTO_REPAIRS
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             manifest = root/'artwork'/'key'/'illustrations.json'
@@ -101,7 +101,7 @@ class RepairBatchTest(unittest.TestCase):
 
             worker = SimpleNamespace(generate_candidate=generate_candidate, emit=lambda *a, **k: None,
                                      vision_review=lambda path, *a: dict(scene, image_sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
-            with mock.patch('prompt_repair.revise_repair_prompts', side_effect=revise) as revised:
+            with mock.patch('direction.prompt_repair.revise_repair_prompts', side_effect=revise) as revised:
                 studio_batches.repair_batch(worker, root, manifest, [dict(index=0, model='vision', expected_sha=sha, review=scene)])
             revised.assert_called_once()
             self.assertEqual(revised.call_args.kwargs['variants'], MAX_AUTO_REPAIRS)

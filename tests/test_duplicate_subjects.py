@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
 class DuplicateSubjectsTest(unittest.TestCase):
     def test_repair_duplicate_subjects_resolves_without_error(self):
-        from subject_director import repair_duplicate_subjects
+        from direction.scenes import repair_duplicate_subjects
 
         # Mock payload
         payload = {

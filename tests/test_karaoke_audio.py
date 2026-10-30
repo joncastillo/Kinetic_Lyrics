@@ -1,5 +1,6 @@
 """Karaoke exports the instrument stems on the original song timeline."""
 import math
+import os
 import struct
 import sys
 import tempfile
@@ -12,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
 class KaraokeAudioTest(unittest.TestCase):
     def test_instrumental_mix_is_cached_and_time_aligned(self):
-        from rhythm import audio_for_mode
+        from audio.rhythm import audio_for_mode
 
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -25,6 +26,8 @@ class KaraokeAudioTest(unittest.TestCase):
                                               for i in range(8000)))
             original = root/'original.wav'
             original.write_bytes(b'original is used for alignment')
+            stamp = min((stems/f'{name}.wav').stat().st_mtime for name in ('drums', 'bass', 'other'))-60
+            os.utime(original, (stamp, stamp))  # the song predates the stems separated from it
             self.assertEqual(audio_for_mode(original, root), original)
             instrumental = audio_for_mode(original, root, 'karaoke')
             self.assertTrue(instrumental.is_file())

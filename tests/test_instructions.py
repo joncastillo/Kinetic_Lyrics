@@ -5,8 +5,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
-from particle_catalog import discover_effects
-from render_instructions import parse_instructions, typography_colors, word_directives
+from effects.particles.catalog import discover_effects
+from direction.instructions import parse_instructions, typography_colors, word_directives
 
 
 def song(*lines):
@@ -54,7 +54,7 @@ class InstructionTest(unittest.TestCase):
         self.assertEqual(problems, ['Not sung in this song: "missing"'])
 
     def test_compositor_overrides_only_the_named_word(self):
-        from kinetic_director import Compositor
+        from render.compositor import Compositor
         data = song('one neong two', 'three four')
         plan = dict(scenes=[dict(mode='push', style='swiss', palette='midnight', font='condensed', align='center',
                                  background='glow', camera='hold', emphasis=0, energy=.5) for _ in data])
@@ -65,7 +65,7 @@ class InstructionTest(unittest.TestCase):
         self.assertEqual(c.effect_pairs[0][0], 'none')  # the line keeps its own effect
 
     def test_compositor_applies_song_wide_lettering_colours(self):
-        from kinetic_director import Compositor
+        from render.compositor import Compositor
         data = song('one two', 'three four')
         plan = dict(scenes=[dict(mode='push', style='swiss', palette='midnight', font='condensed', align='center',
                                  background='glow', camera='hold', emphasis=0, energy=.5) for _ in data])

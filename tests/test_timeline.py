@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
-from timeline import apply_edits, checked_art_times, illustration_starts, rewrite_lyrics, tighten_line_starts
+from render.timeline import apply_edits, checked_art_times, illustration_starts, rewrite_lyrics, tighten_line_starts
 
 
 def song():

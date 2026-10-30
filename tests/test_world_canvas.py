@@ -8,7 +8,7 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
-from world_canvas import WorldCanvas
+from render.world_canvas import WorldCanvas
 
 
 class WorldCanvasTest(unittest.TestCase):
