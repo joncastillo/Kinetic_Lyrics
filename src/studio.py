@@ -274,8 +274,8 @@ class Job:
                 self.save()
 
     def resume_command(self, command):
-        """The same run, resumed from saved work: timings, artwork, approval and a plan made by this run."""
-        command=[part for part in command if part != '--overwrite']+['--overwrite']
+        """The same run, resumed from saved work: the pipeline checkpoint, or else timings, artwork, approval and a plan made by this run."""
+        command=[part for part in command if part not in ('--overwrite','--resume')]+['--overwrite','--resume']
         for flag in ('--timings','--plan'):
             if flag in command:
                 at=command.index(flag);del command[at:at+2]

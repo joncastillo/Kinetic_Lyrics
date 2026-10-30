@@ -8,6 +8,10 @@ moderngl>=5.12,<6
 psutil>=5.9
 filelock>=3.15
 
+# Pipeline orchestration and resumable checkpoints
+langgraph>=1.0,<2
+langgraph-checkpoint-sqlite>=3.0,<4
+
 # Audio: alignment, stem separation, melody and rhythm
 stable-ts>=2.19,<3
 demucs>=4.0
