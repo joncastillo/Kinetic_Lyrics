@@ -1,5 +1,6 @@
 """The frame compositor: backgrounds, artwork and lyric typography for each video frame."""
 from __future__ import annotations
+from core.imaging import turn
 import bisect
 from io import BytesIO
 import hashlib
@@ -592,10 +593,9 @@ class Compositor:
                 if style == 'cutout':
                     glyph_mask = glyph_mask.rotate((-1 if i % 2 else 1)*1.1,
                                                   resample=Image.Resampling.BICUBIC,expand=False)
-                    sprite = sprite.rotate((-1 if i % 2 else 1)*1.1,
-                                           resample=Image.Resampling.BICUBIC, expand=False)
+                    sprite = turn(sprite, (-1 if i % 2 else 1)*1.1, expand=False)
                     if backdrop is not None:
-                        backdrop = backdrop.rotate((-1 if i % 2 else 1)*1.1, resample=Image.Resampling.BICUBIC, expand=False)
+                        backdrop = turn(backdrop, (-1 if i % 2 else 1)*1.1, expand=False)
                 boundaries = [0]+[max(0,min(sprite.width,round(pad+font.getlength(label[:k])))) for k in range(1,len(label))]+[sprite.width]
                 words.append(dict(index=i, row=r, x=x-pad, y=top+r*pitch,
                                   glyph_spans=list(zip(boundaries,boundaries[1:])),

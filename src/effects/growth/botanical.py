@@ -2,7 +2,8 @@
 from dataclasses import dataclass,replace
 import math
 import random
-from PIL import Image,ImageDraw,ImageChops
+from PIL import Image,ImageChops
+from core.imaging import Strokes
 from effects.growth.botanical_materials import botanical_sprite, FLOWERS
 from effects.particles.cache import sprite_key
 from effects.particles.choreography import entrance_opacity
@@ -138,12 +139,13 @@ def _centered(image,size):
     result=Image.new('RGBA',(size,size));result.alpha_composite(image,((size-image.width)//2,(size-image.height)//2));return result
 
 
-def _flower(sprout,age):
-    size=max(2,round(sprout.size*(.18+.82*ease(age))))
-    full=botanical_sprite(sprout.kind,size,sprout.values)
+def _flower(sprout,age,factor=1.,angle=0.):
+    size=max(2.,sprout.size*(.18+.82*ease(age))*factor)
+    full=botanical_sprite(sprout.kind,size,sprout.values,angle=angle)
     bud_kind='poppy' if sprout.kind=='poppy' else 'chrysanthemum'
-    closed=botanical_sprite(bud_kind+'-bud',max(2,round(size*.72)),sprout.values)
-    opening=botanical_sprite(bud_kind+'-opening',max(2,round(size*.9)),sprout.values)
+    closed=botanical_sprite(bud_kind+'-bud',size*.72,sprout.values,angle=angle)
+    opening=botanical_sprite(bud_kind+'-opening',size*.9,sprout.values,angle=angle)
+    size=round(size)
     span=max(size,full.width,full.height,closed.width,closed.height,opening.width,opening.height)+2
     if age<.46:return Image.blend(_centered(closed,span),_centered(opening,span),ease(age/.46))
     return Image.blend(_centered(opening,span),_centered(full,span),ease((age-.46)/.54))
@@ -159,7 +161,7 @@ def paint_growth(layer,sprite,x,y,progress,effect,seed,intensity=1.,cache=None):
         layer.alpha_composite(_opacity(sprite,.08),(round(x),round(y)))
         return
     behind=Image.new('RGBA',layer.size);front=Image.new('RGBA',layer.size)
-    back_draw,front_draw=ImageDraw.Draw(behind),ImageDraw.Draw(front)
+    back_draw,front_draw=Strokes(),Strokes()
     fade=entrance_opacity(progress)
     camera=max(sprite.width*2,sprite.height*8)
     def project(point,depth):
@@ -179,29 +181,31 @@ def paint_growth(layer,sprite,x,y,progress,effect,seed,intensity=1.,cache=None):
             pa,pb=project(a,za),project(b,zb);depth=(za+zb)/2
             draw=back_draw if depth<0 else front_draw
             width=max(1,round(path.width*(1-.72*index/len(path.points))*pb[2]))
-            segment=(round(pa[0]),round(pa[1]),round(pb[0]),round(pb[1]))
+            segment=(pa[0],pa[1],pb[0],pb[1])
             light=.75+.25*(depth/max(1,sprite.height*.22)+1)/2
-            draw.line((segment[0]+1,segment[1]+2,segment[2]+1,segment[3]+2),fill=(11,28,16,round(100*fade)),width=width+2)
-            draw.line(segment,fill=(29,65,34,round(235*fade)),width=width+1)
-            draw.line(segment,fill=(round(73*light),round(132*light),round(65*light),round(240*fade)),width=width)
-            if width>1:draw.line((segment[0]-1,segment[1]-1,segment[2]-1,segment[3]-1),fill=(151,182,112,round(150*fade)),width=1)
+            draw.line((segment[0]+1,segment[1]+2,segment[2]+1,segment[3]+2),fill=(11,28,16,round(100*fade)),width=width+2,order=0)
+            draw.line(segment,fill=(29,65,34,round(235*fade)),width=width+1,order=1)
+            draw.line(segment,fill=(round(73*light),round(132*light),round(65*light),round(240*fade)),width=width,order=2)
+            if width>1:draw.line((segment[0]-1,segment[1]-1,segment[2]-1,segment[3]-1),fill=(151,182,112,round(150*fade)),width=1,order=3)
+    pieces=[]
     for sprout in geometry[1]:
         age=max(0.,min(1.,(progress-sprout.birth)/sprout.duration))
         if age<=0:continue
         amount=ease(age);point=project(sprout.point,sprout.depth);factor=point[2]
         if sprout.kind=='leaf':
-            size=sprout.size*(.18+.82*amount)*factor;photo=botanical_sprite('leaf',size,sprout.values)
-            photo=photo.resize((max(1,round(photo.width*(.08+.92*amount))),max(1,photo.height)),Image.Resampling.LANCZOS)
+            size=sprout.size*(.18+.82*amount)*factor
             rotation=-math.degrees(sprout.angle)-45+(1-amount)*32
-            piece=photo.rotate(rotation,Image.Resampling.BICUBIC,expand=True);offset=size*.35
+            piece=botanical_sprite('leaf',size,sprout.values,angle=rotation,squash=.08+.92*amount);offset=size*.35
         else:
-            piece=_flower(sprout,age).rotate(-math.degrees(sprout.angle),Image.Resampling.BICUBIC,expand=True)
-            if abs(factor-1)>.005:piece=piece.resize((max(1,round(piece.width*factor)),max(1,round(piece.height*factor))),Image.Resampling.LANCZOS)
+            piece=_flower(sprout,age,factor,-math.degrees(sprout.angle))
             offset=sprout.size*.16*amount*factor
         cx=point[0]+math.cos(sprout.angle)*offset;cy=point[1]+math.sin(sprout.angle)*offset
         target=behind if sprout.depth<0 else front;draw=back_draw if sprout.depth<0 else front_draw
-        draw.line((round(point[0]),round(point[1]),round(cx),round(cy)),fill=(80,129,65,round(200*fade*amount)),width=1)
-        piece=_opacity(piece,fade*ease(min(1.,age/.35)))
+        draw.line((point[0],point[1],cx,cy),fill=(80,129,65,round(200*fade*amount)),width=1,order=2)
+        pieces.append((target,_opacity(piece,fade*ease(min(1.,age/.35))),cx,cy))
+    # Stems first, so every leaf and flower sits on top of the vine it grows from.
+    back_draw.paint(behind);front_draw.paint(front)
+    for target,piece,cx,cy in pieces:
         target.alpha_composite(piece,(round(cx-piece.width/2),round(cy-piece.height/2)))
     occlusion=Image.new('L',layer.size,255)
     occlusion.paste(ImageChops.invert(sprite.getchannel('A')),(round(x),round(y)))
@@ -221,8 +225,7 @@ def paint_growth(layer,sprite,x,y,progress,effect,seed,intensity=1.,cache=None):
         age=max(0.,min(1.,(progress-birth)/.52))
         if age<=0:continue
         growth=ease(age);size=.12+.88*growth
-        photo=particle.image.resize((max(1,round(particle.image.width*size)),max(1,round(particle.image.height*size))),Image.Resampling.LANCZOS)
-        photo=photo.rotate((particle.random[4]-.5)*90,Image.Resampling.BICUBIC,expand=True)
+        photo=botanical_sprite(particle.kind,particle.size*size,particle.random,angle=(particle.random[4]-.5)*90)
         photo=_opacity(photo,entrance_opacity(age))
         layer.alpha_composite(photo,(round(x+particle.x-photo.width/2),round(y+particle.y-photo.height/2)))
     layer.alpha_composite(front)

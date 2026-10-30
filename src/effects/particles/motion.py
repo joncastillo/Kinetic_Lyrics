@@ -1,4 +1,5 @@
 """Glyph-bound fragments with deterministic motion and perspective tumbling."""
+from core.imaging import turn
 from effects.particles.cache import sprite_key
 
 
@@ -559,7 +560,7 @@ def paint_transition(
                 )
                 if family == "smoke":
                     piece = piece.filter(ImageFilter.GaussianBlur(motion * 2))
-                piece = piece.rotate(rotation, Image.Resampling.BICUBIC, expand=True)
+                piece = turn(piece, rotation)
             if abs(material_scale - 1) > 0.005:
                 piece = piece.resize(
                     (

@@ -1,5 +1,6 @@
 """Deterministic raster typography effects; illustration layers stay untouched."""
 
+from core.imaging import turn
 import math
 from PIL import Image, ImageDraw, ImageChops
 
@@ -268,9 +269,7 @@ def paint_word(
             math.sin(elapsed * 1.65 + k * 0.55 + word) * sprite.height * 0.14 * strength
         )
         tilt = math.sin(elapsed * 1.3 + k * 0.55 + word) * 6 * strength
-        piece = opacity(piece, alpha).rotate(
-            tilt, Image.Resampling.BICUBIC, expand=True
-        )
+        piece = turn(opacity(piece, alpha), tilt)
         layer.alpha_composite(
             piece,
             (round(x + left - (piece.width - (right - left)) / 2), round(y + buoyancy)),
@@ -353,9 +352,7 @@ def paint_letter_particles(
                 if effect in ("confetti", "fragments", "orbits")
                 else 0
             )
-            piece = opacity(piece, alpha).rotate(
-                rotation, Image.Resampling.BICUBIC, expand=True
-            )
+            piece = turn(opacity(piece, alpha), rotation)
             layer.alpha_composite(
                 piece,
                 (

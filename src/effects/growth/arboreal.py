@@ -3,7 +3,8 @@ from dataclasses import dataclass,replace
 import math,random
 import numpy as np
 from PIL import Image,ImageDraw,ImageChops,ImageEnhance,ImageFilter
-from effects.growth.assets import asset, sized_asset, glyph_ranges
+from effects.growth.assets import asset, glyph_ranges, turned_asset
+from core.imaging import Strokes
 from effects.particles.cache import sprite_key
 from effects.particles.choreography import entrance_opacity
 
@@ -76,7 +77,7 @@ def paint_growth(layer,sprite,x,y,progress,effect,seed,intensity=1.,cache=None,g
         if key not in cache:cache[key]=geometry(sprite,effect,seed,glyph_spans)
         parts=cache[key]
     texture,boughs,foliage=parts;fade=entrance_opacity(progress)
-    rear=Image.new('RGBA',layer.size);front=rear.copy();draws=[ImageDraw.Draw(rear),ImageDraw.Draw(front)]
+    rear=Image.new('RGBA',layer.size);front=rear.copy();draws=[Strokes(),Strokes()]
     camera=max(sprite.width*2,sprite.height*8)
     def project(point):
         f=camera/(camera-point[2]);return (x+sprite.width/2+(point[0]-sprite.width/2)*f,y+sprite.height/2+(point[1]-sprite.height/2)*f)
@@ -89,13 +90,14 @@ def paint_growth(layer,sprite,x,y,progress,effect,seed,intensity=1.,cache=None,g
                 t=end-n+1;b=tuple(a[j]+(b[j]-a[j])*t for j in range(3))
             pa,pb=project(a),project(b);draw=draws[1 if a[2]+b[2]>=0 else 0]
             width=max(1,round(branch.width*(1-.63*n/len(branch.points))))
-            draw.line((*pa,*pb),fill=(35,27,21,round(250*fade)),width=width+2)
-            draw.line((*pa,*pb),fill=(116,90,60,round(255*fade)),width=width)
-            draw.line((pa[0]-1,pa[1]-1,pb[0]-1,pb[1]-1),fill=(178,154,108,round(180*fade)),width=1)
+            draw.line((*pa,*pb),fill=(35,27,21,round(250*fade)),width=width+2,order=0)
+            draw.line((*pa,*pb),fill=(116,90,60,round(255*fade)),width=width,order=1)
+            draw.line((pa[0]-1,pa[1]-1,pb[0]-1,pb[1]-1),fill=(178,154,108,round(180*fade)),width=1,order=2)
+    draws[0].paint(rear);draws[1].paint(front)
     for leaf in foliage:
         age=ease((progress-leaf.birth)/max(.01,min(.2,1-leaf.birth)))
         if age<=0:continue
-        photo=sized_asset(leaf.index,max(2,round(leaf.size*(.15+.85*age)))).rotate(leaf.angle+(1-age)*35,Image.Resampling.BICUBIC,expand=True)
+        photo=turned_asset(leaf.index,max(2,round(leaf.size*(.15+.85*age))),round(leaf.angle+(1-age)*35)%360).copy()
         photo.putalpha(photo.getchannel('A').point(lambda a:round(a*fade*age)))
         px,py=project(leaf.point);target=front if leaf.point[2]>=0 else rear
         target.alpha_composite(photo,(round(px-photo.width/2),round(py-photo.height/2)))
