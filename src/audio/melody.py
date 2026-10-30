@@ -57,7 +57,10 @@ def ensure_melody(data, folder):
     """Cached melody features for the project, or None without a vocal stem."""
     folder = Path(folder)
     target, vocals = folder/'video.melody.json', folder/'vocals.wav'
+    from core.files import file_digest
     signature = [[(w['text'], round(w['start'], 3), round(w['end'], 3)) for w in line['words']] for line in data]
+    signature.append([('vocals', file_digest(vocals))])
+    signature = json.loads(json.dumps(signature))  # the form it is saved in, so it compares equal when reloaded
     try:
         cached = json.loads(target.read_text(encoding='utf-8'))
         if cached.get('version') == VERSION and cached.get('signature') == signature:
