@@ -21,12 +21,14 @@ STYLE = ('Confident clean delicate ink contours, elegant realistic proportions a
          'printed marks; signs, books and screens have blank surfaces. Isolated subjects on plain white, '
          'no scenery, shadows or glow. Keep the complete silhouette inside the image.')
 
+
 def subject_kind(subject):
     subject = re.sub(r'\b(?:no|without|excluding)\b[^.;]*', '', subject, flags=re.I)
     subject = re.sub(r'\bportrait[-\s]+(?:format|orientation)\b', '', subject, flags=re.I)
     human = re.search(r'\b(woman|women|man|men|person|people|adults?|children|child|girls?|boys?|crowd|figures?|faces?|portraits?|head|shoulders|eyes)\b', subject, re.I)
     detail = re.search(r'\b(hand|hands|arm|arms|mouth|mouths|lips|ears|feet)\b', subject, re.I)
     return 'people' if human else 'detail' if detail else 'object'
+
 
 def image_prompt(subject, layout, style_prompt=STYLE_PROMPT, has_references=False):
     if layout.get('artwork_mode') == 'verse':
@@ -68,6 +70,7 @@ def image_prompt(subject, layout, style_prompt=STYLE_PROMPT, has_references=Fals
         + 'Anatomically accurate hands with exactly five distinct separated fingers including one thumb on each hand; clean joints, no extra digits, no fused fingers. Simple readable poses. '
         'No written words or printed marks anywhere. No additional subjects.'
     )
+
 
 def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=None, seed=42,
                 style_prompt=STYLE_PROMPT, director_model='auto', lookup_only=False,

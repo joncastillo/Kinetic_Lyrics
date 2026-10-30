@@ -39,10 +39,12 @@ def ease(value):
 
 SLIDE_DIRECTIONS = ((1, 0), (0, -1), (-1, 0), (0, 1))
 
+
 def settle(value):
     """Ease out with a small overshoot, so a sliding word lands and settles."""
     value = max(0., min(1., value))-1
     return 1+2.2*value**3+1.2*value**2
+
 
 def word_progress(t, cue, scene_start, lead_in, duration=.24):
     """Activate at the sung cue. lead_in controls phrase preview only."""
@@ -53,11 +55,14 @@ def word_progress(t, cue, scene_start, lead_in, duration=.24):
     fraction = max(0., min(1., (t - max(cue, scene_start)) / duration))
     return fraction * fraction * (3 - 2 * fraction)
 
+
 def rgb(value):
     return tuple(bytes.fromhex(value.lstrip('#')))
 
+
 def mix(a, b, value):
     return tuple(round(x + (y - x) * value) for x, y in zip(a, b))
+
 
 def font_at(family, size, custom=None):
     for candidate in ([str(custom)] if custom else FONTS[family]):
@@ -67,6 +72,7 @@ def font_at(family, size, custom=None):
             except OSError:
                 pass
     raise ValueError('No bold font found. Supply --font with a TTF/OTF font.')
+
 
 class Compositor:
     def __init__(self, data, plan, width, height, duration, custom_font=None,
@@ -793,6 +799,7 @@ BT709_OUTPUT = ['-vf', 'scale=out_color_matrix=bt709:out_range=tv', '-colorspace
                 '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv',
                 '-bsf:v', 'h264_metadata=colour_primaries=1:transfer_characteristics=1:matrix_coefficients=1']
 
+
 def video_color(path):
     """'bt709' for tagged exports; 'legacy' for older untagged ones, so section rebuilds match them."""
     try:
@@ -802,12 +809,14 @@ def video_color(path):
         return 'legacy'
     return 'bt709' if tag == 'bt709' else 'legacy'
 
+
 def render(audio, output, data, plan, duration, args):
     try:
         return _render_video(audio, output, data, plan, duration, args)
     finally:
         from effects.particles.gl import close_particle_renderer
         close_particle_renderer()
+
 
 def tighten_line_starts(data):
     """Aligners stretch a line's first word back over the silence before it. Start it near its sung length.
@@ -830,6 +839,7 @@ def tighten_line_starts(data):
             word['start'] = round(word['end']-limit, 3)
     return data
 
+
 def render_compositor(data,plan,duration,args):
     return Compositor(
         tighten_line_starts(data), plan, args.width, args.height, duration,
@@ -846,6 +856,7 @@ def render_compositor(data,plan,duration,args):
         entrance_pool=getattr(args, 'entrance_pool', None), exit_pool=getattr(args, 'exit_pool', None),
         text_animation=getattr(args, 'text_animation', 'directed'), melody=getattr(args, 'melody', None), rhythm=getattr(args, 'rhythm', None),
         **typography_options(vars(args)))
+
 
 def _render_video(audio, output, data, plan, duration, args):
     import tempfile

@@ -18,9 +18,11 @@ def keyframe_times(video):
         '-of','json',str(video)],text=True))
     return [float(f['best_effort_timestamp_time']) for f in probe.get('frames',[]) if 'best_effort_timestamp_time' in f]
 
+
 def copy_boundaries(keys, start, end, duration):
     is_key = lambda t: t < .001 or abs(t-duration)<.05 or any(abs(t-k)<.002 for k in keys)
     return is_key(start) and is_key(end)
+
 
 def splice_section(video, patch, merged, start, end, duration, encoder):
     """Copy untouched GOPs for studio exports; support older videos via overlay."""
@@ -52,6 +54,7 @@ def splice_section(video, patch, merged, start, end, duration, encoder):
         '-force_key_frames','expr:gte(t,n_forced*1)','-movflags','+faststart',str(merged)],check=True)
     return 'compatibility'
 
+
 def generate_candidate(root, job, index, cache, prompt):
     from artwork.generation import run_job
     candidate_job=copy.deepcopy(job)
@@ -66,10 +69,12 @@ def generate_candidate(root, job, index, cache, prompt):
     run_job(manifest,cache)
     return folder/'000.png'
 
+
 def repair_image(root, manifest, index, model, expected_sha, threshold):
     from studio.batches import repair_batch
     repair_batch(sys.modules[__name__], root, manifest,
                  [dict(index=index,model=model,expected_sha=expected_sha)], threshold=threshold)
+
 
 def generate_and_review(manifest, cache):
     from models.gpu.lifecycle import ModelSession
@@ -98,6 +103,7 @@ def generate_and_review(manifest, cache):
             if has_pending(root):continue
             emit('auto-review-complete',1,message='Illustration requests and reviews complete; ready for artwork approval')
             break
+
 
 def main():
     parser = argparse.ArgumentParser()

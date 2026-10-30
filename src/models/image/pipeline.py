@@ -69,6 +69,7 @@ def load_pipeline(model, cache, torch, offload=False):
     if hasattr(pipe.vae,'enable_slicing'):pipe.vae.enable_slicing()
     return pipe, spec['guidance']
 
+
 def inference_options(model, references):
     spec = model_spec(model)
     if spec['references']:
@@ -80,6 +81,7 @@ def inference_options(model, references):
     if spec['pipeline'] == 'FluxPipeline':
         result['max_sequence_length'] = 256
     return result
+
 
 def release_pipeline(pipe, torch):
     try:

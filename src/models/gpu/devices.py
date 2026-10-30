@@ -6,6 +6,7 @@ import subprocess
 
 GIB = 2**30
 
+
 def detect_gpus():
     """Read capacity only; never load or evict a model here."""
     try:
