@@ -51,6 +51,7 @@ def main(argv=None):
                         help='Local AI art direction (default), or explicit offline rules')
     parser.add_argument('--ai-model', default='auto', help='Ollama model; auto chooses a GPU-fit general-purpose Qwen model')
     parser.add_argument('--plan', type=Path, help='Reuse/edit a generated .design.json art direction plan')
+    parser.add_argument('--art-times', type=Path, help='Illustration start times saved by the Studio timeline editor')
     parser.add_argument('--lead-in', type=float, default=1.,
                         help='Minimum entrance lead-in in seconds (default: 1; particles finish before each line, with longer lead-ins for slower vocal pacing)')
     parser.add_argument('--width', type=int, default=1920)
@@ -135,6 +136,9 @@ def main(argv=None):
         if path.exists() and not (args.overwrite or args.resume):
             parser.error(f'{path} exists. Use --overwrite to replace generated files.')
     try:
+        if args.renderer == 'editorial':
+            from render.timeline import load_art_times
+            args.art_times = load_art_times(args.art_times) if args.art_times else None
         from pipeline.graph import run as run_pipeline
         run_pipeline(args, audio, output, resume=args.resume)
     except (ValueError, OSError, subprocess.CalledProcessError, KeyError, TypeError) as exc:
