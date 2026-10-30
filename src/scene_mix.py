@@ -5,8 +5,11 @@ split at their longest pauses) and each section is filmed in one of the scene ef
 user ticked: the panning canvas, black hole sun or one of the 3D block scenes. One renderer
 runs per camera, each limited to the lines of its own sections, so the panning canvas keeps
 its flowing bands and traced shapes and the 3D stage keeps its camera path from one of
-its sections to the next. Where the scene changes, the outgoing picture pushes in and fades
-while the incoming one settles, just before the new section's first word.
+its sections to the next. Where the scene changes, just before the new section's first word, the
+two scenes' pictures are laid side by side on one strip joined by a soft seam, and the camera glides
+along it from the old scene into the new. The wisp is handed over rather than restarted: from where
+the old scene's wisp stops, the mix carries it ahead of the camera across the seam to where the new
+scene's wisp sets off, and each scene hides its own wisp while the mix holds it.
 
 The scene for each section comes from the AI scene director (video.scenes.json), which
 matches each section's lyrics and role to the scenes' descriptions; without it, rules give
@@ -14,15 +17,21 @@ choruses the 3D scenes and alternate the rest. Every frame is a pure function of
 """
 import bisect
 import hashlib
+import math
 import json
 from pathlib import Path
 
-from PIL import Image
+import numpy as np
+from PIL import Image, ImageDraw, ImageFilter
 
 SECTION_LINES = 8
 SECTION_GAP = 1.2
-SWITCH_LEAD, BLEND = .45, .7
-OUT_ZOOM, IN_ZOOM = .1, .06
+SWITCH_LEAD = .45
+TRAVEL = 1.6  # seconds the camera takes to glide from one scene's picture to the next
+OVERLAP = .3  # share of the screen width where the two pictures are stitched together
+WISP_LEAD = .25  # share of the glide the wisp sets off ahead of the camera
+ARC = .1  # how far the wisp's flight bows sideways, as a share of the screen height
+TAIL, TAIL_STEP = 24, .012  # the carried wisp's comet tail: samples and seconds between them
 VERSION = 2
 
 
@@ -149,11 +158,45 @@ def ensure_scenes(data, plan, options, folder, request=None):
     return dict(plan, scene_flows=scene_flows(data, scenes))
 
 
-def zoom(image, scale):
-    """The middle of the picture enlarged by `scale` (at least 1), at the same size."""
-    width, height = image.size
-    w, h = width/scale, height/scale
-    return image.resize(image.size, Image.Resampling.BICUBIC, box=((width-w)/2, (height-h)/2, (width+w)/2, (height+h)/2))
+def ease(value):
+    value = min(1., max(0., value))
+    return value*value*(3-2*value)
+
+
+def stitch(outgoing, incoming, shift, span):
+    """One strip with `incoming` laid `span` pixels after `outgoing`, joined by a soft seam where they
+    overlap, seen through a screen `shift` pixels along it."""
+    width, height = outgoing.size
+    weight = np.clip((np.arange(width)+shift-span)/max(1., width-span), 0., 1.)
+    mask = Image.fromarray(np.repeat((weight*weight*(3-2*weight)*255).astype('uint8')[None, :], height, 0), 'L')
+    behind, ahead = Image.new('RGB', (width, height)), Image.new('RGB', (width, height))
+    behind.paste(outgoing.convert('RGB'), (-round(shift), 0))
+    ahead.paste(incoming.convert('RGB'), (round(span-shift), 0))
+    return Image.composite(ahead, behind, mask)
+
+
+def paint_wisp(frame, track):
+    """A glowing head with a comet tail along `track` ([(x, y, opacity)], head first)."""
+    height = frame.height
+    layer = Image.new('RGBA', frame.size)
+    draw = ImageDraw.Draw(layer)
+    radius = max(3., height*.011)
+    for k in range(len(track)-1, 0, -1):  # the tail tapers and fades from the head back
+        (x0, y0, _), (x1, y1, opacity) = track[k-1], track[k]
+        fade = 1-k/len(track)
+        draw.line((x0, y0, x1, y1), fill=(255, 238, 200, round(220*opacity*fade)), width=max(1, round(radius*1.4*fade)))
+    x, y, opacity = track[0]
+    draw.ellipse((x-radius*1.4, y-radius*1.4, x+radius*1.4, y+radius*1.4), fill=(255, 238, 200, round(255*opacity)))
+    glow = layer.filter(ImageFilter.GaussianBlur(radius*1.8))
+    result = frame.convert('RGBA')
+    result.alpha_composite(glow)
+    result.alpha_composite(glow)
+    result.alpha_composite(layer)
+    x, y, opacity = track[0]
+    core = Image.new('RGBA', frame.size)
+    ImageDraw.Draw(core).ellipse((x-radius*.55, y-radius*.55, x+radius*.55, y+radius*.55), fill=(255, 255, 255, round(255*opacity)))
+    result.alpha_composite(core.filter(ImageFilter.GaussianBlur(radius*.25)))
+    return result.convert(frame.mode)
 
 
 class SceneMix:
@@ -198,19 +241,93 @@ class SceneMix:
     def plan(self):
         for engine in self.engines.values():
             engine.plan()
+        self.handovers()
 
     def engine(self, number):
         return self.engines[self.flows[number]['camera']]
 
+    def handovers(self):
+        """For each change of scene: the glide's times and the wisp runs the mix carries the wisp between.
+        Each scene's own wisp is hidden while the mix holds it, so exactly one wisp is ever on screen."""
+        if getattr(self, '_handovers', None) is not None:
+            return self._handovers
+        self._handovers = []
+        for number, switch in enumerate(self.switches):
+            before, after = self.engine(number), self.engine(number+1)
+            if before is after:
+                self._handovers.append(None)
+                continue
+            glide = (switch-TRAVEL/2, switch+TRAVEL/2)
+            runs = getattr(before, 'wisp_runs', lambda: [])()
+            leaving = max((k for k, (start, _) in enumerate(runs) if start < switch), key=lambda k: runs[k][0], default=None)
+            runs = getattr(after, 'wisp_runs', lambda: [])()
+            arriving = min((k for k, (_, end) in enumerate(runs) if end > switch), key=lambda k: runs[k][0], default=None)
+            if leaving is None and arriving is None:
+                self._handovers.append(None)
+                continue
+            stop = before.wisp_runs()[leaving][1] if leaving is not None else math.inf
+            go = after.wisp_runs()[arriving][0] if arriving is not None else -math.inf
+            sets_off = glide[0]-WISP_LEAD*TRAVEL
+            held = (min(stop, sets_off) if leaving is not None else sets_off, 0.)
+            flight = (max(held[0], sets_off), max(held[0], sets_off)+TRAVEL)
+            held = (held[0], max(go, glide[1], flight[1]) if arriving is not None else flight[1])
+            if leaving is not None:
+                before.veils.append(held)
+            if arriving is not None:
+                after.veils.append(held)
+            self._handovers.append(dict(number=number, glide=glide, held=held, flight=flight,
+                                        leaving=leaving, arriving=arriving))
+        return self._handovers
+
+    def carried(self, handover, when, t):
+        """Screen position of the carried wisp at time `when`, seen at time t (when <= t, for its tail)."""
+        c = self.c
+        span = c.width*(1-OVERLAP)
+        shift = span*ease((t-handover['glide'][0])/TRAVEL)
+        before, after = self.engine(handover['number']), self.engine(handover['number']+1)
+        stop = before.wisp_runs()[handover['leaving']][1] if handover['leaving'] is not None else None
+        go = after.wisp_runs()[handover['arriving']][0] if handover['arriving'] is not None else None
+        source = before.wisp_screen(handover['leaving'], min(when, stop), t) if stop is not None else None
+        target = after.wisp_screen(handover['arriving'], max(when, go), t) if go is not None else None
+        if source is None and target is None:
+            return None
+        if source is None:  # nothing to carry over: the wisp flies in from the old scene's side
+            source = (-.1*c.width, target[1])
+        if target is None:  # nowhere to go: it flies on out of the new scene's far side
+            target = (1.1*c.width, source[1])
+        u = ease((when-handover['flight'][0])/TRAVEL)
+        sx, sy = source
+        tx, ty = target[0]+span, target[1]
+        dx, dy = tx-sx, ty-sy
+        length = math.hypot(dx, dy) or 1.
+        bow = math.sin(math.pi*u)*ARC*c.height
+        return sx+dx*u-dy/length*bow-shift, sy+dy*u+dx/length*bow
+
     def frame(self, t):
+        handovers = self.handovers()
         number = bisect.bisect_right(self.switches, t)
-        current = self.engine(number)
-        for switch, (before, after) in zip(self.switches, zip(range(len(self.flows)), range(1, len(self.flows)))):
-            u = (t-switch+BLEND/2)/BLEND
-            if 0 <= u < 1 and self.engine(before) is not self.engine(after):
-                from stage_3d import ease
-                u = ease(u)
-                outgoing = zoom(self.engine(before).frame(t), 1+OUT_ZOOM*u)
-                incoming = zoom(self.engine(after).frame(t), 1+IN_ZOOM*(1-u))
-                return Image.blend(outgoing, incoming, u)
-        return current.frame(t)
+        image = None
+        for handover in handovers:
+            if handover is None or not handover['glide'][0] <= t < handover['glide'][1]:
+                continue
+            u = (t-handover['glide'][0])/TRAVEL
+            span = self.c.width*(1-OVERLAP)
+            image = stitch(self.engine(handover['number']).frame(t), self.engine(handover['number']+1).frame(t),
+                           span*ease(u), span)
+            break
+        if image is None:
+            image = self.engine(number).frame(t)
+        for handover in handovers:
+            if handover is None or not handover['held'][0] <= t < handover['held'][1]:
+                continue
+            track = []
+            for k in range(TAIL):
+                when = t-k*TAIL_STEP
+                if when < handover['held'][0]:
+                    break
+                point = self.carried(handover, when, t)
+                if point is not None:
+                    track.append((*point, 1.))
+            if track:
+                image = paint_wisp(image, track)
+        return image
