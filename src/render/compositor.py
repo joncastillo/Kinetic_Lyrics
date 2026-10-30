@@ -14,9 +14,9 @@ from render.layout import FULL_FRAME, illustration_layout
 from render.text_effects import EFFECTS, TEXT_ANIMATIONS, paint_word, highlight_word, highlight_overlay
 from effects.particles.catalog import discover_effects, resolve_effect, parse_pool
 from render.line_arrival import line_arrivals, reading_lanes, reading_regions
-from render.typography_settings import KINETIC_TEXT_SCALE, typography_options, selected_font, selected_word_animation
+from render.timeline import tighten_line_starts, illustration_starts, checked_art_times
 from direction.typography import FONTS, PALETTES, STYLES, validate_plan
-
+from render.typography_settings import KINETIC_TEXT_SCALE, typography_options, selected_font, selected_word_animation
 
 READING_HOLD = 0.
 
@@ -79,7 +79,7 @@ class Compositor:
                  background=None, lead_in=1., illustrations=None, illustration_lines=2,
                  cinematic=False, preserve_art_slots=False, type_effect='none',
                  particle_intensity=1., artwork_mode='cutout', layout_seed=42,
-                 particle_speed=1., entrance_effect=None, exit_effect=None, entrance_pool=None, exit_pool=None, text_animation='directed', font_family='auto', font_style='auto', font_scale=1.25, text_pool=None, lettering_styles=None, reading_flow='preview', melody=None, rhythm=None, kinetic=None, effect_speeds=None):
+                 particle_speed=1., entrance_effect=None, exit_effect=None, entrance_pool=None, exit_pool=None, text_animation='directed', font_family='auto', font_style='auto', font_scale=1.25, text_pool=None, lettering_styles=None, reading_flow='preview', melody=None, rhythm=None, kinetic=None, effect_speeds=None, art_times=None):
         self.source_cues=[line['words'][0]['start'] for line in data]
         self.focused_words=False
         self.data, self.plan = data, validate_plan(plan, data)
@@ -213,20 +213,21 @@ class Compositor:
         if self.open_boxes and self.open_boxes[0]:
             self.text_box = self.open_boxes[0]
         self.default_text_box = self.text_box
-        art_cues=[max(0.,cue-self.lead_in) for cue in self.source_cues]
-        self.art_starts = [art_cues[i*self.illustration_lines]
-                           for i in range(min(len(self.art), math.ceil(len(art_cues)/self.illustration_lines)))]
+        line_groups=None
         if illustrations:
             record=Path(illustrations[0]).parent/'illustrations.json'
             if record.is_file():
-                metadata=json.loads(record.read_text(encoding='utf-8'))
-                groups=metadata.get('line_groups')
-                if groups is not None:
+                line_groups=json.loads(record.read_text(encoding='utf-8')).get('line_groups')
+                if line_groups is not None:
                     from direction.song_structure import valid_line_groups
-                    if not valid_line_groups(groups,len(self.source_cues)) or len(groups)!=len(self.art):
+                    if not valid_line_groups(line_groups,len(self.source_cues)) or len(line_groups)!=len(self.art):
                         raise ValueError('Illustration line groups do not match the aligned lyrics')
-                    self.art_starts=[self.source_cues[group[0]] for group in groups]
-
+        self.art_starts=illustration_starts(self.source_cues,len(self.art),self.illustration_lines,self.lead_in,line_groups)
+        if art_times is not None and self.art:
+            try:
+                self.art_starts=checked_art_times(art_times,len(self.art),duration)
+            except ValueError as exc:
+                print(f'Warning: ignoring timeline illustration times ({exc}).',flush=True)
 
         base_boxes=[]
         for cue in self.cues:
@@ -818,28 +819,6 @@ def render(audio, output, data, plan, duration, args):
         close_particle_renderer()
 
 
-def tighten_line_starts(data):
-    """Aligners stretch a line's first word back over the silence before it. Start it near its sung length.
-
-    The song's own seconds-per-character rate (from non-initial words) bounds the first word; ends never move.
-    Applying it twice changes nothing.
-    """
-    from statistics import median
-    import string
-    rates = [(w['end']-w['start'])/max(1, len(w['text'].strip())) for line in data for w in line['words'][1:] if w['end'] > w['start']]
-    if not rates:
-        return data
-    rate = median(rates)
-    for line in data:
-        word = line['words'][0]
-        if word.get('onset'):
-            continue
-        limit = max(.35, rate*len(word['text'].strip(string.punctuation+' '))*1.6)
-        if word['end']-word['start'] > limit:
-            word['start'] = round(word['end']-limit, 3)
-    return data
-
-
 def render_compositor(data,plan,duration,args):
     return Compositor(
         tighten_line_starts(data), plan, args.width, args.height, duration,
@@ -855,7 +834,7 @@ def render_compositor(data,plan,duration,args):
         entrance_effect=getattr(args, 'entrance_effect', None), exit_effect=getattr(args, 'exit_effect', None),
         entrance_pool=getattr(args, 'entrance_pool', None), exit_pool=getattr(args, 'exit_pool', None),
         text_animation=getattr(args, 'text_animation', 'directed'), melody=getattr(args, 'melody', None), rhythm=getattr(args, 'rhythm', None),
-        **typography_options(vars(args)))
+        art_times=getattr(args, 'art_times', None), **typography_options(vars(args)))
 
 
 def _render_video(audio, output, data, plan, duration, args):
