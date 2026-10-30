@@ -15,7 +15,7 @@ import urllib.request
 from kinetic_progress import emit
 
 from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageOps, ImageFilter
-from kinetic_layout import illustration_layout
+from kinetic_layout import FULL_FRAME, illustration_layout
 from kinetic_effects import EFFECTS, TEXT_ANIMATIONS, paint_word, highlight_word, highlight_overlay
 from particle_catalog import discover_effects, resolve_effect, parse_pool
 from line_arrival import line_arrivals, reading_lanes, reading_regions
@@ -268,7 +268,7 @@ class Compositor:
         if not math.isfinite(lead_in) or not 0 <= lead_in <= 5:
             raise ValueError('Lead-in must be finite and between 0 and 5 seconds.')
         self.artwork_mode, self.layout_seed = artwork_mode, layout_seed
-        if artwork_mode in ('fullscreen', 'verse'):
+        if artwork_mode in FULL_FRAME:
             self.plan = dict(self.plan, scenes=[dict(scene, palette=LIGHT_INK.get(scene['palette'], scene['palette'])) for scene in self.plan['scenes']])
         allowed = typography_options(dict(lettering_styles=lettering_styles))['lettering_styles']
         if set(allowed) != set(STYLES):
@@ -357,6 +357,7 @@ class Compositor:
         if type(illustration_lines) is not int or illustration_lines < 1:
             raise ValueError('Illustration line count must be a positive integer.')
         self.art = []
+        self.mattes, self.open_boxes, self._scenery = [], [], {}
         self.illustration_paths = [Path(p) for p in (illustrations or [])]
         self.artwork_revisions = {}
         self.text_box = (0, 0, width, height)
@@ -371,9 +372,16 @@ class Compositor:
                 if fingerprint in seen and not preserve_art_slots:
                     continue
                 seen.add(fingerprint)
+                if artwork_mode == 'matte':
+                    from greenscreen import load as load_matte, open_box
+                    image, matte = load_matte(BytesIO(source_bytes))
+                    self.art.append(ImageOps.fit(image, (width, height), Image.Resampling.LANCZOS))
+                    self.mattes.append(ImageOps.fit(matte, (width, height), Image.Resampling.LANCZOS))
+                    self.open_boxes.append(open_box(self.mattes[-1], round(min(width, height)*.03)))
+                    continue
                 with Image.open(BytesIO(source_bytes)) as source:
                     image = source.convert('RGBA')
-                    if artwork_mode in ('fullscreen', 'verse'):
+                    if artwork_mode in FULL_FRAME:
                         self.art.append(ImageOps.fit(image, (width,height), Image.Resampling.LANCZOS))
                         continue
                     bounds = image.getchannel('A').getbbox()
@@ -383,6 +391,8 @@ class Compositor:
                     box = illustration_layout(len(self.art), width, height, cinematic, artwork_mode, layout_seed)['art_box']
                     size = tuple(max(1, round(v*.94)) for v in box[2:]) if cinematic else box[2:]
                     self.art.append(ImageOps.contain(image, size, Image.Resampling.LANCZOS))
+        if self.open_boxes and self.open_boxes[0]:
+            self.text_box = self.open_boxes[0]
         self.default_text_box = self.text_box
         line_groups=None
         if illustrations:
@@ -415,7 +425,7 @@ class Compositor:
     def line_background(self, index, box=None):
         """Average colour behind a line's reading area: its artwork, or the scene's backdrop colour."""
         x, y, w, h = box or self.line_box(index)
-        if self.art and self.artwork_mode in ('fullscreen', 'verse'):
+        if self.art and self.artwork_mode in FULL_FRAME:
             artwork = max(0, bisect.bisect_right(self.art_starts, self.cues[index])-1) if self.art_starts else 0
             region = self.art[min(artwork, len(self.art)-1)].convert('RGB').crop((max(0, x), max(0, y), max(1, x+w), max(1, y+h)))
             pixels = list(region.resize((8, 8)).getdata())
@@ -446,10 +456,34 @@ class Compositor:
     def composition(self, artwork):
         """A stable reading area for each drawing; change only with new art."""
         layout = illustration_layout(artwork, self.width, self.height, self.cinematic, self.artwork_mode, self.layout_seed)
+        if artwork is not None and artwork < len(self.open_boxes) and self.open_boxes[artwork]:
+            return layout['art_box'], self.open_boxes[artwork]
         return layout['art_box'], layout['text_box']
 
+    def scenery(self, t):
+        """Keyed greenscreen scenery that sits in front of the lyrics, or None outside greenscreen mode.
+
+        While one scene blends into the next, the layer covers everything either scene covers,
+        so lyrics never show through the scenery of the outgoing or the incoming picture.
+        """
+        if not self.mattes or not self.art_starts:
+            return None
+        current = min(len(self.mattes)-1, max(0, bisect.bisect_right(self.art_starts, t)-1))
+        blend = ease(min(1., max(0., (t-self.art_starts[current])/.9))) if current > 0 else 1.
+        if blend >= 1:
+            if current not in self._scenery:
+                if len(self._scenery) >= 3:
+                    self._scenery.pop(next(iter(self._scenery)))
+                layer = self.art[current].convert('RGBA')
+                layer.putalpha(self.mattes[current])
+                self._scenery[current] = layer
+            return self._scenery[current]
+        layer = Image.blend(self.art[current-1].convert('RGB'), self.art[current].convert('RGB'), blend).convert('RGBA')
+        layer.putalpha(ImageChops.lighter(self.mattes[current-1], self.mattes[current]))
+        return layer
+
     def illustration(self, frame, index, t):
-        if self.artwork_mode in ('fullscreen', 'verse'):
+        if self.artwork_mode in FULL_FRAME:
             return
         if not self.art_starts or t < self.art_starts[0] or t >= self.duration:
             return
@@ -473,7 +507,7 @@ class Compositor:
 
     def background(self, index, t, veil=True):
         scene = self.plan['scenes'][max(0, index)]
-        if self.artwork_mode in ('fullscreen', 'verse') and self.art_starts:
+        if self.artwork_mode in FULL_FRAME and self.art_starts:
             current = max(0, bisect.bisect_right(self.art_starts,t)-1)
             frame = self.art[current].convert('RGB')
             if current > 0:
@@ -783,6 +817,16 @@ class Compositor:
     def frame(self, t, *, text_only=False):
         if self.realtime is not None and not text_only:
             return self.realtime.frame(t)
+        frame = self.paint(t, text_only)
+        scenery = None if text_only else self.scenery(t)
+        if scenery is None:
+            return frame
+        frame = frame.convert('RGBA')
+        frame.alpha_composite(scenery)
+        return frame.convert('RGB')
+
+    def paint(self, t, text_only):
+        """The frame up to and including the lyrics; greenscreen scenery goes on top in `frame`."""
         index = bisect.bisect_right(self.starts, t) - 1
         frame = Image.new('RGBA',(self.width,self.height)) if text_only else self.background(index,t)
         if index < 0 or t >= self.ends[index]:
