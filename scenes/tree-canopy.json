@@ -4,7 +4,11 @@
   "particles": [
     "autumn-maple-lettering",
     "old-oak-lettering",
-    "bamboo-lettering"
+    "bamboo-lettering",
+    "succulent-garden-lettering",
+    "meadow-grass-lettering",
+    "moss-overgrowth",
+    "petals-grow-lettering"
   ],
-  "description": "3D blocks with maple, oak, and bamboo canopies growing from the lettering."
+  "description": "3D blocks with maple, oak and bamboo canopies, succulent gardens or meadow grass growing from the lettering."
 }

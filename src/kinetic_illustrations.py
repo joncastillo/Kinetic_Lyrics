@@ -20,9 +20,8 @@ from kinetic_progress import emit, diffusion_callback
 from kinetic_layout import illustration_layout
 
 from image_models import MODEL, model_spec
-STYLE_PROMPT = ('Delicate linework, elegant proportions, expressive faces, flowing hair, '
-                'graceful transparent fabric folds, and soft painterly shading inspired by Alphonse Mucha. '
-                'Modern, fun, happy, sexy, upbeat.')
+STYLE_PROMPT = ('Delicate linework and soft painterly shading. For humans: expressive faces, flowing hair, '
+                'graceful transparent fabric folds. Visual style & mood: Modern, fun, happy, bright, uplifting mood.')
 STYLE = ('Confident clean delicate ink contours, elegant realistic proportions and soft '
          'painterly shading inspired by Alphonse Mucha. For human subjects only, use '
          'expressive faces and naturally flowing hair where appropriate. '
@@ -49,7 +48,7 @@ def image_prompt(subject, layout, style_prompt=STYLE_PROMPT, has_references=Fals
                      'Delicate ink contours, painterly shading, luminous color and elegant material textures.')
         return ('Paint this subject in a coherent environment: '+subject+'. '+layout['visual_prompt']+
                 ' Rendering technique: '+technique+'. Reference images guide technique only, never subject matter. '
-                'Preserve natural anatomy for any described people. Do not add people to an object scene. '
+                'Preserve natural anatomy for any described people. Each person’s face and body match their stated gender; women have smooth faces with no moustache, beard or stubble. Do not add people who are not described in the scene. '
                 'No text, captions, watermarks or printed marks.')
     kind = subject_kind(subject)
     if kind == 'object':
@@ -74,7 +73,7 @@ def image_prompt(subject, layout, style_prompt=STYLE_PROMPT, has_references=Fals
            'Preserve only brushwork, ink quality, shading technique and color treatment. '
            'Do not copy reference people, clothes, objects or composition. ' if has_references else 'Rendering technique: '+style_prompt+' ')
         + 'FINAL SUBJECT TO DRAW: '+subject.strip()+'. '+scope
-        + 'Anatomically accurate hands with exactly five distinct separated fingers including one thumb on each hand; clean joints, no extra digits, no fused fingers. Simple readable poses. '
+        + 'Anatomically accurate hands with exactly five distinct separated fingers including one thumb on each hand; clean joints, no extra digits, no fused fingers. Each person’s face and body match their stated gender; women have smooth faces with no moustache, beard or stubble. Simple readable poses. '
         'No written words or printed marks anywhere. No additional subjects.'
     )
 
@@ -98,7 +97,7 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
     groups=[' / '.join(data[i]['text'] for i in group) for group in indices]
     references = [Path(p).resolve() for p in (references or [])]
     layouts = [illustration_layout(i, width, height, cinematic, artwork_mode, seed) for i in range(len(groups))]
-    signature = dict(version=24 if structured else 23 if artwork_mode == 'verse' else 22, director_model=director_model, artwork_mode=artwork_mode, groups=groups, model=model, steps=steps, seed=seed,
+    signature = dict(version=36 if structured else 35 if artwork_mode == 'verse' else 34, director_model=director_model, artwork_mode=artwork_mode, groups=groups, model=model, steps=steps, seed=seed,
                      width=width, height=height, cinematic=cinematic, layouts=layouts,
                      style=STYLE, style_prompt=style_prompt, image_instructions=image_instructions,
                      references=[hashlib.sha256(p.read_bytes()).hexdigest() for p in references])
@@ -110,16 +109,16 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
         return manifest
     from gpu_models import resolve_prompt_model
     director_model = resolve_prompt_model(local_json, director_model)
-    from verse_backgrounds import DIRECTOR_PROMPT, LANGUAGE_RULE
+    from verse_backgrounds import DIRECTOR_PROMPT, LANGUAGE_RULE, PEOPLE_RULE
     payload = dict(model=director_model, stream=False, think=False, keep_alive=-1, options=dict(num_ctx=8192),
         format={'type': 'object', 'properties': {'subjects': {'type': 'array',
                 'minItems': len(groups), 'maxItems': len(groups), 'items': {'type': 'string'}}},
                 'required': ['subjects']},
-        messages=[dict(role='system', content=(DIRECTOR_PROMPT if artwork_mode == 'verse' else LANGUAGE_RULE+(
+        messages=[dict(role='system', content=(DIRECTOR_PROMPT if artwork_mode == 'verse' else LANGUAGE_RULE+PEOPLE_RULE+(
             'Translate each lyric group into one distinct English visual description for an illustrator. '
             'The lyrics are the sole source of subject matter. Interpret their meaning, including Tagalog. '
-            'Choose the most meaningful concrete subject: an everyday object, architectural detail, '
-            'a small grounded vignette, hands, a portrait, a person, or people. '
+            'Choose the most meaningful concrete subject: an everyday object, architectural detail, a place, '
+            'weather or nature, a small grounded vignette, or a person when the lyric shows someone. '
             'Choose subjects that best express the lyrics; vary compositions naturally where the meaning allows. '
             'Describe only visible shapes, action, material, color, lighting and mood, in a detailed 120 to 180 word description. '
             'For people, specify pose and suitable ordinary clothing; for objects, specify form and material. '
@@ -127,7 +126,7 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
             'Never quote, translate verbatim or transcribe lyric lines into the description. '
             'Never request written words or captions. Signs, books and screens must be blank. '
             'No graffiti, inscriptions, visualized sound waves, invisible substances or ghostly figures. '
-            'Express abstract ideas through ordinary physical objects or natural human actions. '
+            'Express abstract ideas through ordinary physical objects, places or nature. '
             'Each visual description must differ; no repeated scenes, lettering, flowers or surrealism. '
             'Match the assigned orientation and placement. Direct gestures, gaze or an object diagonal '
             'toward the available space. Do not require a person for a compositional direction. '
@@ -135,13 +134,16 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
             + 'Use additional image instructions only when they fit the lyric meaning. Return only JSON with a subjects array in input order.'))),
             dict(role='user', content=json.dumps([dict(lyrics=group, layout=layout['prompt'], image_instructions=image_instructions)
                  for group, layout in zip(groups, layouts)]))])
-    from subject_director import request_subjects, repair_duplicate_subjects
+    from subject_director import request_subjects, repair_duplicate_subjects, lengthen_short_subjects
     from ollama_gpu import gpu_chat, unload_model
     reference_images = bool(references) and model_spec(model)['references']
     meanings = []
     audit_groups = groups
+    gist = ''
     try:
         contexts=None
+        from song_gist import song_gist, attach_gist
+        gist = song_gist(gpu_chat, director_model, [line['text'] for line in data], image_instructions)
         if structured:
             structure=analyze(gpu_chat,director_model,data)
             indices=grouped_lines(data,line_count,structure)
@@ -155,21 +157,25 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
         if artwork_mode == 'verse':
             from verse_backgrounds import lyric_meanings
             meanings = lyric_meanings(gpu_chat, director_model, groups, contexts=contexts,
-                                     image_instructions=image_instructions)
+                                     image_instructions=image_instructions, song_gist=gist)
             payload['messages'][1]['content'] = json.dumps([
                 dict(lyrics=group,lyric_meaning=meaning,layout=layout['prompt'],section_context=contexts[i] if contexts else None,image_instructions=image_instructions)
                 for i,(group,meaning,layout) in enumerate(zip(groups,meanings,layouts))])
             audit_groups = [f'Original lyric group: {group}\nEnglish meaning: {meaning}'
                             for group, meaning in zip(groups, meanings)]
+        attach_gist(payload, gist)
+        audit_groups = [f'Song message: {gist}\n{group}' for group in audit_groups]
         subjects = request_subjects(gpu_chat, payload, max_words=550 if artwork_mode == 'verse' else 180)
         subjects = repair_duplicate_subjects(gpu_chat, payload, subjects)
+        subjects = lengthen_short_subjects(gpu_chat, payload, subjects, 400 if artwork_mode == 'verse' else 120,
+                                           max_words=550 if artwork_mode == 'verse' else 180)
         prompts = [image_prompt(subject, layout, style_prompt, reference_images)
                    + (' Additional image direction: '+image_instructions if image_instructions else '')
                    for subject, layout in zip(subjects, layouts)]
         from prompt_audit import audit_prompts
         prompts = audit_prompts(gpu_chat,director_model,audit_groups,subjects,prompts,layouts,artwork_mode)
         from prompt_fit import fit_prompts
-        prompts = fit_prompts(gpu_chat, director_model, model, prompts)
+        prompts = fit_prompts(gpu_chat, director_model, model, prompts, style_prompt)
     finally:
         try:unload_model(director_model)
         except (OSError,ValueError) as exc:print(f'Warning: prompt model cleanup: {exc}',flush=True)
@@ -181,7 +187,7 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
             raise ValueError('Visual description contains a copied lyric line; rerun the illustration director.')
     folder.mkdir(parents=True, exist_ok=True)
     manifest.write_text(json.dumps(dict(**signature, reference_paths=[str(p) for p in references],
-        lyric_meanings=meanings, visual_descriptions=subjects, prompt_audit=dict(version=1,model=director_model),
+        lyric_meanings=meanings, song_gist=gist, visual_descriptions=subjects, prompt_audit=dict(version=1,model=director_model),
         reference_modes=['technique_prompt_only' if artwork_mode == 'verse' or subject_kind(s) == 'object' or not reference_images else 'image_conditioning' for s in subjects],
         prompts=prompts), ensure_ascii=False, indent=2), encoding='utf-8')
     return manifest
@@ -376,7 +382,7 @@ def inference_options(model, references):
         return dict(image=references or None, guidance_scale=spec['guidance'])
     if spec['pipeline'] == 'QwenImagePipeline':
         return dict(true_cfg_scale=spec['guidance'], max_sequence_length=1024, negative_prompt=
-                    'extra limbs, extra fingers, fused fingers, malformed anatomy, lettering, watermark, grainy, noisy, pixelated, blurry, over-sharpened, low quality')
+                    'extra limbs, extra fingers, fused fingers, malformed anatomy, mixed male and female anatomy on one body, moustache or beard on a woman, nudity, see-through clothing, lettering, watermark, grainy, noisy, pixelated, blurry, over-sharpened, low quality')
     result = dict(guidance_scale=spec['guidance'])
     if spec['pipeline'] == 'FluxPipeline':
         result['max_sequence_length'] = 512

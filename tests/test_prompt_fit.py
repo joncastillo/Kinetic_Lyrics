@@ -1,4 +1,4 @@
-"""Constructed prompts are condensed only when they overflow the selected image model's text limit."""
+"""Every constructed prompt is rewritten to the selected image model's text budget."""
 import json
 import sys
 import unittest
@@ -19,17 +19,28 @@ class PromptFitTest(unittest.TestCase):
     def request(self, endpoint, payload, timeout):
         inputs = json.loads(payload['messages'][1]['content'])
         self.calls.append(inputs)
-        return {'message': {'content': json.dumps({'subjects': ['Condensed scene.']*len(inputs)})}}
+        return {'message': {'content': json.dumps({'subjects': ['Fitted scene.']*len(inputs)})}}
 
-    def test_qwen_keeps_prompts_within_its_longer_limit(self):
-        prompts = ['word '*700]
-        self.assertEqual(fit_prompts(self.request, 'test', QWEN, prompts), prompts)
-        self.assertEqual(self.calls, [])
-
-    def test_flux_condenses_only_long_prompts(self):
+    def test_every_prompt_is_rewritten_with_its_size_and_budget(self):
         prompts = ['A short scene.', 'word '*500]
-        self.assertEqual(fit_prompts(self.request, 'test', FLUX, prompts), ['A short scene.', 'Condensed scene.'])
-        self.assertEqual(self.calls, [[{'image_prompt': prompts[1]}]])
+        self.assertEqual(fit_prompts(self.request, 'test', QWEN, prompts), ['Fitted scene.']*2)
+        self.assertEqual([entry['estimated_words'] for entry in self.calls[0]], [3, 500])
+        self.assertEqual(self.calls[0][0]['target_words'], 700)
+
+    def test_art_style_leads_every_prompt_word_for_word(self):
+        style = 'Delicate ink linework and soft painterly shading inspired by Alphonse Mucha.'
+        fitted = fit_prompts(self.request, 'test', FLUX, ['word '*400], style)
+        self.assertTrue(fitted[0].startswith('Art style, the top priority for how everything is rendered: '+style))
+        self.assertTrue(fitted[0].endswith('Fitted scene.'))
+        self.assertLess(self.calls[0][0]['target_words'], 250)
+
+    def test_overlong_rewrite_is_condensed_again(self):
+        replies = iter(['word '*600, 'Shorter scene.'])
+        def request(endpoint, payload, timeout):
+            self.calls.append(json.loads(payload['messages'][1]['content']))
+            return {'message': {'content': json.dumps({'subjects': [next(replies)]})}}
+        self.assertEqual(fit_prompts(request, 'test', FLUX, ['A scene.']), ['Shorter scene.'])
+        self.assertEqual(len(self.calls), 2)
 
 
 if __name__ == '__main__':

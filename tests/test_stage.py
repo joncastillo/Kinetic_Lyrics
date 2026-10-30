@@ -193,6 +193,20 @@ class DirectorTest(unittest.TestCase):
                             motion='spin'), words, ['moon'])
         self.assertEqual((moon['subject'], moon['library'], moon['placement']), ('crescent moon', 'moon', 'letter'))
 
+    def test_pictures_are_translated_and_never_hang_on_function_words(self):
+        from ornament_director import checked, content_word
+        words = {'15:3': dict(text='ambon', bare='ambon', line=15, index=3), '16:3': dict(text='balon', bare='balon', line=16, index=3)}
+        lyrics = {'salita', "ko'y", 'tulad', 'ng', 'ambon', 'na', 'umalingawngaw', 'sa', 'balon'}
+        answer = dict(word='15:3', picture='ambon', source='generate', library='none', placement='beside', motion='bob')
+        drizzle = checked(answer, words, [], {'ambon': 'drizzle'}, lyrics)
+        self.assertEqual(drizzle['subject'], 'drizzle')  # the user's word meaning, not the untranslated word
+        untranslated = dict(answer, word='16:3', picture='the balon')
+        self.assertIsNone(checked(untranslated, words, [], {}, lyrics))  # an untranslated subject is never painted
+        well = checked(dict(untranslated, picture='old stone well'), words, [], {}, lyrics)
+        self.assertEqual(well['subject'], 'old stone well')
+        self.assertEqual([w for w in ('sa', "ko'y", 'ng', 'at', 'narito', 'mata', 'balon', 'liwanag') if content_word(w)],
+                         ['mata', 'balon', 'liwanag'])
+
 
 class StageTest(unittest.TestCase):
     def test_textured_accent_avoids_purple_in_artwork(self):
@@ -259,8 +273,9 @@ class SceneTest(unittest.TestCase):
         catalog = scene_catalog()
         self.assertIn('autumn-maple-lettering', catalog['tree-canopy']['particles'])
         self.assertIn('bamboo-lettering', catalog['tree-canopy']['particles'])
-        self.assertEqual(set(catalog['tree-canopy']['particles']),
-                         {'autumn-maple-lettering', 'old-oak-lettering', 'bamboo-lettering'})
+        self.assertTrue({'autumn-maple-lettering', 'old-oak-lettering', 'bamboo-lettering', 'succulent-garden-lettering',
+                         'meadow-grass-lettering'} <= set(catalog['tree-canopy']['particles']))
+        self.assertGreater(len(catalog['crystal-and-coral']['particles']), 4)  # scenes offer a wide choice to filter
         self.assertIn('mucha-silk-lettering', catalog['lace-and-paper']['particles'])
         self.assertIn('catholic-cross-lettering', catalog['crystal-and-coral']['particles'])
         self.assertNotIn('framed-lines', catalog)

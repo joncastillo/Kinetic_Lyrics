@@ -113,6 +113,7 @@ def vision_review(image, model, lyrics, prompt, subject="", threshold=DEFAULT_TH
         '- Apply a SEVERE, HIGH PENALTY (score must drop below 35, triggering rejection) ONLY for: '
         '  * Extra digits (6 or more fingers on a hand, extra thumbs, duplicate fingers, polydactyly) '
         '  * Abnormal appendages (extra arms, extra legs, extra hands, duplicated limbs, disconnected floating body parts) '
+        '  * One body that mixes male and female sex characteristics, such as a woman with a moustache, beard or stubble, a beard combined with breasts, or exposed genitals '
         '  * Clearly legible unwanted lettering, words, numbers or logos in the generated image. Do not mistake decorative strokes for letters. '
         '- A missing focal subject, unrelated scene or severely cropped important subject is a substantial defect and should score below 50. '
         '- Clearly impossible construction or physical relationships central to the subject are substantial defects and should score below 50. '
@@ -254,7 +255,7 @@ def main():
             font=None, background=None, lead_in=1., illustrations=illustrations, **typography_options(config),
             artwork_mode=config.get('artwork_mode','cutout'), image_seed=config.get('image_seed',42),
             illustration_lines=config['illustration_lines'], cinematic=config['cinematic'], encoder=config['encoder'], preserve_art_slots=True,
-            text_animation=config.get('text_animation','directed'), entrance_pool=config.get('entrance_pool'), exit_pool=config.get('exit_pool'),
+            text_animation=config.get('text_animation','directed'), audio_mode=config.get('audio_mode','original'), entrance_pool=config.get('entrance_pool'), exit_pool=config.get('exit_pool'),
             entrance_effect=config.get('entrance_effect'), exit_effect=config.get('exit_effect'),
             type_effect=config.get('type_effect','none'), particle_intensity=config.get('particle_intensity',1.), particle_speed=config.get('particle_speed',1.),
             stage_pictures=config.get('stage_pictures','ai-painted'), ai_model=config.get('ai_model','auto'), image_model=config.get('image_model'),

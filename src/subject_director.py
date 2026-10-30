@@ -130,3 +130,29 @@ def repair_duplicate_subjects(local_json, payload, subjects, max_rounds=2):
         raise ValueError('Illustration director still repeated scenes after two automatic '
                          'revision attempts. Choose another text prompting model and retry.')
     return result
+
+
+def lengthen_short_subjects(local_json, payload, subjects, minimum, max_words, max_rounds=2):
+    """Send scenes shorter than the requested length back to be expanded with more detail of the same scene."""
+    inputs = json.loads(payload['messages'][1]['content'])
+    result = list(subjects)
+    for attempt in range(max_rounds):
+        short = [index for index, subject in enumerate(result) if len(subject.split()) < minimum]
+        if not short:
+            break
+        print(f'Expanding {len(short)} short scene description(s) to at least {minimum} words '
+              f'(attempt {attempt+1}/{max_rounds}).', flush=True)
+        query = copy.deepcopy(payload)
+        query['messages'][0]['content'] += (
+            f' These scene descriptions are too short. Rewrite each as a long, richly detailed description of at '
+            f'least {minimum} words. Keep the same subject, action, setting and meaning, and add concrete visible '
+            'detail: the arrangement of foreground, middle ground and background, materials and textures, clothing, '
+            'gestures and expressions, light direction and colour, weather and atmosphere. Do not add new events or '
+            'people that the lyric does not support.')
+        query['messages'][1]['content'] = json.dumps([
+            dict(scene=inputs[index], previous_description=result[index]) for index in short])
+        expanded = request_subjects(local_json, query, batch_size=2, max_words=max_words, avoid_repeats=False)
+        for index, subject in zip(short, expanded):
+            if len(subject.split()) > len(result[index].split()):
+                result[index] = subject
+    return result

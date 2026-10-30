@@ -2,7 +2,7 @@
 
 Each scene is a small JSON recipe in scenes/. Its `camera` picks the renderer: "pan" (the
 real-time panning canvas, with flowing bands and a wisp tracing shapes), "still" (the real-time
-still camera, lines built inside shapes), "blocks" (the 3D stage) or "cinema" (black hole sun: one
+still camera, lines built inside shapes), "blocks" (the 3D stage) "cinema" (black hole sun: one
 short phrase at a time in hairline and heavy type over the artwork). A blocks scene lists
 preferred particle effects (`particles`); the AI can choose any selected entrance, except
 Tree canopy, which is restricted to its tree effects. A blocks scene's `layout` is

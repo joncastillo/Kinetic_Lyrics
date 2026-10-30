@@ -13,7 +13,16 @@ LANGUAGE_RULE = (
     'meaning, tone and imagery, then base your interpretation and every detail you write on that translation '
     'rather than on the sound or spelling of the original words. Do not output the translation unless asked to. '
 )
-DIRECTOR_PROMPT = LANGUAGE_RULE+(
+# Without a stated gender, image models can blend male and female features into one body.
+PEOPLE_RULE = (
+    'Include people only when the lyric describes someone’s visible action or presence. First- and second-person '
+    'words such as I, me or you do not by themselves require drawing the speaker or listener; otherwise build the '
+    'scene from places, objects, weather, light and nature. '
+    'For every visible person, state their gender and approximate age explicitly, such as a young woman or an '
+    'elderly man; never leave a visible person as just a figure, a person or a silhouette. Keep each body’s anatomy '
+    'consistent with that gender, and dress people in opaque clothing that covers the body. '
+)
+DIRECTOR_PROMPT = LANGUAGE_RULE+PEOPLE_RULE+(
     'Turn each lyric group and its supplied English meaning into a distinct painted scene for a kinetic lyric video. '
     'The meaning determines the visible subject, action, relationships and setting. '
     'Include recognizable details from this specific lyric group so a viewer can connect the picture to the words. '
@@ -21,7 +30,7 @@ DIRECTOR_PROMPT = LANGUAGE_RULE+(
     'When the lyric is metaphorical, choose a clear visual metaphor tied to its meaning and describe its visible scene. '
     'Do not use an unrelated glowing shape, flowing fabric, a generic horizon or a stock figure merely to suggest a mood. '
     'Describe the main subject and what is happening first, then the supporting environment, light and atmosphere. '
-    'People, objects, interiors, streets and landscapes are welcome when the lyric calls for them. '
+    'Objects, interiors, streets, landscapes and weather can carry the scene on their own. '
     'Do not invent extra people or supernatural events that the supplied meaning does not support. '
     'Use painterly simplification to unify the scene, without losing the lyric-specific anchors. '
     'Keep a coherent rendering style across the song while allowing each lyric to determine its imagery. '
@@ -50,7 +59,13 @@ def notes_for_group(group, notes):
             if re.search(r'(?<!\w)'+re.escape(word)+r'(?!\w)', group, re.I)}
 
 
-def lyric_meanings(request, model, groups, contexts=None, image_instructions=''):
+def uses_definition(definition, meaning):
+    """A meaning honors a gloss when it uses one of the gloss's words in any form, e.g. 'drizzling' for 'drizzle rain'."""
+    words = [word for word in re.findall(r'\w+', definition.casefold()) if len(word) > 2] or [definition.casefold()]
+    return any(re.search(r'(?<!\w)'+re.escape(word[:max(4, len(word)-2)]), meaning.casefold()) for word in words)
+
+
+def lyric_meanings(request, model, groups, contexts=None, image_instructions='', song_gist=''):
     """Resolve language and imagery before asking for visual interpretations."""
     from subject_director import request_subjects
     from llm_trace import trace_stage
@@ -69,6 +84,8 @@ def lyric_meanings(request, model, groups, contexts=None, image_instructions='')
             'Explain the metaphor and who addresses whom in a normal English sentence; do not return a slash-separated literal translation. '
             'A short closing line or refrain belongs to its supplied verse context, not the next verse. '
             'Use the surrounding song only to clarify context. Do not replace specific details with a generic mood. '
+            'When a song_gist is supplied, explain what this group means within that overall message and what its '
+            'symbols stand for, while keeping to this group’s own words. '
             'These are meaning briefs, not illustration prompts: do not add colors, shapes, painting styles or visual composition. '
             'Translate only the current input group, without advancing to adjacent lines or replacing its nouns and verbs. '
             'Any supplied word-meaning clarifications from the user are authoritative. Use them in the English meaning '
@@ -76,7 +93,7 @@ def lyric_meanings(request, model, groups, contexts=None, image_instructions='')
             'Return one short meaning brief per input in order, as JSON with a subjects array. '
             'The following song context is for interpretation only, not an additional input to translate: '+json.dumps(groups))),
             dict(role='user', content=json.dumps([dict(lyrics=group,section_context=contexts[i] if contexts else None,
-                                                 image_instructions=image_instructions,
+                                                 image_instructions=image_instructions, song_gist=song_gist or None,
                                                  binding_translation_notes=notes_for_group(group, notes))
                                                 for i,group in enumerate(groups)]))])
     with trace_stage('Lyric meaning / scene grounding'):
@@ -84,7 +101,7 @@ def lyric_meanings(request, model, groups, contexts=None, image_instructions='')
         for i, (group, meaning) in enumerate(zip(groups, meanings)):
             relevant = notes_for_group(group, notes)
             missing = {word: definition for word, definition in relevant.items()
-                       if definition.casefold() not in meaning.casefold()}
+                       if not uses_definition(definition, meaning)}
             if not missing:
                 continue
             from copy import deepcopy
@@ -97,8 +114,9 @@ def lyric_meanings(request, model, groups, contexts=None, image_instructions='')
                 lyrics=group, section_context=contexts[i] if contexts else None,
                 binding_translation_notes=relevant, previous_incorrect_meaning=meaning)])
             revised = request_subjects(request, retry, batch_size=1, max_words=85, avoid_repeats=False)[0]
-            if any(definition.casefold() not in revised.casefold() for definition in relevant.values()):
-                raise ValueError(f'Lyric interpretation ignored the supplied translation for {", ".join(missing)}')
+            if not all(uses_definition(definition, revised) for definition in relevant.values()):
+                raise ValueError(f'Lyric interpretation ignored the supplied translation for {", ".join(missing)}. '
+                                 f'The model wrote: {revised}')
             meanings[i] = revised
         return meanings
 
@@ -118,6 +136,8 @@ def image_prompt(subject, layout, style_prompt):
         'Let smaller background details reinforce the same moment without competing with the subject. '
         'Use the following only for color, brushwork and mood, never to replace the scene: '+style_prompt+'. '
         'Use painterly simplification without obscuring the story or turning concrete objects into unrelated shapes. '
+        'Each person’s face and body match their stated gender; women have smooth faces with no moustache, beard or stubble. '
+        'Do not add people who are not described in the scene. '
         'Draw one coherent scene with opaque, physically placed subjects. No superimposed scenes, double exposure, '
         'semi-transparent people, ghost silhouettes, floating haze, smoke or wispy overlays unless the lyric explicitly describes them. '
         'No lettering, written numbers, captions, logos or watermarks. '

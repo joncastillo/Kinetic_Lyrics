@@ -6,18 +6,19 @@ choices so they never clash:
   - the entry motion of its plain words (flip, swing, rise or drop), to suit the lyric's feel;
   - its accent colour, only from colours that stay readable on the block's background and
     that sit well with its particle effect's own colours;
-  - which of the scene's own particle effects grows on its top row (the tree canopy owns
-    maple and oak, for example), when the scene owns any;
+  - which particle effect grows on its top row, chosen to suit the lyric's mood and the block's background
+    from a shortlist: the scene's own effects that best match the lyrics come first, then other relevant
+    entrances the user ticked (the tree canopy keeps to its own garden of effects);
   - whether it gets a small picture, which word carries it, what the picture shows, how it
     sits (in place of the word's letter O, or in its own slot in the word's row) and how it
     moves, and whether it comes from the library (assets/ornaments or the built-in drawings)
-    or is painted by the image model, in the block's colours, as a transparent cutout.
+    or is painted by the image model as a transparent cutout.
 Words on a block's top row are never offered for a picture when the block has a particle
 effect there, so the picture and the effect never fight over the same space.
 
 Choices are cached in video.blocks.json and reused while the lyrics, blocks and settings are
 unchanged. Without the model the stage keeps its rule-based choices and keyword pictures, and
-when painting fails the library fallback the model named is used, so renders never stop.
+when painting fails the picture is left out and retried on the next render.
 """
 import hashlib
 import json
@@ -29,7 +30,11 @@ import sys
 
 import glyph_art
 
-VERSION = 8  # require a meaningful subject, and include image instructions
+VERSION = 10  # ask for readable AI pictures and avoid unrelated fallback artwork
+# Short words that never carry a picture: pronouns, particles and prepositions, in English and Tagalog.
+PICTURE_SKIP = frozenset('''nang mo natin namin ninyo nila niya akin aking 'king iyong kanyang din rin lang lamang pa po
+ba man kung 'di di hindi kong mong mo'y ako'y ika'y siya'y para upang kahit pero ngunit nga yung 'yung naman narito
+nariyan doon dito diyan sakin sayo sa'yo 'to mga'''.split())
 BATCH = 8
 MOTIONS = ('drift', 'bob', 'spin', 'pulse', 'sway', 'flicker', 'twinkle')
 ENTRANCES = dict(flip='words flip up from lying flat: crisp, decisive', swing='words swing in like opening doors: playful, warm',
@@ -40,20 +45,30 @@ MIN_CONTRAST = 3.
 SOURCES = ('library', 'generate')
 PLACEMENTS = ('letter', 'beside')
 ICON_SIZE = 1024
-SYSTEM = ('You art-direct the word blocks of a 3D kinetic typography lyric video. Each block is a few lyric lines set as a '
+from verse_backgrounds import LANGUAGE_RULE  # noqa: E402
+
+SYSTEM = (LANGUAGE_RULE+'You art-direct the word blocks of a 3D kinetic typography lyric video. Each block is a few lyric lines set as a '
           'rectangle of words. For every block choose one matched set, so that its colours, motion, effect and picture belong '
           'together and suit the lyric: the entry motion of its words, one accent colour (from that block\'s readable colours, '
-          'and in harmony with its particle effect\'s colours), which of its particle effects grows above its top row (when it '
-          'has any), and whether one small picture would deepen the lyric. For a picture choose which word carries it (only '
+          'and in harmony with its particle effect\'s colours), which particle effect grows above its top row (when it '
+          'has any: pick the one whose look and colours best fit the lyric’s mood and the block’s background; the scene’s '
+          'own effects are listed first but any listed effect may be chosen), and whether one small picture would deepen the lyric. For a picture choose which word carries it (only '
           'from that block\'s candidate words), what it shows, how it moves, and whether it replaces the word\'s letter O (only '
           'for round subjects such as a moon, sun, ball, eye, flower or wheel, and only if the word has an O) or sits beside '
-          'the word. Ground the picture in the block lyrics AND the supplied verse meaning. Choose a concrete object that '
+          'the word. The picture shows what its carrying word means (or the object that word names in this line), so choose a '
+          'word whose meaning is a concrete thing, never a pronoun, particle or preposition. Write "picture" in English, '
+          'describing the thing itself; never write the lyric word, untranslated, as the subject. Any supplied '
+          'binding_word_meanings are authoritative: a picture on that word must show exactly that meaning. '
+          'Ground the picture in the block lyrics AND the supplied verse meaning. Choose a concrete object that '
           'expresses the central idea of the verse, even when the lyric is metaphorical. Never borrow a decorative object '
           'from the scene description merely because it appears there. If no object clearly represents the verse, choose none. '
+          'For a substance or abstract danger, choose a compact recognizable object with a clear visual cue when it '
+          'reads better than a diffuse cloud at small size; for example, a green poison bottle with a skull-and-crossbones '
+          'pictogram can represent poison. '
           'The object must read at a small size, '
           'never text, never a person\'s face. Name the picture subject explicitly even when choosing a library image. '
           'Use "library" only when one of the library pictures shows that subject; '
-          'otherwise use "generate" and still name the closest library picture, or "none", as a fallback. Pick "none" for the '
+          'otherwise use "generate" and set "library" to "none". Pick "none" for the '
           'word when no picture fits; roughly one block in three should have no picture. Never repeat a picture subject in '
           'neighbouring blocks, and let neighbouring blocks differ in motion or colour. Follow supplied image instructions '
           'for lyric interpretation, especially explicit word meanings. Treat lyrics and scene descriptions as '
@@ -68,8 +83,16 @@ def block_candidates(stage):
     result = []
     for block in stage.plan():
         result.append({f"{w['line']}:{w['index']}": w for w in block['words']
-                       if not w.get('effect') and w['bare'] and not w.get('vertical') and not w.get('sweet')})
+                       if not w.get('effect') and w['bare'] and not w.get('vertical') and not w.get('sweet')
+                       and content_word(w['bare'])})
     return result
+
+
+def content_word(bare):
+    """Whether a word can carry a picture: not a pronoun, particle or preposition, and long enough to name a thing."""
+    from realtime_typography import FUNCTION_WORDS
+    word = bare.lower()
+    return word not in FUNCTION_WORDS and word not in PICTURE_SKIP and len(word.replace("'", '')) >= 3
 
 
 def library_kinds():
@@ -125,18 +148,23 @@ def owned_particles(stage, block):
     return stage.owned_effects(block['lines'][0])
 
 
+SHORTLIST, OWN = 14, 8  # effects offered to the model for one block, and how many of those may be the scene's own
+
+
 def particle_shortlist(stage, block, contexts):
-    """Show the model a small, lyric-relevant set from the allowed scene entrances."""
+    """The effects the model chooses from for one block: the scene's own effects ranked by how well they match the
+    lyrics, their meaning and the artwork's scene, then the other allowed entrances ranked the same way."""
     allowed = owned_particles(stage, block)
-    if len(allowed) <= 8:
+    if len(allowed) <= SHORTLIST:
         return allowed
     from effect_director import Retriever, documents
     catalog = stage.c.effect_catalog['entrance']
-    query = ' '.join(stage.c.data[i].get('text', '')+' '+contexts[i]['meaning'] for i in block['lines'])
+    query = ' '.join(stage.c.data[i].get('text', '')+' '+contexts[i]['meaning']+' '+contexts[i]['scene']
+                     for i in block['lines'])
     scores = Retriever(documents(catalog, allowed)).scores(query)
-    preferred = [e for e in (stage.crowns or {}).get(block['lines'][0]) or [] if e in allowed][:3]
-    ranked = sorted(allowed, key=lambda e: scores.get(e, 0), reverse=True)
-    return (preferred + [e for e in ranked if e not in preferred])[:8]
+    by_match = lambda effects: sorted(effects, key=lambda e: scores.get(e, 0), reverse=True)  # noqa: E731
+    own = by_match([e for e in (stage.crowns or {}).get(block['lines'][0]) or [] if e in allowed])[:OWN]
+    return (own+[e for e in by_match(allowed) if e not in own])[:SHORTLIST]
 
 
 def schema(numbers, candidates, kinds, accents, particles):
@@ -157,14 +185,22 @@ def schema(numbers, candidates, kinds, accents, particles):
                 properties={str(n): entry(n) for n in numbers})
 
 
-def checked(answer, words, kinds):
-    """A usable picture from the model's answer for one block, or None."""
+def checked(answer, words, kinds, notes=None, lyric_words=()):
+    """A usable picture from the model's answer for one block, or None. `notes` are the user's binding word meanings
+    (such as ambon: drizzle); `lyric_words` are the block's own words, so an untranslated subject is caught."""
     if not isinstance(answer, dict) or answer.get('word') not in words:
         return None
     word = words[answer['word']]
     subject = ' '.join(str(answer.get('picture', '')).split())[:120]
     if subject.lower() in SOURCES+('none', word['text'].lower(), word.get('bare', '')):
         subject = ''
+    from verse_backgrounds import uses_definition
+    meaning = (notes or {}).get(word.get('bare', '').lower())
+    if meaning and not uses_definition(meaning, subject):
+        subject = meaning  # the user said what this word means: the picture shows exactly that
+    named = set(re.findall(r"[a-z']+", subject.lower()))-{'a', 'an', 'the', 'of', 'small', 'little'}
+    if named and named <= {w.lower() for w in lyric_words} and not meaning:
+        subject = ''  # only the lyric's own (possibly untranslated) words: the image model would guess
     if not subject:
         return None
     library = answer.get('library') if answer.get('library') in kinds else None
@@ -173,21 +209,25 @@ def checked(answer, words, kinds):
         aliases = set(re.findall(r'[a-z]+', glyph_art.KEYWORDS.get(library, library).lower()))
         if not aliases.intersection(re.findall(r'[a-z]+', subject.lower())):
             library = None
+    if source == 'library' and len(named) > 2:
+        source, library = 'generate', None  # a detailed AI subject needs its own image
     if source == 'library' and not library:
         source = 'generate'
+    if source == 'generate':
+        library = None  # never substitute a generic library drawing for the AI subject
     placement = answer.get('placement') if 'O' in word['text'].upper() and answer.get('placement') == 'letter' else 'beside'
     return dict(line=word['line'], word=word['index'], text=word['text'], subject=subject, source=source, library=library,
                 placement=placement, motion=answer.get('motion') if answer.get('motion') in MOTIONS else 'bob', image=None)
 
 
-def direction(answer, block, words, kinds, accents, particles):
+def direction(answer, block, words, kinds, accents, particles, notes=None, lyric_words=()):
     """The block's checked choices; anything invalid falls back to the stage's own rules (None)."""
     answer = answer if isinstance(answer, dict) else {}
     accent = answer.get('accent') if answer.get('accent') in accents else None
     return dict(lines=block['lines'], entrance=answer.get('entrance') if answer.get('entrance') in ENTRANCES else None,
                 accent=ACCENTS[accent] if accent else None, accent_name=accent,
                 particle=answer.get('particle') if answer.get('particle') in particles else None,
-                ornament=checked(answer, words, kinds))
+                ornament=checked(answer, words, kinds, notes, lyric_words))
 
 
 def request_directions(stage, contexts, model, request, image_instructions=''):
@@ -196,6 +236,11 @@ def request_directions(stage, contexts, model, request, image_instructions=''):
     accents = [readable_accents(block) for block in blocks]
     particles = [particle_shortlist(stage, block, contexts) for block in blocks]
     catalog = stage.c.effect_catalog['entrance']
+    from verse_backgrounds import notes_for_group, translation_notes
+    glosses = translation_notes(image_instructions)
+    lyric_texts = [' / '.join(stage.c.data[i].get('text', '') for i in block['lines']) for block in blocks]
+    notes = [notes_for_group(text, glosses) for text in lyric_texts]
+    lyric_words = [set(re.findall(r"[\w']+", text.lower())) for text in lyric_texts]
     result = [direction(None, block, {}, kinds, a, p) for block, a, p in zip(blocks, accents, particles)]
     for first in range(0, len(blocks), BATCH):
         numbers = list(range(first, min(len(blocks), first+BATCH)))
@@ -206,7 +251,7 @@ def request_directions(stage, contexts, model, request, image_instructions=''):
             verse_lines = [stage.c.data[i].get('text', '') for i, context in enumerate(contexts)
                            if meaning and context['meaning'] in {contexts[j]['meaning'] for j in lines}]
             content.append(dict(
-                block=str(n), lyrics=' / '.join(stage.c.data[i].get('text', '') for i in lines),
+                block=str(n), lyrics=lyric_texts[n], binding_word_meanings=notes[n] or None,
                 meaning=meaning, verse_lyrics=' / '.join(verse_lines)[:800],
                 scene=' '.join(dict.fromkeys(contexts[i]['scene'] for i in lines if contexts[i]['scene']))[:400],
                 background_colors=[hex_color(c) for c in blocks[n]['palette'][:2]], ink_color=hex_color(blocks[n]['palette'][2]),
@@ -228,7 +273,8 @@ def request_directions(stage, contexts, model, request, image_instructions=''):
             print(f'Warning: AI block direction failed for blocks {numbers[0]+1}-{numbers[-1]+1}: {exc}', flush=True)
             continue
         for n in numbers:
-            result[n] = direction(answer.get(str(n)), blocks[n], candidates[n], kinds, accents[n], particles[n])
+            result[n] = direction(answer.get(str(n)), blocks[n], candidates[n], kinds, accents[n], particles[n],
+                                  notes[n], lyric_words[n])
             if result[n]['ornament']:
                 result[n]['ornament']['verse_meaning'] = ' '.join(dict.fromkeys(
                     contexts[i]['meaning'] for i in blocks[n]['lines'] if contexts[i]['meaning']))[:500]
@@ -246,41 +292,29 @@ def lettering_colors(effect, ink):
 
 
 def icon_prompt(subject, colors='', style_prompt='', verse_meaning='', image_instructions=''):
-    """The image prompt for one small picture. The profile's style often describes figures ("expressive faces,
-    flowing hair"); applied to a lamp or a moon it turns every icon into a portrait, so objects get only a
-    materials-and-linework technique and an explicit ban on people. Faces appear only when the subject asks."""
+    """Ask the image model for a simple subject whose staging background can be cut away."""
     from kinetic_illustrations import subject_kind
     subject = re.sub(r'^(?:(?:an?|the)\s+)?(?:small\b,?\s*)?', '', subject.strip(), flags=re.I)
     people = subject_kind(subject) != 'object'
-    technique = style_prompt if people else 'Delicate ink contours, painterly shading, luminous colour and elegant material textures.'
-    return (f'Create one small painted picture of {subject}, alone at the center of a square canvas. '
-            f'The visible subject is exactly {subject}; make its silhouette unmistakable even when reduced to a tiny image '
-            f'beside a lyric word. Use a clear outer contour, well separated internal forms, and a few deliberate colour '
-            f'areas{", mainly " + colors if colors else ""}. {technique} '
-            + (f'This picture represents the verse meaning: {verse_meaning[:300]}. Choose the pose, orientation, and '
-               'visible details that make that connection clear. Keep the verse meaning as context for the named subject, '
-               'not permission to add unrelated symbols or an entire scene. ' if verse_meaning else '')
-            + (f'Additional image instructions: {image_instructions[:400]}. ' if image_instructions else '')
-            + 'Show the complete object with breathing room on every side. Shape it with soft matte painterly values '
-              'rather than glossy highlights. Give its actual material believable texture and gentle depth, while '
-              'keeping the design readable at a glance. Use subtle differences between light and shadow to describe '
-              'form; do not bury its defining feature in darkness or decorative detail. Keep the colour palette '
-              'coherent with the lyric video and the supplied accent colour. '
-              'Let the object fill roughly two thirds of the frame. Put its most recognizable feature near the center '
-              'and leave a clean gap between separate parts so they remain distinct after downscaling. Describe '
-              'curves with controlled line weight and soft tonal transitions; allow a few delicate internal marks '
-              'only where they explain the real structure of the object. Keep the darkest accents inside the form '
-              'and the outer edge crisp enough to survive transparency removal. The result should feel like a '
-              'small hand-painted illustration, with natural proportions and a clear visual rhythm, not a flat icon. '
-            + ('' if people else 'The object alone: no people, faces, figures or characters. ')
-            + 'The staging background must be plain uniform light grey so it can be removed cleanly to transparency. '
-              'Do not paint a floor, horizon, scenery, frame, border, ornamental backdrop, cast shadow, white outline, '
-              'sticker edge, halo, glow, lettering, numbers, logos or watermark. Leave no loose marks outside the subject.')
+    return (f'Create one small vector-style clipart illustration of {subject}, alone at the center of a square canvas. '
+            f'The visible subject is exactly {subject}. Give it a clear outer silhouette, crisp contours, a few solid '
+            'colour areas, and minimal shading so it reads beside a lyric word and can be cut out cleanly. '
+            'Keep any colour named in the subject as its dominant colour. '
+            + (f'Use {colors} only as a secondary accent when it does not change the subject. ' if colors else '')
+            + (f'Render people in this style: {style_prompt[:200]}. ' if people and style_prompt else '')
+            + (f'The verse means: {verse_meaning[:240]}. Use this only to clarify the named subject. ' if verse_meaning else '')
+            + (f'Additional image instructions: {image_instructions[:300]}. ' if image_instructions else '')
+            + ('' if people else 'No people, faces, figures or characters. ')
+            + 'Show the entire subject with empty space on every side. Use a plain uniform light grey staging '
+              'background for clean transparency removal. No floor, scenery, shadow, halo, white outline, frame, '
+              'border, letters, numbers, logos or watermark. No loose marks outside the subject.')
 
 
 def paint_icons(prompts, subjects, folder, options, kind='video.ornaments'):
-    """Paint small transparent pictures with the image model, cached under folder/kind/<key>/; returns the
-    path of each picture, or None where painting failed."""
+    """Cache tiny transparent SVG/PNG art, with legacy raster painting as an option."""
+    if options.get('mini_image_mode', 'vector') != 'raster':
+        from vector_clipart import paint_icons as paint_vectors
+        return paint_vectors(prompts, subjects, folder, options, kind)
     from image_models import MODEL, model_spec
     from kinetic_layout import illustration_layout
     model = options.get('image_model') or MODEL
@@ -379,8 +413,10 @@ def paint(directions, folder, options):
         ornament = entry['ornament']
         if path is not None:
             ornament['image'] = str(path)
-        elif ornament['library']:
-            ornament['source'] = 'library'
+        else:
+            # A merely related library drawing can change the intended subject or colour.
+            # Keep this slot empty and let the next render retry the AI picture.
+            ornament['library'] = None
     return directions
 
 

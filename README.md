@@ -112,8 +112,15 @@ kinetic-studio.cmd
 
 This opens a web page on the user's own computer at http://127.0.0.1:8765. The user
 uploads the audio and pastes the lyrics, or leaves the lyrics blank so that Studio
-transcribes them, and then picks the style references, models and effects. Before the
-video renders, the user reviews each illustration and can replace or regenerate any
+transcribes them, and then picks the style references, models and effects. A YouTube
+video link can also be imported: Studio downloads its audio,
+checks LRCLIB, Genius and lyrics.ovh for matching text, and asks the local text model
+to rank the lyric candidates. If none match, the usual transcription step runs.
+The **Lines per image** field accepts `auto`; the text model then chooses a grouping
+after the lyrics are timed. **Karaoke instrumental** exports the drum, bass and other
+stems without the lead vocal.
+
+Before the video renders, the user reviews each illustration and can replace or regenerate any
 that do not fit. After a video is finished, the user can swap a single image and
 rebuild only the parts that changed, and earlier exports remain available.
 
@@ -130,7 +137,10 @@ Some useful options:
 - `--style-reference a.png b.png` gives the image model pictures to match the style of.
 - `--illustrations art.png ...` uses the user's own artwork, and `--no-illustrations`
   makes a typography-only video.
-- `--illustration-lines N` sets how many lyric lines share each illustration.
+- `--illustration-lines N` sets how many lyric lines share each illustration;
+  `--illustration-lines auto` asks the local text model after alignment.
+- `--audio-mode karaoke` exports the instrumental mix while retaining the original
+  audio for timing and stem analysis.
 - `--language tl` sets the lyric language.
 - `--encoder libx264` and `--render-workers N` control encoding and how many CPU
   workers render frames.

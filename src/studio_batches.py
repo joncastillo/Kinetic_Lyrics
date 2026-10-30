@@ -90,19 +90,21 @@ def repair_batch(worker, root, manifest, items, threshold=None):
         pending=[item for item in pending if hashlib.sha256(
             Path(item.get('candidate') or manifest.parent/f'{item["index"]:03d}.png').read_bytes()).hexdigest()==item['expected_sha']]
         if not pending:break
-        from model_lifecycle import current_session
-        from prompt_repair import revise_repair_prompts
-        session=current_session()
-        if session:
-            session.release()
-            session.unload_vision()
-        planned=revise_repair_prompts(worker,job,config,pending)
+        if attempt==0:
+            # Write every round's prompts in one prompting session, so later rounds only alternate image and review.
+            from model_lifecycle import current_session
+            from prompt_repair import revise_repair_prompts
+            session=current_session()
+            if session:
+                session.release()
+                session.unload_vision()
+            planned=revise_repair_prompts(worker,job,config,pending,variants=MAX_AUTO_REPAIRS)
         candidates=[]
         for item in pending:
             index=item['index'];target=Path(item.get('candidate') or manifest.parent/f'{index:03d}.png')
             if hashlib.sha256(target.read_bytes()).hexdigest()!=item['expected_sha']:continue
             worker.emit('repair',attempt/MAX_AUTO_REPAIRS,message=f'Generating repair round {attempt+1}: illustration {index+1}')
-            revised=planned[index]
+            revised=planned[index][attempt]
             prompt=revised['prompts'][index]
             candidate=worker.generate_candidate(root,revised,index,Path(config['image_cache']),prompt)
             candidates.append((item,candidate,prompt))

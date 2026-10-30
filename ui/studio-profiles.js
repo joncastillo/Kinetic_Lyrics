@@ -58,12 +58,12 @@ function restoreVisionSelection(){
  gallerySignature='';if(state)renderGallery(state);
 }
 
-const PROFILE_FIELDS=['text_animation','text_pool','font_family','font_style','font_scale','auto_accept','entrance_pool','exit_pool','entrance_effect','exit_effect','artwork_mode','ai_model','particle_speed','image_model','vision_model','project_id','asr_model','alignment_model','reference_prompt','style','image_instructions','instructions','type_effect','particle_intensity','language','auto_verify','auto_repair','review_threshold','cinematic','resolution','lines','steps','encoder','cache'];
+const PROFILE_FIELDS=['text_animation','audio_mode','text_pool','font_family','font_style','font_scale','auto_accept','entrance_pool','exit_pool','entrance_effect','exit_effect','artwork_mode','ai_model','particle_speed','image_model','vision_model','project_id','asr_model','alignment_model','reference_prompt','style','image_instructions','instructions','type_effect','particle_intensity','language','auto_verify','auto_repair','review_threshold','cinematic','resolution','lines','steps','encoder','cache'];
 let imageModels=[],audioModels=[],backendReady=false;
 const DEFAULT_PROFILE_NAME='Mucha · Bright & Flowing';
 const DEFAULT_REFERENCE='/assets/filipina-reference.png';
 const LEGACY_REFERENCE='/assets/default-style-reference.jpg';
-const DEFAULT_REFERENCE_PROMPT='Delicate linework, elegant proportions, expressive faces, flowing hair, graceful transparent fabric folds, and soft painterly shading inspired by Alphonse Mucha. Modern, fun, happy, sexy, upbeat.';
+const DEFAULT_REFERENCE_PROMPT='Delicate linework and soft painterly shading. For humans: expressive faces, flowing hair, graceful transparent fabric folds. Visual style & mood: Modern, fun, happy, bright, uplifting mood.';
 const DEFAULT_PROFILE={version:1,settings:{artwork_mode:'cutout',ai_model:'auto',image_model:'Qwen/Qwen-Image-2512',vision_model:'',asr_model:'qwen3-asr-1.7b',alignment_model:'auto',reference_prompt:DEFAULT_REFERENCE_PROMPT,style:'Bright, uplifting mood; emphasis on flowing fabric, long flowing hair, graceful movement and luminous color. Expressive editorial typography with letters that shatter, melt and flow.',image_instructions:'',instructions:'',type_effect:'mixed',particle_intensity:'1',language:'auto',auto_verify:true,auto_repair:true,review_threshold:"50",cinematic:true,resolution:'720p',lines:'2',steps:'50',encoder:'h264_nvenc',cache:'',reference_asset:DEFAULT_REFERENCE}};
 async function initializeProfiles(){
  if(!window.profileChoicePersistenceBound){
@@ -137,7 +137,7 @@ function profileSettings(){
 }
 async function applyProfile(settings){
  if(!settings||typeof settings!=='object'||Array.isArray(settings))throw Error('Invalid profile settings');
- settings={font_family:'auto',font_style:'auto',font_scale:1.25,text_pool:['directed','highlight','karaoke','slide','fade','none'],...settings};
+ settings={font_family:'auto',font_style:'auto',font_scale:1.25,text_pool:['directed','highlight','karaoke','slide','fade','mask-rise','cartoon-pop','none'],...settings};
 
  if($('autoAccept'))$('autoAccept').checked=settings.auto_accept===true;
  if($('textAnimation'))$('textAnimation').value=[...$('textAnimation').options].some(option=>option.value===settings.text_animation)?settings.text_animation:'directed';
