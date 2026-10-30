@@ -356,7 +356,7 @@ def main(argv=None):
                         help='Video encoder (default: h264_nvenc for NVIDIA GPU)')
     parser.add_argument('--renderer', default='editorial', choices=['editorial', 'ass'],
                         help='Editorial block compositor (default), or legacy ASS animation')
-    parser.add_argument('--artwork-mode', choices=['cutout','fullscreen','verse'], default='cutout', help='Cutout illustrations, full-screen scenes, or simple verse-inspired abstract backgrounds')
+    parser.add_argument('--artwork-mode', choices=['cutout','fullscreen','verse','matte'], default='cutout', help='Cutout illustrations, full-screen scenes, verse-inspired painted backgrounds, or greenscreen scenery whose keyed sky is the only place lyrics appear')
     parser.add_argument('--cinematic', action='store_true', help='Large steady illustrations, depth shadows and drifting light; no Blender required')
     from kinetic_effects import EFFECTS, TEXT_ANIMATIONS
     parser.add_argument('--particle-intensity', type=float, default=1., help='Particle density: 0 to 2')

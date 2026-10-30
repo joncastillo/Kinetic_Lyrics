@@ -26,6 +26,10 @@ def audit_prompts(request,model,groups,subjects,prompts,layouts,mode='cutout'):
           'forms or decorative motifs, restore the relevant concrete scene or a clear connected metaphor. '
           'Let abstraction simplify the rendering rather than replace the meaning. Keep a quiet lyric area. '
           if mode=='verse' else
+          'These are greenscreen scenery plates. Keep the horizon or skyline scenery tied to the lyric, keep the '
+          'instruction that everything above the skyline is flat, uniform pure #00FF00 chroma-key green with nothing in it, '
+          'even when the scene names a sky colour, and keep the absence of a main character or dominant figure. '
+          if mode=='matte' else
           'These are complete full-frame scenes; preserve atmospheric surroundings and the quiet lyric area. '
           if mode=='fullscreen' else
           'These are cutout illustrations. Keep the subject and essential immediate supporting scene on '

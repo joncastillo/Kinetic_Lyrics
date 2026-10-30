@@ -11,9 +11,11 @@ import bisect
 import math
 
 import numpy as np
-from PIL import Image, ImageOps
+from PIL import Image, ImageChops, ImageOps
 
 DIRECTIONS = ((1, 0), (1, .55), (1, -.5), (.6, .8), (1, 0), (.65, -.75), (1, .3))
+# Greenscreen scenery keeps its horizon level, so the camera only travels along it.
+ALONG_HORIZON = ((1, 0),)
 SEAM = .3
 CANVAS = (6, 9, 16)
 
@@ -21,10 +23,10 @@ CANVAS = (6, 9, 16)
 class CameraPath:
     """Arc-length parametrised Catmull-Rom curve, so the camera moves at one constant speed."""
 
-    def __init__(self, spans, speed, duration):
+    def __init__(self, spans, speed, duration, directions=DIRECTIONS):
         points = [(0., 0.)]
         for index, (start, end) in enumerate(spans):
-            dx, dy = DIRECTIONS[index % len(DIRECTIONS)]
+            dx, dy = directions[index % len(directions)]
             norm = math.hypot(dx, dy)
             length = speed*max(.5, end-start)
             points.append((points[-1][0]+dx/norm*length, points[-1][1]+dy/norm*length))
@@ -51,9 +53,19 @@ class CameraPath:
         return a[0]+(b[0]-a[0])*u, a[1]+(b[1]-a[1])*u
 
 
+def open_rgb(path):
+    with Image.open(path) as source:
+        return source.convert('RGB')
+
+
 class WorldCanvas:
-    def __init__(self, paths, spans, width, height, path):
+    """`load` turns a path into the tile picture. An 'L' canvas holds greenscreen mattes: at seams it keeps
+    whatever either picture covers, so lyrics never show through scenery while two pictures blend."""
+
+    def __init__(self, paths, spans, width, height, path, load=open_rgb, mode='RGB'):
         self.W, self.H = width, height
+        self.load, self.mode = load, mode
+        self.fill = CANVAS if mode == 'RGB' else 0
         self.seam = width*SEAM
         margin = round(self.seam)
         self.tiles = []
@@ -71,17 +83,16 @@ class WorldCanvas:
             if len(self._scaled) >= 3:
                 self._scaled.pop(next(iter(self._scaled)))
             spec = self.tiles[index]
-            with Image.open(spec['path']) as source:
-                self._scaled[index] = ImageOps.fit(source.convert('RGB'), (spec['width'], spec['height']), Image.Resampling.LANCZOS)
+            self._scaled[index] = ImageOps.fit(self.load(spec['path']), (spec['width'], spec['height']), Image.Resampling.LANCZOS)
         return self._scaled[index]
 
     def view(self, left, top, width, height):
         """Canvas pixels in the rectangle: each point from the picture whose path is nearest, blended softly at seams."""
         touching = [i for i, spec in enumerate(self.tiles)
                     if spec['x'] < left+width and spec['x']+spec['width'] > left and spec['y'] < top+height and spec['y']+spec['height'] > top]
-        view = Image.new('RGB', (width, height), CANVAS)
+        view = Image.new(self.mode, (width, height), self.fill)
         if not touching:
-            return view.convert('RGBA')
+            return view.convert('RGBA') if self.mode == 'RGB' else view
         grid_w, grid_h = max(2, width//8), max(2, height//8)
         xs = left+(np.arange(grid_w)+.5)*width/grid_w
         ys = top+(np.arange(grid_h)+.5)*height/grid_h
@@ -104,8 +115,11 @@ class WorldCanvas:
             spec = self.tiles[index]
             region = (max(left, spec['x'])-spec['x'], max(top, spec['y'])-spec['y'],
                       min(left+width, spec['x']+spec['width'])-spec['x'], min(top+height, spec['y']+spec['height'])-spec['y'])
-            piece = Image.new('RGB', (width, height), CANVAS)
+            piece = Image.new(self.mode, (width, height), self.fill)
             piece.paste(self.tile_image(index).crop(region), (region[0]+spec['x']-left, region[1]+spec['y']-top))
             mask = Image.fromarray((share*255).astype('uint8'), 'L').resize((width, height), Image.Resampling.BILINEAR)
-            view = Image.composite(piece, view, mask)
-        return view.convert('RGBA')
+            if self.mode == 'L':
+                view = ImageChops.lighter(view, ImageChops.multiply(piece, mask.point(lambda v: 255 if v else 0)))
+            else:
+                view = Image.composite(piece, view, mask)
+        return view.convert('RGBA') if self.mode == 'RGB' else view

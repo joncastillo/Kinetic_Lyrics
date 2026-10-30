@@ -207,7 +207,7 @@ class RealtimeTypography:
         self.rhythm = rhythm or {}
         self.melody = melody.get('lines') if isinstance(melody, dict) else None
         self.speed = max(.2, speed)
-        self.lines = self.path = self.world = None
+        self.lines = self.path = self.world = self.mattes = None
         self.still = self.options['camera'] == 'still'
         self.shapes = None
 
@@ -217,18 +217,25 @@ class RealtimeTypography:
         if self.lines is not None:
             return self.lines
         from kinetic_director import PALETTES
-        from world_canvas import CameraPath, WorldCanvas
+        from world_canvas import ALONG_HORIZON, DIRECTIONS, CameraPath, WorldCanvas
         c = self.c
         paths = getattr(c, 'illustration_paths', [])
         starts = list(getattr(c, 'art_starts', None) or [0.])
-        if not (c.artwork_mode in ('fullscreen', 'verse') and paths):
+        from kinetic_layout import FULL_FRAME
+        if not (c.artwork_mode in FULL_FRAME and paths):
             starts = [0.]
         starts = starts[:max(1, len(paths))]
         spans = [(s, starts[i+1] if i+1 < len(starts) else c.duration) for i, s in enumerate(starts)]
         self.still = self.options['camera'] == 'still'
-        self.path = CameraPath(spans, 0. if self.still else max(1e-3, self.options['pan_speed'])*c.width, c.duration)
-        if c.artwork_mode in ('fullscreen', 'verse') and paths and not self.still:
-            self.world = WorldCanvas(paths[:len(spans)], spans, c.width, c.height, self.path)
+        self.path = CameraPath(spans, 0. if self.still else max(1e-3, self.options['pan_speed'])*c.width, c.duration,
+                               ALONG_HORIZON if c.artwork_mode == 'matte' else DIRECTIONS)
+        if c.artwork_mode in FULL_FRAME and paths and not self.still:
+            if c.artwork_mode == 'matte':
+                import greenscreen
+                self.world = WorldCanvas(paths[:len(spans)], spans, c.width, c.height, self.path, load=lambda p: greenscreen.load(p)[0])
+                self.mattes = WorldCanvas(paths[:len(spans)], spans, c.width, c.height, self.path, load=lambda p: greenscreen.load(p)[1], mode='L')
+            else:
+                self.world = WorldCanvas(paths[:len(spans)], spans, c.width, c.height, self.path)
         margin = c.width*MARGIN
         self.lines, previous = [], None
         for index, line in enumerate(c.data):
@@ -314,15 +321,47 @@ class RealtimeTypography:
         c = self.c
         a, b = self.path.at(start), self.path.at(end)
         dx, dy = b[0]-a[0], b[1]-a[1]
+        sky = None
+        if self.mattes:
+            sky = self.travelled_sky(a, b, margin)
+        elif getattr(c, 'open_boxes', None):
+            sky = c.open_boxes[min(len(c.open_boxes)-1, max(0, bisect.bisect_right(c.art_starts, start)-1))]
+        if self.still and sky:
+            x, y, width, height = sky
+            if height >= c.height*.3:
+                height = (height-margin/2)/2
+                y += (index % 2)*(height+margin/2)
+            return x, y, width, height
         lead = 1. if self.still else LEAD_WIDTH
         width = min(c.width*lead-(2*margin if self.still else 0), max(c.width*MIN_WIDTH, c.width-2*margin-abs(dx)))
         height = max(c.height*MIN_HEIGHT, c.height-2*margin-abs(dy))
         x = c.width-margin-width if dx >= 0 else margin
         y = c.height-margin-height if dy >= 0 else margin
+        if sky:
+            # Keep the line inside greenscreen sky that stays open while the camera carries it across.
+            left, right = max(x, sky[0]), min(x+width, sky[0]+sky[2])
+            if right-left < c.width*MIN_WIDTH:
+                left, right = sky[0], sky[0]+sky[2]
+            x, y, width, height = left, sky[1], right-left, sky[3]
+            if height >= c.height*.3:
+                height = (height-margin/2)/2
+                y += (index % 2)*(height+margin/2)
+            return x, y, width, height
         if height >= c.height*.5:
             height = (height-margin)/2
             y += (index % 2)*(height+margin)
         return x, y, width, height
+
+    def travelled_sky(self, a, b, margin):
+        """Screen box (at camera position `a`) that is open sky in every view between camera positions a and b."""
+        from greenscreen import open_box
+        c = self.c
+        left, top = math.floor(min(a[0], b[0])-c.width/2), math.floor(min(a[1], b[1])-c.height/2)
+        span = (math.ceil(c.width+abs(b[0]-a[0])), math.ceil(c.height+abs(b[1]-a[1])))
+        box = open_box(self.mattes.view(left, top, *span), round(margin/2))
+        if not box:
+            return None
+        return box[0]+left-(a[0]-c.width/2), box[1]+top-(a[1]-c.height/2), box[2], box[3]
 
     def opacity(self, index, t):
         """Full while newest, easing to half when the next line starts, then out after the one after.
@@ -355,9 +394,14 @@ class RealtimeTypography:
         left, top = center[0]-c.width/2, center[1]-c.height/2
         base = (math.floor(left), math.floor(top))
         fraction = (left-base[0], top-base[1])
+        scenery = None
         if self.world:
             canvas = self.world.view(base[0], base[1], c.width+2, c.height+2)
+            if self.mattes:
+                scenery = canvas.copy()
+                scenery.putalpha(self.mattes.view(base[0], base[1], c.width+2, c.height+2))
         else:
+            scenery = c.scenery(t)
             index = max(0, sum(1 for line in c.data if line['words'][0]['start'] <= t)-1)
             screen = c.background(index, t, veil=False).convert('RGBA')
             c.illustration(screen, index, t)
@@ -379,6 +423,8 @@ class RealtimeTypography:
                 continue
             self.paint_frame(canvas, index, t, opacity, base)
             self.paint_line(canvas, index, t, opacity, base)
+        if scenery is not None:
+            canvas.alpha_composite(scenery)
         shifted = canvas.transform((c.width, c.height), Image.Transform.AFFINE, (1, 0, fraction[0], 0, 1, fraction[1]),
                                    resample=Image.Resampling.BILINEAR)
         return shifted.convert('RGB')
