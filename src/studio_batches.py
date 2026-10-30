@@ -93,20 +93,22 @@ def repair_batch(worker, root, manifest, items, threshold=None):
         from model_lifecycle import current_session
         from prompt_repair import revise_repair_prompts
         session=current_session()
-        rewrite=[item for item in pending if not anatomy_only(item['review'])]
-        planned={}
+        # Fresh prompts for every remaining round are written in one prompting session, the first time an image
+        # needs one, so later rounds only alternate image and review. Anatomy-only failures keep their prompt.
+        rewrite=[item for item in pending if not anatomy_only(item['review']) and not item.get('variants')]
         if rewrite:
             if session:
                 from gpu_models import resolve_prompt_model
                 from ollama_service import local_json
                 session.before_prompting(resolve_prompt_model(local_json,config.get('ai_model','auto')))
-            planned=revise_repair_prompts(worker,job,config,rewrite)
+            planned=revise_repair_prompts(worker,job,config,rewrite,variants=MAX_AUTO_REPAIRS-attempt)
+            for item in rewrite:item['variants']=planned[item['index']]
         candidates=[]
         for item in pending:
             index=item['index'];target=Path(item.get('candidate') or manifest.parent/f'{index:03d}.png')
             if hashlib.sha256(target.read_bytes()).hexdigest()!=item['expected_sha']:continue
-            if index in planned:
-                revised=planned[index];prompt=revised['prompts'][index]
+            if not anatomy_only(item['review']) and item.get('variants'):
+                revised=item['variants'].pop(0);prompt=revised['prompts'][index]
                 worker.emit('repair',attempt/MAX_AUTO_REPAIRS,message=f'Generating repair round {attempt+1}: illustration {index+1}')
             else:
                 revised=item.get('job',job);prompt=item['prompt']

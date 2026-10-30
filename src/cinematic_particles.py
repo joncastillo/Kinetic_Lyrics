@@ -7,13 +7,11 @@ from particle_choreography import entrance_opacity
 
 STYLES = {
     'prismatic-helix': 'prism', 'prismatic-singularity': 'prism',
-    'aurora-silk-unravel': 'silk',
     'liquid-chrome-assembly': 'chrome', 'liquid-chrome-collapse': 'chrome',
     'ember-forge': 'ember', 'ember-ash-drift': 'ember',
 }
 PALETTES = {
     'prism': ((102,229,255),(178,142,255),(255,170,219)),
-    'silk': ((80,230,194),(119,174,255),(219,134,239)),
     'chrome': ((205,235,248),(100,155,185),(246,251,255)),
     'ember': ((255,204,93),(255,113,40),(224,65,24)),
 }
@@ -37,15 +35,6 @@ def pose(style,phase,q,fragment,size,spread):
             dx=-u*collapse+math.cos(angle)*h*q*(1-q)*1.1
             dy=-v*collapse+math.sin(angle)*h*q*(1-q)*.7;z=-q*.7
         return dx,dy,z,q*(r[4]-.5)*5,q*(r[5]-.5)*8,q*(r[6]-.5)*4
-    if style=='silk':
-        side=-1 if r[2]<.5 else 1
-        if phase=='entrance':
-            dx=side*h*q*(.35+r[3]*.4)
-            dy=-h*q*(.9+r[2]*.5)+math.sin(q*math.tau+a)*h*q*.28
-        else:
-            dx=side*h*q*(.8+q*.8)
-            dy=-h*q*q*.9+math.sin(q*math.pi*1.5+a)*h*q*.3
-        return dx,dy,math.sin(q*5+a)*q*.25,math.sin(q*5+a)*q*1.8,q*side*1.5,math.sin(q*4+a)*q*.8
     if style=='chrome':
         if phase=='entrance':
             dx=math.sin(a+q*math.tau)*h*q;dy=math.cos(a*2+q*math.tau*1.4)*h*q*.7
@@ -71,7 +60,7 @@ def colored(image,color,opacity):
 def paint_cinematic(layer,sprite,x,y,phase,amount,effect,seed,intensity,cache):
     from particle_motion import build_fragments,tumble,_alpha
     style=STYLES[effect.id]
-    recipe=replace(effect,family='ribbons' if style=='silk' else 'cinematic')
+    recipe=replace(effect,family='cinematic')
     key=('cinematic-v1',sprite_key(sprite),recipe,seed,intensity)
     if cache is None:fragments=build_fragments(sprite,recipe,seed,intensity)
     else:
@@ -89,7 +78,7 @@ def paint_cinematic(layer,sprite,x,y,phase,amount,effect,seed,intensity,cache):
     fade_out=1-smooth((amount-.75)/.25) if phase=='exit' else 1.
     for fragment in fragments:
         r=fragment.random;horizontal=fragment.center[0]/max(1,sprite.width)
-        delay=effect.stagger*(horizontal if style in ('silk','ember') else r[0])
+        delay=effect.stagger*(horizontal if style=='ember' else r[0])
         q=max(0.,min(1.,(amount-delay)/(1-delay)))
         dx,dy,z,ax,ay,az=pose(style,phase,q,fragment,sprite.size,effect.spread)
         depth=1/(1-z)
@@ -127,20 +116,7 @@ def paint_cinematic(layer,sprite,x,y,phase,amount,effect,seed,intensity,cache):
                 tx,ty,tz,*_=pose(style,phase,previous,fragment,sprite.size,effect.spread);td=1/(1-tz)
                 points.append((offset_x+sprite.width/2+(fragment.center[0]-sprite.width/2+tx)*td,
                                offset_y+sprite.height/2+(fragment.center[1]-sprite.height/2+ty)*td))
-            gd.line(points,fill=(*tint,round(125*strength)),width=2 if style=='silk' else 1)
-            if style=='silk':
-                cx,cy=center;previous=None
-                for segment in range(17):
-                    t=segment/16;length=sprite.height*.9*q
-                    rx=cx+math.sin(t*5+r[3]*math.tau)*length*t*.4
-                    ry=cy-length*t
-                    width=max(.4,min(9.,fragment.image.width*.65)*q*(1-t*.85))
-                    left=(rx-width,ry);right=(rx+width,ry)
-                    shade=.65+.35*math.sin(t*9+q*5+r[3]*math.tau)**2
-                    color=tuple(round(c*shade) for c in tint)
-                    if previous:gd.polygon((previous[0],previous[1],right,left),fill=(*color,round(210*strength)))
-                    previous=(left,right)
-
+            gd.line(points,fill=(*tint,round(125*strength)),width=1)
             if style in ('prism','ember'):
                 cx,cy=center;radius=1.5 if style=='prism' else 2.
                 gd.ellipse((cx-radius,cy-radius,cx+radius,cy+radius),fill=(*tint,round(180*strength)))

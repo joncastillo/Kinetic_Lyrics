@@ -72,6 +72,41 @@ class RepairBatchTest(unittest.TestCase):
             self.assertEqual(target.read_bytes(), b'1')
             self.assertTrue(any(e.get('repaired') for e in events))
 
+    def test_scene_problem_writes_every_rounds_prompts_once(self):
+        import studio_batches
+        from unittest import mock
+        from review_policy import MAX_AUTO_REPAIRS
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            manifest = root/'artwork'/'key'/'illustrations.json'
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text(json.dumps(dict(prompts=['a lamp'], groups=['lyric'])), encoding='utf-8')
+            (root/'config.json').write_text(json.dumps(dict(style_prompt='ink', image_cache=str(root/'cache'))), encoding='utf-8')
+            target = manifest.parent/'000.png'
+            target.write_bytes(b'original')
+            sha = hashlib.sha256(b'original').hexdigest()
+            scene = dict(score=30, issues=[dict(issue='Lamp head floats halfway up the pole', severity='high', location='left')],
+                         hand_checks=[], image_sha256=sha)
+            generated = []
+
+            def generate_candidate(root_, job, index, cache, prompt):
+                path = root/'candidates'/f'{len(generated)}.png'
+                path.parent.mkdir(exist_ok=True)
+                path.write_bytes(str(len(generated)).encode())
+                generated.append(prompt)
+                return path
+
+            def revise(worker, job, config, items, variants=1):
+                return {item['index']: [dict(job, prompts=[f'fresh {v}']) for v in range(variants)] for item in items}
+
+            worker = SimpleNamespace(generate_candidate=generate_candidate, emit=lambda *a, **k: None,
+                                     vision_review=lambda path, *a: dict(scene, image_sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
+            with mock.patch('prompt_repair.revise_repair_prompts', side_effect=revise) as revised:
+                studio_batches.repair_batch(worker, root, manifest, [dict(index=0, model='vision', expected_sha=sha, review=scene)])
+            revised.assert_called_once()
+            self.assertEqual(revised.call_args.kwargs['variants'], MAX_AUTO_REPAIRS)
+            self.assertEqual(generated, ['fresh 0']*CANDIDATES_PER_REPAIR+['fresh 1']*CANDIDATES_PER_REPAIR)
+
 
 if __name__ == '__main__':
     unittest.main()

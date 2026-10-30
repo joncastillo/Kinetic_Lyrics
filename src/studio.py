@@ -27,6 +27,7 @@ from kinetic_illustrations import MODEL, STYLE_PROMPT
 from kinetic_progress import PREFIX
 from kinetic_effects import EFFECTS, TEXT_ANIMATIONS
 from particle_catalog import discover_effects, catalog_choices, validate_choice, parse_pool
+from scene_catalog import scene_catalog
 from image_models import MODELS
 from review_policy import rejected, DEFAULT_THRESHOLD
 from speech_models import ASR_MODELS, LANGUAGES, DEFAULT_ASR, validate_speech
@@ -191,7 +192,8 @@ class Job:
 
     def run(self, command, action=None):
         try:
-            env = dict(os.environ, PYTHONUNBUFFERED='1', PYTHONIOENCODING='utf-8', KINETIC_PROGRESS='1')
+            env = dict(os.environ, PYTHONUNBUFFERED='1', PYTHONIOENCODING='utf-8', KINETIC_PROGRESS='1',
+                       OPENBLAS_NUM_THREADS='1', OMP_NUM_THREADS='1', MKL_NUM_THREADS='1', NUMEXPR_NUM_THREADS='1')
             kwargs = dict(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP) if os.name == 'nt' else dict(start_new_session=True)
             with LOCK:
                 if self.cancelled:
@@ -253,7 +255,7 @@ class Job:
                 if not code and (not action or action in ('patch','rerender')):
                     try:
                         timings=json.loads((self.folder/'video.timings.json').read_text(encoding='utf-8'))
-                        at=float(timings[0]['words'][0]['start'])+.35
+                        at=max(1.2,float(timings[0]['words'][0]['start'])+.35)  # past the fade-in
                         subprocess.run(['ffmpeg','-v','error','-y','-ss',str(at),'-i',str(self.folder/'video.mp4'),
                             '-frames:v','1',str(self.folder/'poster.png')],check=True,capture_output=True)
                     except (OSError,ValueError,KeyError,IndexError,subprocess.CalledProcessError):
@@ -318,9 +320,10 @@ class Job:
             result['replacement_review']=[c['index'] for c in waiting.get('candidates',[])] if waiting.get('manifest')==str(self.manifest()) else []
         except (OSError,ValueError):result['replacement_review']=[]
         logs = result.pop('logs')
-        result.update(logs=logs[cursor:], cursor=len(logs), images=self.images(), rejected_images=self.rejected_selections(),
+        result.update(logs=logs[cursor:], cursor=len(logs), images=self.images(), ornaments=self.ornaments(),
+                      rejected_images=self.rejected_selections(),
                       elapsed=round(self.state.get('finished', time.time())-self.state['started']),
-                      render_settings=dict(**typography_options(self.config),text_animation=self.config.get('text_animation','directed'), auto_accept=self.config.get('auto_accept',False), type_effect=self.config.get('type_effect','none'), entrance_effect=self.config.get('entrance_effect','legacy'), exit_effect=self.config.get('exit_effect','legacy'), entrance_pool=self.config.get('entrance_pool'), exit_pool=self.config.get('exit_pool'), particle_speed=self.config.get('particle_speed',1.), particle_intensity=self.config.get('particle_intensity',1.)))
+                      render_settings=dict(**typography_options(self.config),text_animation=self.config.get('text_animation','directed'), audio_mode=self.config.get('audio_mode','original'), auto_accept=self.config.get('auto_accept',False), type_effect=self.config.get('type_effect','none'), entrance_effect=self.config.get('entrance_effect','legacy'), exit_effect=self.config.get('exit_effect','legacy'), entrance_pool=self.config.get('entrance_pool'), exit_pool=self.config.get('exit_pool'), particle_speed=self.config.get('particle_speed',1.), particle_intensity=self.config.get('particle_intensity',1.), image_seed=self.config.get('image_seed'), randomize_seed=self.config.get('randomize_seed', True)))
         if (self.folder/'video.mp4').exists():
             result['video'] = self.url(self.folder/'video.mp4')
         if (self.folder/'poster.png').exists():
@@ -334,6 +337,44 @@ class Job:
     def manifest(self):
         from active_artwork import select_manifest
         return select_manifest(self.folder,self.config,self.state)
+
+    def ornaments(self):
+        """Small painted and library pictures used by the stage, with cached transparent previews."""
+        try:
+            blocks = json.loads((self.folder/'video.blocks.json').read_text(encoding='utf-8'))['blocks']
+        except (OSError, ValueError, KeyError, TypeError):
+            return []
+        result = []
+        for block in blocks:
+            ornament = (block or {}).get('ornament') or {}
+            image = ornament.get('image')
+            kind = ornament.get('library')
+            if not image and not kind:
+                continue
+            try:
+                if image:
+                    path = Path(image)
+                    path = (path if path.is_absolute() else self.folder/path).resolve()
+                    if not path.is_file() or not path.is_relative_to(self.folder.resolve()):
+                        continue
+                    shown = path.with_suffix('.cutout.png')
+                    cutout_source = HERE/'glyph_art.py'
+                    if not shown.exists() or shown.stat().st_mtime_ns < max(path.stat().st_mtime_ns, cutout_source.stat().st_mtime_ns):
+                        from glyph_art import cutout
+                        cutout(str(path)).save(shown)
+                else:
+                    from ornament_director import library_preview
+                    shown = library_preview(kind, self.folder)
+                    if shown is None:
+                        continue
+            except (OSError, ValueError, KeyError):
+                continue
+            from ornament_director import picture_key, released_pictures
+            key = picture_key(ornament)
+            result.append(dict(word=ornament.get('text', ''), subject=ornament.get('subject') or kind or '',
+                               source='painted' if image else 'library', line=ornament.get('line'),
+                               url=self.url(shown), key=key, keep=key not in released_pictures(self.folder)))
+        return result
 
     def images(self):
         try:
@@ -462,7 +503,8 @@ def start_job(fields, files):
         suffix = Path(filename).suffix.lower()
         if suffix not in AUDIO_SUFFIXES or not audio_bytes:
             raise ValueError('Unsupported or empty audio file')
-        lyrics = fields.get('lyrics', '').strip()
+        from kinetic_lyrics import sanitize_lyrics
+        lyrics = sanitize_lyrics(fields.get('lyrics', '')).strip()
         width, height = {'720p': (1280, 720), '1080p': (1920, 1080), 'portrait': (720, 1280)}[fields.get('resolution', '720p')]
         asr_model=fields.get('asr_model',DEFAULT_ASR)
         alignment_model=fields.get('alignment_model','auto')
@@ -471,9 +513,11 @@ def start_job(fields, files):
         spec = next((m for m in MODELS if m['id'] == image_model), None)
         if spec is None:
             raise ValueError('Choose a supported image model')
-        steps, lines = int(fields.get('steps') or spec['steps']), int(fields.get('lines', 2))
-        if not 1 <= steps <= 150 or not 1 <= lines <= 50:
-            raise ValueError('Steps must be 1–150; lines per image must be 1–50')
+        steps, lines = int(fields.get('steps') or spec['steps']), str(fields.get('lines', 'auto')).strip().lower()
+        if not 1 <= steps <= 150 or (lines != 'auto' and (not lines.isdecimal() or not 1 <= int(lines) <= 50)):
+            raise ValueError('Steps must be 1–150; lines per image must be Auto or 1–50')
+        if lines != 'auto':
+            lines = int(lines)
         if is_restart:
             folder = ROOT / project_id
         else:
@@ -484,25 +528,38 @@ def start_job(fields, files):
             audio.write_bytes(audio_bytes)
         (folder/'lyrics.txt').write_text(lyrics, encoding='utf-8')
         refs = [store_image(folder/'references', name, content) for name, content in files.get('references', [])]
-        image_seed=secrets.randbelow(2**31)
-        if is_restart and start_step in ('images','review','render'):
+        seed_val = fields.get('image_seed', fields.get('seed', ''))
+        seed_field = str(seed_val).strip() if seed_val is not None else ''
+        randomize = fields.get('randomize_seed') in ('on', 'true', '1') or seed_field in ('', '-1', 'random')
+        if randomize:
+            image_seed = secrets.randbelow(2**31)
+        else:
+            try:
+                image_seed = int(seed_field)
+            except ValueError:
+                image_seed = secrets.randbelow(2**31)
+        if is_restart and start_step in ('images','review','render') and not seed_field:
             try:image_seed=json.loads((folder/'config.json').read_text(encoding='utf-8')).get('image_seed',image_seed)
             except (OSError,ValueError):pass
         config = dict(name=Path(filename).stem, audio=str(audio), width=width, height=height, fps=30,
             image_cache=str(Path(fields.get('cache', '').strip() or str(default_model_cache())).expanduser().resolve()),
             style_prompt=fields.get('reference_prompt', '').strip() or STYLE_PROMPT,
+            image_instructions=fields.get('image_instructions', '').strip()[:2000],
             theme=fields.get('style', '').strip() or 'Bright, uplifting mood; flowing fabric and long flowing hair; graceful movement and luminous color.',
-            artwork_mode=fields.get('artwork_mode','cutout'), image_seed=image_seed,
+            artwork_mode=fields.get('artwork_mode','cutout'), image_seed=image_seed, randomize_seed=randomize,
             cinematic=fields.get('cinematic') == 'on', encoder=fields.get('encoder', 'h264_nvenc'),
             illustration_lines=lines, steps=steps, image_model=image_model, asr_model=asr_model, alignment_model=alignment_model,
             particle_intensity=float(fields.get('particle_intensity', 1.)),
             particle_speed=float(fields.get('particle_speed', 1.)),
-            text_animation=fields.get('text_animation','directed'), entrance_effect=fields.get('entrance_effect', 'legacy'), exit_effect=fields.get('exit_effect', 'legacy'),
+            text_animation=fields.get('text_animation','directed'), audio_mode=fields.get('audio_mode','original'), entrance_effect=fields.get('entrance_effect', 'legacy'), exit_effect=fields.get('exit_effect', 'legacy'),
             type_effect=fields.get('type_effect','mixed'), language=fields.get('language','').strip(),
             ai_model=ai_model, start_step=start_step, project_id=folder.name,
             vision_model=fields.get('vision_model','').strip(),auto_verify=fields.get('auto_verify')=='on',
-            auto_accept=fields.get('auto_accept')=='on', auto_repair=fields.get('auto_repair','on')=='on',review_threshold=int(fields.get('review_threshold',DEFAULT_THRESHOLD)))
+            auto_accept=fields.get('auto_accept')=='on', auto_repair=fields.get('auto_repair','on')=='on',review_threshold=int(fields.get('review_threshold',DEFAULT_THRESHOLD)),
+            stage_pictures=fields.get('stage_pictures','ai-painted') or 'ai-painted')
         config.update(typography_options(fields))
+        if config['stage_pictures'] not in ('ai-painted','ai-library','keywords','off'):
+            raise ValueError('Invalid 3D stage picture setting')
         if config['artwork_mode'] not in ('cutout','fullscreen','verse'):
             raise ValueError('Invalid artwork mode')
         if not 0 <= config['review_threshold'] <= 100:
@@ -511,6 +568,8 @@ def start_job(fields, files):
             raise ValueError('Particle density must be between 0 and 2')
         if config['text_animation'] not in TEXT_ANIMATIONS:
             raise ValueError('Invalid word animation')
+        if config['audio_mode'] not in ('original', 'karaoke'):
+            raise ValueError('Invalid audio mode')
         catalog = discover_effects()
         validate_choice(config['entrance_effect'], 'entrance', catalog)
         validate_choice(config['exit_effect'], 'exit', catalog)
@@ -544,15 +603,20 @@ def start_job(fields, files):
         if lyrics:
             command.append(str(folder/'lyrics.txt'))
         command += [
-            '--theme', config['theme'], '--style-prompt', config['style_prompt'], '--image-cache', config['image_cache'],
+            '--theme', config['theme'], '--style-prompt', config['style_prompt'],
+            '--image-instructions', config['image_instructions'], '--image-cache', config['image_cache'],
             '--artwork-mode', config['artwork_mode'], '--image-seed', str(config['image_seed']),
             '--image-model', config['image_model'], '--image-steps', str(steps), '--illustration-lines', str(lines),
             '--width', str(width), '--height', str(height), '--encoder', config['encoder'], '--preserve-art-slots',
             '--asr-model',config['asr_model'], '--alignment-model',config['alignment_model'],
             '--type-effect',config['type_effect'], '--particle-intensity', str(config['particle_intensity']), '--particle-speed', str(config.get('particle_speed', 1.)),
             '-o', str(folder/'video.mp4')]
-        command += ['--text-animation', config['text_animation'], '--text-pool',json.dumps(config['text_pool']),
-                    '--font-family',config['font_family'],'--font-style',config['font_style'],'--font-scale',str(config['font_scale']),'--lettering-styles',json.dumps(config['lettering_styles']),'--reading-flow',config['reading_flow'],'--kinetic',json.dumps(config['kinetic']),'--effect-speeds',json.dumps(config['effect_speeds'])]
+        command += ['--text-animation', config['text_animation'], '--audio-mode', config['audio_mode'], '--text-pool',json.dumps(config['text_pool']),
+                    '--font-family',config['font_family'],'--font-style',config['font_style'],'--font-scale',str(config['font_scale']),'--lettering-styles',json.dumps(config['lettering_styles']),'--reading-flow',config['reading_flow'],'--kinetic',json.dumps(config['kinetic']),'--effect-speeds',json.dumps(config['effect_speeds']),
+                    '--effect-intensities',json.dumps(config['effect_intensities']),
+                    '--stage-pictures',config.get('stage_pictures','ai-painted')]
+        if config.get('instructions'):
+            command += ['--instructions', config['instructions']]
         if not config['auto_accept']:
             command.append('--review-artwork')
         command += ['--entrance-effect', config['entrance_effect'], '--exit-effect', config['exit_effect']]
@@ -603,6 +667,29 @@ def start_job(fields, files):
         return job
 
 
+def regenerate_new_session(source):
+    """Run the whole pipeline with the source job's inputs in a fresh project folder."""
+    config = source.config
+    fields = {key: json.dumps(value) if isinstance(value, (list, dict)) else str(value)
+              for key, value in config.items() if value is not None}
+    fields.update(project_id='', start_step='beginning',
+                  resolution={(1280, 720): '720p', (1920, 1080): '1080p', (720, 1280): 'portrait'}[
+                      (config['width'], config['height'])],
+                  cache=config['image_cache'], style=config['theme'], reference_prompt=config['style_prompt'],
+                  lines=str(config['illustration_lines']),
+                  cinematic='on' if config['cinematic'] else 'off',
+                  auto_verify='on' if config['auto_verify'] else 'off',
+                  auto_accept='on' if config['auto_accept'] else 'off',
+                  auto_repair='on' if config['auto_repair'] else 'off')
+    audio = Path(config['audio'])
+    references = source.folder/'references'
+    files = dict(audio=[(audio.name, audio.read_bytes())],
+                 references=[(path.name, path.read_bytes()) for path in sorted(references.iterdir()) if path.is_file()]
+                 if references.is_dir() else [])
+    fields['lyrics'] = (source.folder/'lyrics.txt').read_text(encoding='utf-8')
+    return start_job(fields, files)
+
+
 class Handler(BaseHTTPRequestHandler):
     def handle(self):
         try:
@@ -630,6 +717,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond((UI_ROOT/'studio.html').read_bytes(), content_type='text/html; charset=utf-8')
             if url.path == '/assets/default-style-reference.jpg':
                 return self.respond((PROJECT_ROOT/'assets'/'default-style-reference.jpg').read_bytes(), content_type='image/jpeg')
+            if url.path == '/assets/filipina-reference.png':
+                return self.respond((PROJECT_ROOT/'assets'/'filipina-reference.png').read_bytes(), content_type='image/png')
             if url.path in ('/studio.css', '/studio-profiles.js', '/studio-models.js', '/studio-particles.js'):
                 path = UI_ROOT/url.path.lstrip('/')
                 return self.respond(path.read_bytes(), content_type='text/css' if path.suffix=='.css' else 'text/javascript')
@@ -641,6 +730,14 @@ class Handler(BaseHTTPRequestHandler):
                 except FileNotFoundError as exc:
                     return self.respond(dict(error=str(exc)),404)
                 return self.respond(path.read_bytes(),content_type=mimetypes.guess_type(str(path))[0] or 'application/octet-stream')
+            if url.path == '/api/scene-preview':
+                from particle_preview import render_scene_preview
+                query = parse_qs(url.query)
+                scene = query.get('scene', [''])[0]
+                if scene not in scene_catalog():
+                    raise ValueError('Choose an available scene effect to preview')
+                settings=typography_options({key:query[key][0] for key in ('font_family','font_style','font_scale') if key in query})
+                return self.respond(render_scene_preview(scene,settings['font_family'],settings['font_style'],settings['font_scale']), content_type='image/gif')
             if url.path == '/api/particle-preview':
                 from particle_preview import render_preview
                 query = parse_qs(url.query)
@@ -665,7 +762,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond(render_preview(catalog[phase][effect],phase,intensity,speed,settings['font_family'],settings['font_style'],settings['font_scale']), content_type='image/gif')
             if url.path == '/api/config':
                 from gpu_models import PRESETS, PROMPT_MODELS, VISION_MODELS
-                return self.respond(dict(token=TOKEN, auto_accept_supported=True, particle_materials_version=13, ai_typography_supported=True, typography_controls_supported=True, word_animations_supported=True, video_history_supported=True, video_history_version=2, live_artwork_version=2, replacement_priority_supported=True, particle_effects=catalog_choices(), prompt_regeneration=True, generation_queue_version=2, prompt_audit_version=1, style_prompt=STYLE_PROMPT, model=MODEL, image_models=MODELS, model_presets=PRESETS, prompt_choices=PROMPT_MODELS, vision_choices=VISION_MODELS, asr_models=ASR_MODELS, vocal_languages=LANGUAGES, default_asr=DEFAULT_ASR,
+                return self.respond(dict(token=TOKEN, image_instructions_supported=True, auto_accept_supported=True, new_session_regeneration_supported=True, particle_materials_version=13, ai_typography_supported=True, typography_controls_supported=True, word_animations_supported=True, video_history_supported=True, video_history_version=2, live_artwork_version=2, replacement_priority_supported=True, particle_effects=catalog_choices(), scene_effects=list(scene_catalog().values()), prompt_regeneration=True, generation_queue_version=2, prompt_audit_version=1, style_prompt=STYLE_PROMPT, model=MODEL, image_models=MODELS, model_presets=PRESETS, prompt_choices=PROMPT_MODELS, vision_choices=VISION_MODELS, asr_models=ASR_MODELS, vocal_languages=LANGUAGES, default_asr=DEFAULT_ASR,
                     jobs=[dict(id=j.folder.name, name=j.config['name']) for j in reversed(list(JOBS.values()))]))
             if url.path == '/api/gpu':
                 from gpu_telemetry import gpu_usage
@@ -777,11 +874,17 @@ class Handler(BaseHTTPRequestHandler):
                 name,content=files['audio'][0]
                 path=store_profile_audio(PROJECT_ROOT/'profiles'/'audio',name,content,AUDIO_SUFFIXES)
                 return self.respond(dict(path=str(path)),201)
+            if route == '/api/import-youtube':
+                from youtube_import import import_youtube
+                args=json.loads(body)
+                return self.respond(import_youtube(args.get('url',''), PROJECT_ROOT/'profiles'/'audio'),201)
             if route == '/api/jobs':
                 fields, files = parse_form(body, self.headers['Content-Type'])
                 return self.respond(dict(id=start_job(fields, files).folder.name), 201)
             _, _, _, job_id, operation = route.split('/')
             job = JOBS[job_id]
+            if operation == 'regenerate-new':
+                return self.respond(dict(id=regenerate_new_session(job).folder.name), 201)
             if operation == 'cancel':
                 stop_job(job)
                 return self.respond(dict(ok=True))
@@ -789,6 +892,12 @@ class Handler(BaseHTTPRequestHandler):
                 args, files = parse_form(body, self.headers['Content-Type'])
             else:
                 args, files = json.loads(body), {}
+            if operation == 'keep-picture':  # a preference for the next render; allowed at any time
+                if not isinstance(args.get('key'), str) or len(args['key']) > 40:
+                    raise ValueError('Invalid picture')
+                from ornament_director import set_picture_kept
+                set_picture_kept(job.folder, args['key'], bool(args.get('keep', True)))
+                return self.respond(dict(ok=True))
             if operation in ('regenerate','reprompt') and (not isinstance(args.get('prompt',''),str) or len(args.get('prompt',''))>32768):
                 raise ValueError('The generation prompt must be text no longer than 32,768 characters')
             with LOCK:
@@ -805,7 +914,9 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('Wait for the current image operation to finish')
                 live_selection = (operation in ('select', 'replace') and job.state['status'] == 'running'
                                   and job.state['stage'] in ('illustrations','cutouts','verification','repair','repair-complete','direction','render'))
-                if job.state['status'] not in ('review', 'complete') and not live_selection:
+                saved_review = (operation == 'skip-verify' and job.state['status'] == 'cancelled'
+                                and job.state['stage'] == 'review')
+                if job.state['status'] not in ('review', 'complete') and not live_selection and not saved_review:
                     raise ValueError('Images can be changed at artwork review or after the video completes')
                 if any(other is not job and (other.state['status'] in ('queued', 'running', 'review') or other.state['action']) for other in JOBS.values()):
                     raise ValueError('Another job is active; finish or cancel it first')
@@ -861,9 +972,15 @@ class Handler(BaseHTTPRequestHandler):
                     text_animation = args.get('text_animation', job.config.get('text_animation','directed'))
                     if text_animation not in TEXT_ANIMATIONS:
                         raise ValueError('Invalid word animation')
+                    audio_mode = args.get('audio_mode', job.config.get('audio_mode', 'original'))
+                    if audio_mode not in ('original', 'karaoke'):
+                        raise ValueError('Invalid audio mode')
                     typography = typography_options(dict(job.config,**args))
-                    job.config.update(**typography,text_animation=text_animation, entrance_pool=entrance_pool, exit_pool=exit_pool, type_effect=effect, particle_intensity=density, particle_speed=speed,
-                                      entrance_effect=entrance, exit_effect=exit_effect)
+                    pictures = args.get('stage_pictures') or job.config.get('stage_pictures','ai-painted')
+                    if pictures not in ('ai-painted','ai-library','keywords','off'):
+                        raise ValueError('Invalid 3D stage picture setting')
+                    job.config.update(**typography,text_animation=text_animation, audio_mode=audio_mode, entrance_pool=entrance_pool, exit_pool=exit_pool, type_effect=effect, particle_intensity=density, particle_speed=speed,
+                                      entrance_effect=entrance, exit_effect=exit_effect, stage_pictures=pictures)
                     (job.folder/'config.json').write_text(json.dumps(job.config, indent=2), encoding='utf-8')
                     command = [sys.executable, '-u', str(HERE/'studio_worker.py'), 'rerender', str(job.folder)]
                     job.state.update(action='rerender', action_percent=0, message='Rebuilding video with selected letter effects')
@@ -885,6 +1002,27 @@ class Handler(BaseHTTPRequestHandler):
                 if not 0 <= index < count:
                     raise ValueError('Invalid illustration index')
                 target = manifest.parent/f'{index:03d}.png'
+                if operation == 'skip-verify':
+                    selected = checked_file(job, args['path'])
+                    if selected != target or not target.is_file():
+                        raise ValueError('Only the selected illustration can skip verification')
+                    from filelock import FileLock
+                    with FileLock(str(target)+'.write.lock',timeout=30):
+                        fingerprint = hashlib.sha256(target.read_bytes()).hexdigest()
+                        report_path = target.with_suffix('.review.json')
+                        try: previous = json.loads(report_path.read_text(encoding='utf-8'))
+                        except (OSError, ValueError): previous = {}
+                        if not previous.get('validation_pending') or previous.get('image_sha256') != fingerprint:
+                            raise ValueError('Only a pending validation for this image can be skipped')
+                        report = dict(model=previous.get('model'), manual_skip=True, validation_pending=False,
+                            score=None, rejected=False, verdict='skipped',
+                            summary='Verification skipped manually. Inspect this image before approving artwork.',
+                            issues=[], hand_checks=[], uncertain=True, image_sha256=fingerprint,
+                            image=str(target), reviewed_at=time.time(), advisory=True)
+                        report_path.write_text(json.dumps(report,indent=2),encoding='utf-8')
+                    job.log(f'Illustration {index+1} verification skipped manually.')
+                    job.save()
+                    return self.respond(dict(ok=True))
                 if operation in ('select', 'replace'):
                     if operation == 'replace':
                         name, content = files['replacement'][0]

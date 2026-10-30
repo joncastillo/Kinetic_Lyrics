@@ -13,6 +13,9 @@ stable-ts>=2.19,<3
 demucs>=4.0
 librosa>=0.10
 soundfile>=0.12
+yt-dlp>=2025.1
+requests>=2.31
+beautifulsoup4>=4.12
 
 # Illustrations: image generation, cutouts and lettering checks
 diffusers>=0.42,<0.43

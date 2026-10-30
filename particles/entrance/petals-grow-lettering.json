@@ -7,5 +7,6 @@
   "spin": 0.4,
   "twist": 0.0,
   "stagger": 0.35,
-  "density": 1.25
+  "density": 1.25,
+  "placement": "top"
 }

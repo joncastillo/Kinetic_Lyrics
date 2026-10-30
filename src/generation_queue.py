@@ -48,6 +48,7 @@ def generate_pending(worker,root,job,config,items):
             add(claim_queue(worker,root))
             if images or prompts:continue
             return completed
+        refit_prompts(job,config,images)
         item=images.pop(0);index=item['index'];planned=item.get('planned_job',job)
         prompt=planned['prompts'][index] if 'planned_job' in item else item.get('prompt','')
         worker.emit('image-start',0,message=f'Generating replacement for illustration {index+1}',index=index)
@@ -55,6 +56,23 @@ def generate_pending(worker,root,job,config,items):
         completed.append(dict(index=index,path=str(candidate),request_id=item.get('request_id')))
         worker.emit('candidate',1,message=f'New candidate ready for illustration {index+1}',artifact=str(candidate),index=index)
         add(claim_queue(worker,root))
+
+
+def refit_prompts(job,config,images):
+    """Shorten reused prompts written for a model with a longer prompt limit (Qwen Image) before the selected
+    model (FLUX.2) silently cuts them off, all in one prompt-model call."""
+    from image_models import selected_model
+    from prompt_fit import over_budget,refit
+    model=selected_model(job,config)
+    long=[item for item in images if 'planned_job' not in item and not item.get('fitted')
+          and over_budget(item.get('prompt','').strip() or job['prompts'][item['index']],model)]
+    if not long:return
+    from model_lifecycle import current_session
+    session=current_session()
+    if session:session.release()
+    fitted=refit([item.get('prompt','').strip() or job['prompts'][item['index']] for item in long],model,config,
+                 job.get('style_prompt',config.get('style_prompt','')))
+    for item,prompt in zip(long,fitted):item.update(prompt=prompt,fitted=True)
 
 
 def has_pending(root):
