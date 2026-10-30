@@ -26,7 +26,8 @@ def vocal_stem(audio, folder):
 def separate(audio, folder):
     """Four Demucs stems cached in the project's stems/ folder, or None when unavailable."""
     target = Path(folder)/'stems'
-    if all((target/f'{name}.wav').is_file() for name in STEMS):
+    if all((target/f'{name}.wav').is_file() and (target/f'{name}.wav').stat().st_mtime >= Path(audio).stat().st_mtime
+           for name in STEMS):
         return target
     with tempfile.TemporaryDirectory(prefix='stems-', dir=folder) as temp:
         result = subprocess.run([sys.executable, '-m', 'demucs', '-n', 'htdemucs', '-o', temp, str(audio)],
