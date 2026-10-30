@@ -80,9 +80,9 @@ async function load(force,id=jobId){
   const colors=read(COLOR_KEY,{}),hidden=read(HIDDEN_KEY,[]);
   tl={job:id,duration:data.duration,editable:data.editable,status:data.status,hasVideo:data.has_video,serverDirty:data.timeline_dirty,
    lines:data.lines.map(l=>l.words.map(w=>({text:w.text,start:+w.start,end:+w.end}))),
-   art:data.art.map(a=>({start:+a.start,def:+a.default_start,url:a.url,lyrics:a.lyrics,img:null})),
+   art:data.art.map(a=>({start:+a.start,def:+a.default_start,url:a.url,lyrics:a.lyrics,prompt:a.prompt||'',pending:a.pending||'',img:null})),
    stems:data.stems.map(s=>({id:s.id,url:s.url,color:colors[s.id]||STEMS[s.id]?.[1]||'#ccc',hidden:hidden.includes(s.id),wave:null})),
-   zoom:same?tl.zoom:read(ZOOM_KEY,110),sel:same?tl.sel:null,hover:null,drag:null,undo:[],redo:[],dirty:false};
+   zoom:same?tl.zoom:read(ZOOM_KEY,110),sel:same?tl.sel:null,regen:same?tl.regen:null,hover:null,drag:null,undo:[],redo:[],dirty:false};
   tl.art.forEach(a=>{if(a.url){a.img=new Image();a.img.onload=draw;a.img.src=a.url}});
   loadedFor=id;$('timelinePanel').hidden=false;
   labels();sources();setZoom(tl.zoom,null);status();inspector();resize();
@@ -95,7 +95,7 @@ async function load(force,id=jobId){
 
 async function refreshMeta(id){
  try{const data=await api(`/api/jobs/${id}/timeline`);if(tl?.job!==id)return;tl.editable=data.editable;tl.status=data.status;tl.hasVideo=data.has_video;
-  data.art.forEach((a,i)=>{const art=tl.art[i];if(art&&a.url&&a.url!==art.url){art.url=a.url;art.img=new Image();art.img.onload=draw;art.img.src=a.url}});status()}catch{}
+  data.art.forEach((a,i)=>{const art=tl.art[i];if(!art)return;art.pending=a.pending||'';art.prompt=a.prompt||art.prompt;if(a.url&&a.url!==art.url){art.url=a.url;art.img=new Image();art.img.onload=draw;art.img.src=a.url}});status();inspector();draw()}catch{}
 }
 
 function sources(){
@@ -231,8 +231,8 @@ function paintArt(ctx,lane,t0,t1,now){
   if(a.img?.complete&&a.img.naturalWidth){const nw=a.img.naturalWidth,nh=a.img.naturalHeight,sh=Math.min(nh,nw*h/w);ctx.globalAlpha=.22;ctx.filter='blur(6px) saturate(1.3)';ctx.drawImage(a.img,0,(nh-sh)/2,nw,sh,x,y-8,w,h+16);ctx.filter='none';ctx.globalAlpha=1;
    const g=ctx.createLinearGradient(x,0,x+w,0);g.addColorStop(0,'#0b122000');g.addColorStop(1,'#0b1220aa');ctx.fillStyle=g;ctx.fillRect(x,y,w,h);
    const ih=h-10,iw=ih*nw/nh;ctx.save();rounded(ctx,x+9,y+5,iw,ih,7);ctx.clip();ctx.drawImage(a.img,x+9,y+5,iw,ih);ctx.restore()}
-  const label='Image '+(i+1);ctx.font='600 11px Inter,"Segoe UI",sans-serif';const tw=ctx.measureText(label).width;
-  const lx=x+Math.min(w-tw-14,h*1.0+12);if(lx>x+4){ctx.fillStyle='#0b1220c0';rounded(ctx,lx-6,y+6,tw+12,18,9);ctx.fill();ctx.fillStyle='#eef3ff';ctx.fillText(label,lx,y+15)}
+  const label='Image '+(i+1)+(a.pending?' · '+a.pending+'…':'');ctx.font='600 11px Inter,"Segoe UI",sans-serif';const tw=ctx.measureText(label).width;
+  const lx=x+Math.min(w-tw-14,h*1.0+12);if(lx>x+4){ctx.fillStyle=a.pending?'#3a2a12d8':'#0b1220c0';rounded(ctx,lx-6,y+6,tw+12,18,9);ctx.fill();ctx.fillStyle=a.pending?'#ffd28f':'#eef3ff';ctx.fillText(label,lx,y+15)}
   ctx.restore();
   ctx.strokeStyle=selected?'#ffffff':hover?'#d8e3ff':'#9fb7ff70';ctx.lineWidth=selected?1.6:1;rounded(ctx,x+.5,y+.5,w-1,h-1,9);ctx.stroke();
   ctx.fillStyle=selected||hover?'#ffffff':'#bccbff';rounded(ctx,x,y,4,h,2);ctx.fill();
@@ -417,7 +417,7 @@ function openEditor(value,left,top,width,height,commit){
 function commitEdit(){if(!editCommit)return true;const ok=editCommit(ui.editor.value);if(ok){editCommit=null;ui.editor.hidden=true;nowPlaying(true);inspector();draw()}return ok}
 
 /* ---------- selection, keyboard, inspector ---------- */
-function select(s){tl.sel=s;inspector();draw()}
+function select(s){if(tl.regen&&!(s?.kind==='art'&&s.ai===tl.regen.ai))tl.regen=null;tl.sel=s;inspector();draw()}
 function nudge(delta,ripple){
  const s=tl.sel;if(!s||!tl.editable)return;const before=snapshot();const d={...s,orig:JSON.parse(JSON.stringify({l:tl.lines,a:tl.art.map(a=>a.start)}))};
  if(s.kind==='word')dragWord(d,delta,ripple,false);if(s.kind==='line')dragLine(d,delta,ripple,false);if(s.kind==='art')dragArt(d,delta,ripple,false);
@@ -457,6 +457,18 @@ function status(){
  ui.rebuild.title=tl.status==='complete'?'':'After saving, restart this project from step 5 to render with the new timing.';
 }
 function numberField(label,value,onchange,step=.01){const f=el('label','tl-field');f.append(el('span',null,label));const i=el('input');Object.assign(i,{type:'number',step:String(step),value:value.toFixed(3)});i.disabled=!tl.editable;i.onchange=()=>{const v=+i.value;if(Number.isFinite(v))onchange(v)};f.append(i);return f}
+function regenerateForm(a,ai){
+ const form=el('form','tl-regen');const label=el('label',null,'Prompt for image '+(ai+1));const area=el('textarea');area.id='tlRegenPrompt';label.htmlFor=area.id;
+ area.value=tl.regen.text;area.rows=4;area.maxLength=32768;area.oninput=()=>{tl.regen.text=area.value;restore.disabled=area.value===a.prompt};
+ area.onkeydown=e=>{e.stopPropagation();if(e.key==='Escape'){tl.regen=null;inspector()}if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))form.requestSubmit()};
+ const restore=button('Restore original',()=>{area.value=a.prompt;tl.regen.text=a.prompt;restore.disabled=true;area.focus()},area.value===a.prompt);
+ const submit=el('button','primary','Add to generation queue');submit.type='submit';
+ const actions=el('div','tl-regen-actions');actions.append(el('span','tl-meta','The new version appears in the Illustration workspace to choose.'),restore,button('Cancel',()=>{tl.regen=null;inspector()}),submit);
+ form.onsubmit=async e=>{e.preventDefault();const prompt=area.value.trim();if(!prompt){toast('Write a prompt for the new image.');return}
+  submit.disabled=true;a.pending='Queued';tl.regen=null;inspector();draw();
+  await action('regenerate',{index:ai,prompt});refreshMeta(tl.job)};
+ form.append(label,area,actions);return form;
+}
 function group(...children){const g=el('div','tl-ins-group');g.append(...children);return g}
 function hear(t){seek(t-.4);ui.audio.play().catch(()=>{})}
 function inspector(){
@@ -480,8 +492,12 @@ function inspector(){
   const a=tl.art[s.ai];const head=el('div','tl-art-pick');if(a.url){const img=el('img');img.src=a.url;img.alt='';head.append(img)}head.append(el('strong','tl-inspector-title','Image '+(s.ai+1)));ui.inspector.append(head);
   if(a.lyrics)ui.inspector.append(el('span','tl-line-text',a.lyrics));
   const move=v=>{const d={kind:'art',ai:s.ai,orig:JSON.parse(JSON.stringify({l:tl.lines,a:tl.art.map(a=>a.start)}))};apply(()=>dragArt(d,v-a.start,false,false))};
-  ui.inspector.append(group(numberField('Appears at',a.start,move)),group(button('▶ Hear',()=>hear(a.start)),button('Start ← playhead',()=>move(at()),!tl.editable),button('Reset to lyric timing',()=>move(a.def),!tl.editable||Math.abs(a.start-a.def)<.0005),
+  const canRegen=!['failed','cancelled'].includes(tl.status)&&!a.pending;
+  const regen=button(a.pending?a.pending+'…':'Regenerate…',()=>{tl.regen={ai:s.ai,text:a.prompt};inspector();ui.inspector.querySelector('textarea')?.focus()},!canRegen);
+  regen.title=canRegen?'Make a new version of this image from its prompt':a.pending?'This image is already in the generation queue':'Restart or finish the project to regenerate images';
+  ui.inspector.append(group(numberField('Appears at',a.start,move)),group(regen,button('▶ Hear',()=>hear(a.start)),button('Start ← playhead',()=>move(at()),!tl.editable),button('Reset to lyric timing',()=>move(a.def),!tl.editable||Math.abs(a.start-a.def)<.0005),
    button('Reset all images',()=>apply(()=>tl.art.forEach(x=>x.start=x.def)),!tl.editable||tl.art.every(x=>Math.abs(x.start-x.def)<.0005))));
+  if(tl.regen?.ai===s.ai)ui.inspector.append(regenerateForm(a,s.ai));
  }
 }
 
