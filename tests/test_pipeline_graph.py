@@ -13,7 +13,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
-import pipeline_graph
+import pipeline.graph as pipeline_graph
 
 TIMINGS = [dict(text='hello from the hills', words=[dict(text=w, start=.5+i*.4, end=.8+i*.4) for i, w in enumerate('hello from the hills'.split())]),
            dict(text='down to the sea', words=[dict(text=w, start=3+i*.4, end=3.3+i*.4) for i, w in enumerate('down to the sea'.split())])]

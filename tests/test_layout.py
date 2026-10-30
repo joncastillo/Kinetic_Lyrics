@@ -1,11 +1,11 @@
-"""Smoke tests: the src/ui/data split resolves from the project root."""
+"""Smoke tests: the code, front end and data folders resolve from the project root."""
 import sys
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
-from project_paths import PROJECT_ROOT, UI_ROOT
+from core.paths import PROJECT_ROOT, UI_ROOT
 
 
 class LayoutTest(unittest.TestCase):
@@ -18,7 +18,7 @@ class LayoutTest(unittest.TestCase):
             self.assertTrue((PROJECT_ROOT/name).is_dir(), name)
 
     def test_particle_catalog_loads(self):
-        from particle_catalog import discover_effects
+        from effects.particles.catalog import discover_effects
         catalog = discover_effects()
         self.assertTrue(catalog['entrance'])
         self.assertTrue(catalog['exit'])
