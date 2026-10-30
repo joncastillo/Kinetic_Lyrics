@@ -350,7 +350,7 @@ class Job:
             entries = []
             seen = set()
             for path in variants:
-                if '.tmp.' in path.name or '.rejected-' in path.name or (path.name == '000.raw.png' and path.parent != manifest.parent):
+                if '.tmp.' in path.name or '.rejected-' in path.name or path.name.endswith('.plate.png') or (path.name == '000.raw.png' and path.parent != manifest.parent):
                     continue
                 stat = path.stat()
                 signature = (stat.st_mtime_ns, stat.st_size)
@@ -503,7 +503,7 @@ def start_job(fields, files):
             vision_model=fields.get('vision_model','').strip(),auto_verify=fields.get('auto_verify')=='on',
             auto_accept=fields.get('auto_accept')=='on', auto_repair=fields.get('auto_repair','on')=='on',review_threshold=int(fields.get('review_threshold',DEFAULT_THRESHOLD)))
         config.update(typography_options(fields))
-        if config['artwork_mode'] not in ('cutout','fullscreen','verse'):
+        if config['artwork_mode'] not in ('cutout','fullscreen','verse','matte'):
             raise ValueError('Invalid artwork mode')
         if not 0 <= config['review_threshold'] <= 100:
             raise ValueError('Review threshold must be between 0 and 100 percent')
@@ -694,7 +694,7 @@ class Handler(BaseHTTPRequestHandler):
                     images = [p.name for p in manifest.parent.glob('[0-9][0-9][0-9].png') if not p.name.endswith('.raw.png')]
                     reviews = [p.name for p in manifest.parent.glob('*.review.json')]
                 if not images and manifest and manifest.parent in (folder,folder/'video.artwork'):
-                    images = [p.name for p in (folder / 'video.artwork').glob('*/*.png') if not p.name.endswith('.raw.png')]
+                    images = [p.name for p in (folder / 'video.artwork').glob('*/*.png') if not p.name.endswith(('.raw.png', '.plate.png'))]
                 if not reviews and manifest and manifest.parent in (folder,folder/'video.artwork'):
                     reviews = [p.name for p in (folder / 'video.artwork').glob('*/*.review.json')]
                 has_timings = (folder / 'video.timings.json').exists()
