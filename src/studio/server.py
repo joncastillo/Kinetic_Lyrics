@@ -505,6 +505,14 @@ def store_image(folder, filename, content):
     return path
 
 
+def forget_audio_analysis(folder):
+    """Remove everything measured from a project's previous audio track."""
+    for name in ('video.timings.json', 'video.melody.json', 'video.rhythm.json', 'vocals.wav',
+                 'video.graph.sqlite', 'video.graph.sqlite-wal', 'video.graph.sqlite-shm'):
+        (folder/name).unlink(missing_ok=True)
+    shutil.rmtree(folder/'stems', ignore_errors=True)
+
+
 def start_job(fields, files):
     with LOCK:
         if any(j.state['status'] in ('queued', 'running', 'review') or j.state['action'] for j in JOBS.values()):
@@ -519,10 +527,10 @@ def start_job(fields, files):
 
         if not files.get('audio'):
             if is_restart:
-                existing_audio = list((ROOT / project_id).glob('audio.*'))
+                existing_audio = sorted((ROOT / project_id).glob('audio.*'), key=lambda p: p.stat().st_mtime_ns)
                 if existing_audio:
-                    filename = existing_audio[0].name
-                    audio_bytes = existing_audio[0].read_bytes()
+                    filename = existing_audio[-1].name
+                    audio_bytes = existing_audio[-1].read_bytes()
                 else:
                     raise ValueError('Choose an audio file')
             else:
@@ -550,7 +558,16 @@ def start_job(fields, files):
             folder = ROOT/(time.strftime('%Y%m%d-%H%M%S')+'-'+secrets.token_hex(3))
             folder.mkdir(parents=True, exist_ok=True)
         audio = folder/('audio'+suffix)
-        if not audio.exists() or audio_bytes:
+        previous_audio = list(folder.glob('audio.*'))
+        audio_replaced = bool(previous_audio) and not any(p.read_bytes() == audio_bytes for p in previous_audio)
+        if audio_replaced:
+            for path in previous_audio:
+                path.unlink()
+            forget_audio_analysis(folder)
+            if start_step in ('prompts', 'images', 'review', 'render'):
+                # Saved timings belong to the old track; artwork for unchanged lyrics is still reused.
+                start_step = 'timing'
+        if audio_replaced or not audio.exists():
             audio.write_bytes(audio_bytes)
         (folder/'lyrics.txt').write_text(lyrics, encoding='utf-8')
         refs = [store_image(folder/'references', name, content) for name, content in files.get('references', [])]
@@ -676,6 +693,8 @@ def start_job(fields, files):
         else:
             job = Job(folder, config)
             JOBS[folder.name] = job
+        if audio_replaced:
+            job.log('New audio track: lyric timing, vocal and instrument analysis are redone for it.')
         job.save()
         threading.Thread(target=job.run, args=(command,), daemon=True).start()
         return job
