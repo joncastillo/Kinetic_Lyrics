@@ -323,7 +323,7 @@ class Job:
         result.update(logs=logs[cursor:], cursor=len(logs), images=self.images(), ornaments=self.ornaments(),
                       rejected_images=self.rejected_selections(),
                       elapsed=round(self.state.get('finished', time.time())-self.state['started']),
-                      render_settings=dict(**typography_options(self.config),text_animation=self.config.get('text_animation','directed'), audio_mode=self.config.get('audio_mode','original'), auto_accept=self.config.get('auto_accept',False), type_effect=self.config.get('type_effect','none'), entrance_effect=self.config.get('entrance_effect','legacy'), exit_effect=self.config.get('exit_effect','legacy'), entrance_pool=self.config.get('entrance_pool'), exit_pool=self.config.get('exit_pool'), particle_speed=self.config.get('particle_speed',1.), particle_intensity=self.config.get('particle_intensity',1.)))
+                      render_settings=dict(**typography_options(self.config),text_animation=self.config.get('text_animation','directed'), audio_mode=self.config.get('audio_mode','original'), auto_accept=self.config.get('auto_accept',False), type_effect=self.config.get('type_effect','none'), entrance_effect=self.config.get('entrance_effect','legacy'), exit_effect=self.config.get('exit_effect','legacy'), entrance_pool=self.config.get('entrance_pool'), exit_pool=self.config.get('exit_pool'), particle_speed=self.config.get('particle_speed',1.), particle_intensity=self.config.get('particle_intensity',1.), image_seed=self.config.get('image_seed'), randomize_seed=self.config.get('randomize_seed', True)))
         if (self.folder/'video.mp4').exists():
             result['video'] = self.url(self.folder/'video.mp4')
         if (self.folder/'poster.png').exists():
@@ -503,7 +503,8 @@ def start_job(fields, files):
         suffix = Path(filename).suffix.lower()
         if suffix not in AUDIO_SUFFIXES or not audio_bytes:
             raise ValueError('Unsupported or empty audio file')
-        lyrics = fields.get('lyrics', '').strip()
+        from kinetic_lyrics import sanitize_lyrics
+        lyrics = sanitize_lyrics(fields.get('lyrics', '')).strip()
         width, height = {'720p': (1280, 720), '1080p': (1920, 1080), 'portrait': (720, 1280)}[fields.get('resolution', '720p')]
         asr_model=fields.get('asr_model',DEFAULT_ASR)
         alignment_model=fields.get('alignment_model','auto')
@@ -527,8 +528,17 @@ def start_job(fields, files):
             audio.write_bytes(audio_bytes)
         (folder/'lyrics.txt').write_text(lyrics, encoding='utf-8')
         refs = [store_image(folder/'references', name, content) for name, content in files.get('references', [])]
-        image_seed=secrets.randbelow(2**31)
-        if is_restart and start_step in ('images','review','render'):
+        seed_val = fields.get('image_seed', fields.get('seed', ''))
+        seed_field = str(seed_val).strip() if seed_val is not None else ''
+        randomize = fields.get('randomize_seed') in ('on', 'true', '1') or seed_field in ('', '-1', 'random')
+        if randomize:
+            image_seed = secrets.randbelow(2**31)
+        else:
+            try:
+                image_seed = int(seed_field)
+            except ValueError:
+                image_seed = secrets.randbelow(2**31)
+        if is_restart and start_step in ('images','review','render') and not seed_field:
             try:image_seed=json.loads((folder/'config.json').read_text(encoding='utf-8')).get('image_seed',image_seed)
             except (OSError,ValueError):pass
         config = dict(name=Path(filename).stem, audio=str(audio), width=width, height=height, fps=30,
@@ -536,7 +546,7 @@ def start_job(fields, files):
             style_prompt=fields.get('reference_prompt', '').strip() or STYLE_PROMPT,
             image_instructions=fields.get('image_instructions', '').strip()[:2000],
             theme=fields.get('style', '').strip() or 'Bright, uplifting mood; flowing fabric and long flowing hair; graceful movement and luminous color.',
-            artwork_mode=fields.get('artwork_mode','cutout'), image_seed=image_seed,
+            artwork_mode=fields.get('artwork_mode','cutout'), image_seed=image_seed, randomize_seed=randomize,
             cinematic=fields.get('cinematic') == 'on', encoder=fields.get('encoder', 'h264_nvenc'),
             illustration_lines=lines, steps=steps, image_model=image_model, asr_model=asr_model, alignment_model=alignment_model,
             particle_intensity=float(fields.get('particle_intensity', 1.)),

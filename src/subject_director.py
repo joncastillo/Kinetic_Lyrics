@@ -44,7 +44,7 @@ def request_subjects(local_json, payload, batch_size=6, max_words=60, avoid_repe
         if not retry:
             budget = budget*3//2
         options = query.get('options', {})
-        query['options'] = {**options, 'temperature': 0, 'num_predict': budget,
+        query['options'] = {**options, 'temperature': options.get('temperature', 0), 'num_predict': budget,
                             'num_ctx': max(options.get('num_ctx', 8192), budget+4096)}
         query['messages'][0]['content'] += (
             f' Keep each description to at most {max_words} words.'
@@ -123,12 +123,28 @@ def repair_duplicate_subjects(local_json, payload, subjects, max_rounds=2):
         query['messages'].append(dict(role='user', content=(
             'Keep these other scenes unchanged and avoid repeating any of them: '
             +json.dumps(list(dict.fromkeys(result))))))
+        query['options'] = {**query.get('options', {}), 'temperature': 0.75}
         replacements = request_subjects(local_json, query)
         for index, replacement in zip(repeated, replacements):
             result[index] = replacement
-    if repeated_indices():
-        raise ValueError('Illustration director still repeated scenes after two automatic '
-                         'revision attempts. Choose another text prompting model and retry.')
+    remaining = repeated_indices()
+    if remaining:
+        print(f'Applied visual perspective variations to {len(remaining)} scene(s) to resolve remaining duplicates.', flush=True)
+        perspectives = [
+            ' Viewed from an extreme low angle looking upward, with dramatic chiaroscuro shadows and expressive edge rim lighting.',
+            ' Framed as an intimate cinematic close-up with soft atmospheric depth-of-field and warm directional light.',
+            ' Captured in an expansive wide establishing perspective with moody mist, deep cool ambient backlight, and rich environmental details.',
+            ' Seen from a high overhead vantage point, revealing geometric patterns and striking contrast between light and dark silhouettes.',
+            ' Rendered with intense side-lighting, long raking cast shadows, and vivid atmospheric contrast.'
+        ]
+        seen_all = {normalized(result[idx]) for idx in fixed}
+        for i, idx in enumerate(remaining):
+            variation = perspectives[i % len(perspectives)]
+            candidate = result[idx].rstrip('. ') + '.' + variation
+            if normalized(candidate) in seen_all:
+                candidate = candidate.rstrip('. ') + f' (Perspective alternative {i+1}).'
+            result[idx] = candidate
+            seen_all.add(normalized(candidate))
     return result
 
 

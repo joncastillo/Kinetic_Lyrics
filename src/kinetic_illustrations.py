@@ -110,7 +110,10 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
     from gpu_models import resolve_prompt_model
     director_model = resolve_prompt_model(local_json, director_model)
     from verse_backgrounds import DIRECTOR_PROMPT, LANGUAGE_RULE, PEOPLE_RULE
-    payload = dict(model=director_model, stream=False, think=False, keep_alive=-1, options=dict(num_ctx=8192),
+    director_options = dict(num_ctx=8192)
+    if seed is not None:
+        director_options['seed'] = int(seed % (2**31))
+    payload = dict(model=director_model, stream=False, think=False, keep_alive=-1, options=director_options,
         format={'type': 'object', 'properties': {'subjects': {'type': 'array',
                 'minItems': len(groups), 'maxItems': len(groups), 'items': {'type': 'string'}}},
                 'required': ['subjects']},
