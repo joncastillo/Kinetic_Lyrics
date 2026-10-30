@@ -611,6 +611,7 @@ class Stage3D:
         self.seed = getattr(compositor, 'layout_seed', 42) if seed is None else seed
         self.blocks = None
         self.art_tones = {}
+        self.veils = []  # (start, end) times when the scene mix carries the wisp instead (see wisp_screen)
         width, height = compositor.width, compositor.height
         self.aspect = width/height
         self.ppu = width*FILL_WIDTH/BLOCK_WIDTH*OVERSAMPLE
@@ -1116,6 +1117,8 @@ class Stage3D:
         """The main wisp's head at the leading end of the ribbon, and the partner's while it visits."""
         if not self.options['traces'] and self.options['geometry'] <= 0:
             return []
+        if any(start <= t < end for start, end in self.veils):
+            return []
         result = []
         energy, _, tune = self.pulse(t)
         presence = self.partner_presence(t)
@@ -1405,6 +1408,30 @@ class Stage3D:
         if head is None or not run['segments']:
             return None
         return route_point(run, head), steady_tangent(run, head)
+
+    # Hand-over to the scene mix, which carries the wisp across a change of scene.
+
+    def wisp_runs(self):
+        """(start, end) time of each ribbon run's main wisp."""
+        self.plan()
+        if not self.options['traces'] and self.options['geometry'] <= 0:
+            return []
+        return [(run['keys'][0][0], run['keys'][0][-1]) if run['keys'][0] else (math.inf, -math.inf) for run in self.ribbon]
+
+    def wisp_screen(self, number, when, t):
+        """Screen pixel of run `number`'s main wisp where it was at time `when`, filmed by the camera at time t."""
+        head = self.head_at(number, when)
+        if head is None:
+            return None
+        point, tangent = head
+        eye, target, _, up = self.camera(t)
+        side = normalized(np.cross(tangent, eye-point))
+        lift = normalized(np.cross(side, tangent))
+        position = point+self.wisp_offset(0, when, when, side, lift, tangent, self.pulse(when)[0])
+        clip = self.projection@look_at(eye, target, up)@np.array([*position, 1.])
+        if clip[3] <= 1e-6:
+            return None
+        return (clip[0]/clip[3]+1)/2*self.c.width, (1-clip[1]/clip[3])/2*self.c.height
 
     # Camera.
 

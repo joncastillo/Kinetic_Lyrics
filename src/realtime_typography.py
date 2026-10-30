@@ -240,6 +240,7 @@ class RealtimeTypography:
         self.melody = melody.get('lines') if isinstance(melody, dict) else None
         self.speed = max(.2, speed)
         self.lines = self.path = self.world = None
+        self.veils = []  # (start, end) times when the scene mix carries the wisp instead (see wisp_screen)
         self.still = self.options['camera'] == 'still'
         self.shapes = None
 
@@ -731,7 +732,7 @@ class RealtimeTypography:
             if len(samples) >= 2 and tail < thread['pieces'][-1]['end']:
                 self.paint_bands(draw, fill_layer, samples, samples[0][2], samples[-1][2], t, base)
                 alive = 1-smooth((t-thread['keys'][0][-1])/HEAD_FADE)
-                if alive > .01:
+                if alive > .01 and not any(start <= t < end for start, end in self.veils):
                     from wisp_forms import forms_at, heading_at, paint_head
                     x, y = samples[-1][0]-base[0], samples[-1][1]-base[1]
                     angle = heading_at(thread['pieces'], head, max(12., self.c.height*.025))
@@ -776,6 +777,25 @@ class RealtimeTypography:
         if box:
             box = (max(0, box[0]-4), max(0, box[1]-4), min(bands.width, box[2]+4), min(bands.height, box[3]+4))
             fill_layer.alpha_composite(bands.crop(box).filter(ImageFilter.GaussianBlur(1.1)), box[:2])
+
+    def wisp_runs(self):
+        """(start, end) time of each thread run's wisp."""
+        if not self.options['traces'] and self.options['geometry'] <= 0:
+            return []
+        return [(thread['keys'][0][0], thread['keys'][0][-1]) if thread['keys'][0] else (math.inf, -math.inf)
+                for thread in self.thread_path()]
+
+    def wisp_screen(self, number, when, t):
+        """Screen pixel of thread run `number`'s wisp where it was at time `when`, with the camera at time t."""
+        thread = self.thread_path()[number]
+        head = thread_distance(thread['keys'], when)
+        if head is None:
+            return None
+        samples = sample_thread(thread['pieces'], max(0., head-1.), head, STRAND_STEP)
+        if not samples:
+            return None
+        center = self.path.at(t)
+        return samples[-1][0]-(center[0]-self.c.width/2), samples[-1][1]-(center[1]-self.c.height/2)
 
     def thread_path(self):
         """The whole thread on the canvas: a smooth path through each hero word, with the distance its head
