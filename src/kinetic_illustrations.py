@@ -45,6 +45,9 @@ def image_prompt(subject, layout, style_prompt=STYLE_PROMPT, has_references=Fals
     if layout.get('artwork_mode') == 'verse':
         from verse_backgrounds import image_prompt as background_prompt
         return background_prompt(subject, layout, style_prompt)
+    if layout.get('artwork_mode') == 'matte':
+        from greenscreen import image_prompt as scenery_prompt
+        return scenery_prompt(subject, layout, style_prompt)
     if layout.get('artwork_mode') == 'fullscreen':
         technique = (style_prompt if subject_kind(subject) != 'object' else
                      'Delicate ink contours, painterly shading, luminous color and elegant material textures.')
@@ -112,11 +115,13 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
     from gpu_models import resolve_prompt_model
     director_model = resolve_prompt_model(local_json, director_model)
     from verse_backgrounds import DIRECTOR_PROMPT
+    if artwork_mode == 'matte':
+        from greenscreen import DIRECTOR_PROMPT
     payload = dict(model=director_model, stream=False, think=False, keep_alive=-1, options=dict(num_ctx=8192),
         format={'type': 'object', 'properties': {'subjects': {'type': 'array',
                 'minItems': len(groups), 'maxItems': len(groups), 'items': {'type': 'string'}}},
                 'required': ['subjects']},
-        messages=[dict(role='system', content=(DIRECTOR_PROMPT if artwork_mode == 'verse' else (
+        messages=[dict(role='system', content=(DIRECTOR_PROMPT if artwork_mode in ('verse', 'matte') else (
             'Translate each lyric group into one distinct English visual description for an illustrator. '
             'The lyrics are the sole source of subject matter. Interpret their meaning, including Tagalog. '
             'Choose the most meaningful concrete subject: an everyday object, architectural detail, '
@@ -152,7 +157,7 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
             audit_groups=groups
             payload['format']['properties']['subjects'].update(minItems=len(groups),maxItems=len(groups))
             payload['messages'][1]['content']=json.dumps([dict(lyrics=g,layout=l['prompt'],section_context=c) for g,l,c in zip(groups,layouts,contexts)])
-        if artwork_mode == 'verse':
+        if artwork_mode in ('verse', 'matte'):
             from verse_backgrounds import lyric_meanings
             meanings = lyric_meanings(gpu_chat, director_model, groups,contexts=contexts)
             payload['messages'][1]['content'] = json.dumps([
@@ -176,10 +181,14 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
         if any(len(line['text']) > 12 and line['text'].casefold() in subject.casefold() for line in data):
             raise ValueError('Visual description contains a copied lyric line; rerun the illustration director.')
     folder.mkdir(parents=True, exist_ok=True)
+    extra = {}
+    if artwork_mode == 'matte':
+        from greenscreen import plate_prompt
+        extra['plate_prompts'] = [plate_prompt(subject, layout, style_prompt) for subject, layout in zip(subjects, layouts)]
     manifest.write_text(json.dumps(dict(**signature, reference_paths=[str(p) for p in references],
         lyric_meanings=meanings, visual_descriptions=subjects, prompt_audit=dict(version=1,model=director_model),
-        reference_modes=['technique_prompt_only' if artwork_mode == 'verse' or subject_kind(s) == 'object' or not reference_images else 'image_conditioning' for s in subjects],
-        prompts=prompts), ensure_ascii=False, indent=2), encoding='utf-8')
+        reference_modes=['technique_prompt_only' if artwork_mode in ('verse', 'matte') or subject_kind(s) == 'object' or not reference_images else 'image_conditioning' for s in subjects],
+        prompts=prompts, **extra), ensure_ascii=False, indent=2), encoding='utf-8')
     return manifest
 
 
@@ -440,6 +449,21 @@ def _run_job(manifest, cache):
                 reference = source.convert('RGB')
             reference.thumbnail((1024, 1024))
             references.append(reference)
+        matte = job.get('artwork_mode') == 'matte'
+        def paint_plate(i, layout):
+            """The plain sky behind the lyrics, painted to match scenery `i`."""
+            plate = manifest.parent/f'{i:03d}.plate.png'
+            emit('illustrations', i/len(job['prompts']), image=i+1, images=len(job['prompts']), message=f'Painting the matching sky plate {i+1}/{len(job["prompts"])}')
+            for attempt in range(2):
+                image = pipe(prompt=job['plate_prompts'][i], **inference_options(model, []),
+                    width=layout['image_width'], height=layout['image_height'],
+                    num_inference_steps=job['steps'],
+                    generator=torch.Generator('cpu').manual_seed(job['seed']+i+50000+attempt*10000),
+                    callback_on_step_end=diffusion_callback(i, len(job['prompts']), attempt, 2, job['steps'])).images[0]
+                if not detected_lettering(ocr, image):
+                    break
+            temporary = plate.with_name(plate.stem+'.tmp.png')
+            image.save(temporary);temporary.replace(plate)
         for i in missing:
             selected=manifest.parent/f'{i:03d}.png'
             if selected.exists() and selected.with_suffix('.selection.json').exists():
@@ -448,42 +472,61 @@ def _run_job(manifest, cache):
             raw = manifest.parent/f'{i:03d}.raw.png'
             if raw.exists():
                 with Image.open(raw) as cached:
-                    if not detected_lettering(ocr, cached):
-                        continue
+                    reuse = not detected_lettering(ocr, cached)
+                if reuse:
+                    if matte and not raw.with_name(f'{i:03d}.plate.png').exists():
+                        from gpu_models import image_dimensions
+                        layout = dict(job['layouts'][i])
+                        layout['image_width'],layout['image_height'] = image_dimensions(layout['image_width'],layout['image_height'],min(total,gpu_memory.dedicated_memory(torch)[0]+torch.cuda.memory_reserved())/2**30)
+                        paint_plate(i, layout)
+                    continue
             emit('illustrations', i/len(job['prompts']), image=i+1, images=len(job['prompts']), message=f'Generating illustration {i+1}/{len(job["prompts"])}')
             print(f'Generating unique illustration {i+1}/{len(job["prompts"])}...', flush=True)
             layout = dict(job['layouts'][i])
             from gpu_models import image_dimensions
             layout['image_width'],layout['image_height'] = image_dimensions(layout['image_width'],layout['image_height'],min(total,gpu_memory.dedicated_memory(torch)[0]+torch.cuda.memory_reserved())/2**30)
-            reference_input = references if job.get('artwork_mode') != 'verse' and subject_kind(job['visual_descriptions'][i]) != 'object' else []
-            best_path=None;best_lettering=None
+            reference_input = references if job.get('artwork_mode') not in ('verse', 'matte') and subject_kind(job['visual_descriptions'][i]) != 'object' else []
+            best_path=None;best_lettering=None;best_rank=None
             for attempt in range(3):
                 retry_prompt=job['prompts'][i]
                 if attempt and manifest.parent.parent.name=='video.artwork':
                     retry_prompt+=' Replace any written sign or neon lettering with unlettered geometric light tubes. All signs, screens, walls and panels are completely blank. No alphabetic marks, captions, numerals or logos anywhere.'
+                if attempt and matte:
+                    retry_prompt+=' The whole sky above the skyline must be one flat, uniform pure #00FF00 chroma-key green with nothing in it.'
                 image = pipe(prompt=retry_prompt, **inference_options(model, reference_input),
                     width=layout['image_width'], height=layout['image_height'],
                     num_inference_steps=job['steps'],
                     generator=torch.Generator('cpu').manual_seed(job['seed']+i+attempt*10000),
                     callback_on_step_end=diffusion_callback(i, len(job['prompts']), attempt, 3, job['steps'])).images[0]
                 lettering = detected_lettering(ocr, image)
-                if not lettering:
+                screened = True
+                if matte:
+                    from greenscreen import usable
+                    screened = usable(image)
+                if not lettering and screened:
                     temporary=raw.with_name(raw.stem+'.tmp.png')
                     image.save(temporary);temporary.replace(raw)
                     emit('illustrations', (i+1)/len(job['prompts']), image=i+1, images=len(job['prompts']), message=f'Illustration {i+1} saved', artifact=str(raw))
                     break
                 rejected_path=manifest.parent/f'{i:03d}.rejected-{attempt+1}.png'
                 image.save(rejected_path)
-                if best_lettering is None or sum(len(r['text']) for r in lettering)<sum(len(r['text']) for r in best_lettering):
-                    best_path,best_lettering=rejected_path,lettering
-                print(f'Lettering detected in illustration {i+1}; retrying with a new seed.', flush=True)
+                rank=(sum(len(r['text']) for r in lettering),not screened)
+                if best_rank is None or rank<best_rank:
+                    best_path,best_lettering,best_rank=rejected_path,lettering,rank
+                print(f'{"Lettering detected" if lettering else "No usable greenscreen sky"} in illustration {i+1}; retrying with a new seed.', flush=True)
             else:
                 temporary=raw.with_name(raw.stem+'.tmp.png')
                 shutil.copy2(best_path,temporary);temporary.replace(raw)
-                from lettering_review import mark_lettering
-                mark_lettering(raw,best_lettering)
-                print(f'Illustration {i+1} flagged for image review after three lettering detections; continuing the batch.',flush=True)
-                emit('illustrations',(i+1)/len(job['prompts']),image=i+1,images=len(job['prompts']),message=f'Illustration {i+1} saved for lettering review',artifact=str(raw))
+                if best_lettering:
+                    from lettering_review import mark_lettering
+                    mark_lettering(raw,best_lettering)
+                else:
+                    from lettering_review import mark_greenscreen
+                    mark_greenscreen(raw)
+                print(f'Illustration {i+1} flagged for image review after three failed attempts; continuing the batch.',flush=True)
+                emit('illustrations',(i+1)/len(job['prompts']),image=i+1,images=len(job['prompts']),message=f'Illustration {i+1} saved for review',artifact=str(raw))
+            if matte:
+                paint_plate(i, layout)
         generated = True
     finally:
         if model_session and generated:
@@ -512,6 +555,21 @@ def _run_job(manifest, cache):
             from lettering_review import propagate_lettering
             propagate_lettering(manifest.parent/f'{i:03d}.raw.png',target)
             emit('cutouts', 1, message=f'Full-screen artwork {i+1} ready', artifact=str(target))
+        return
+    if job.get('artwork_mode') == 'matte':
+        from filelock import FileLock
+        from greenscreen import compose_files
+        from lettering_review import propagate_lettering
+        emit('cutouts', 0, message='Keying greenscreen skies onto their matching plates')
+        for i in missing:
+            target=manifest.parent/f'{i:03d}.png'
+            with FileLock(str(target)+'.write.lock',timeout=30):
+                if not target.with_suffix('.selection.json').exists():
+                    temporary=target.with_suffix('.tmp.png')
+                    compose_files(manifest.parent/f'{i:03d}.raw.png',manifest.parent/f'{i:03d}.plate.png',temporary)
+                    temporary.replace(target)
+            propagate_lettering(manifest.parent/f'{i:03d}.raw.png',target)
+            emit('cutouts', (missing.index(i)+1)/len(missing), message=f'Greenscreen scene {i+1} keyed', artifact=str(target))
         return
     emit('cutouts', 0, message='Removing illustration backgrounds on CPU')
     session = new_session('birefnet-general', providers=['CPUExecutionProvider'])

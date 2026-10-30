@@ -236,6 +236,7 @@ class Job:
                         self.log(f'{action} failed (exit {code}). See errors above.', 'error')
                     elif action == 'rerender':
                         self.state['dirty'] = []
+                        self.state['timeline_dirty'] = False
                     elif action == 'patch':
                         index = int(command[command.index('--index')+1])
                         self.state['dirty'] = [i for i in self.state['dirty'] if i != index]
@@ -331,6 +332,74 @@ class Job:
         from urllib.parse import quote
         return '/files/'+self.folder.name+'/'+quote(path.relative_to(self.folder).as_posix())+'?v='+str(path.stat().st_mtime_ns)
 
+    def timeline(self):
+        """Everything the timeline editor draws: words, illustrations and the audio stems."""
+        from timeline import ART_TIMES, illustration_starts, load_art_times, stem_sources, tighten_line_starts
+        data = json.loads((self.folder/'video.timings.json').read_text(encoding='utf-8'))
+        duration = float(subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+            '-of', 'default=noprint_wrappers=1:nokey=1', self.config['audio']], text=True))
+        art = []
+        try:
+            manifest = self.manifest()
+            job = json.loads(manifest.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            manifest, job = None, None
+        if job:
+            cues = [line['words'][0]['start'] for line in tighten_line_starts(copy.deepcopy(data))]
+            groups = job.get('line_groups')
+            if groups is not None and len(groups) != len(job['prompts']):
+                groups = None
+            defaults = illustration_starts(cues, len(job['prompts']), self.config.get('illustration_lines', 2), 1., groups)
+            saved = load_art_times(self.folder/ART_TIMES)
+            custom = saved if saved is not None and len(saved) == len(defaults) else None
+            from artwork_metadata import variant_metadata
+            with LOCK:
+                queued = {q['index']: q.get('action', 'regenerate') for q in self.state.get('queued_actions', [])
+                          if q.get('action', 'regenerate') in ('regenerate', 'reprompt') and 'index' in q}
+                active = set(self.state.get('active_images', []))
+            for i, start in enumerate(defaults):
+                image = manifest.parent/f'{i:03d}.png'
+                art.append(dict(index=i, start=custom[i] if custom else start, default_start=start,
+                                lyrics=job['groups'][i] if i < len(job.get('groups', [])) else '',
+                                prompt=variant_metadata(image, job, i).get('prompt', job['prompts'][i]),
+                                pending='Generating' if i in active else 'Queued' if i in queued else '',
+                                url=self.url(image) if image.exists() else None))
+        stems = [dict(id=name, url=self.url(path) if path.is_relative_to(self.folder) else None)
+                 for name, path in stem_sources(self.folder, self.config['audio']).items()]
+        with LOCK:
+            busy = bool(self.state['action'] or self.state['queued_actions']) or self.state['status'] in ('queued', 'running', 'review')
+            status = self.state['status']
+        return dict(duration=duration, lines=data, art=art, custom_art=any(a['start'] != a['default_start'] for a in art),
+                    stems=stems, editable=not busy, status=status, has_video=(self.folder/'video.mp4').exists(),
+                    timeline_dirty=bool(self.state.get('timeline_dirty')))
+
+    def save_timeline(self, args):
+        from timeline import ART_TIMES, apply_edits, checked_art_times, rewrite_lyrics, save_art_times
+        if self.state['action'] or self.state['queued_actions'] or self.state['status'] in ('queued', 'running', 'review'):
+            raise ValueError('The timeline can be edited once the video is finished or stopped')
+        timings = self.folder/'video.timings.json'
+        data = json.loads(timings.read_text(encoding='utf-8'))
+        duration = float(subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+            '-of', 'default=noprint_wrappers=1:nokey=1', self.config['audio']], text=True))
+        edited = apply_edits(data, args.get('lines'), duration)
+        starts = args.get('art_starts')
+        if starts is not None:
+            count = len(json.loads(self.manifest().read_text(encoding='utf-8'))['prompts'])
+            starts = checked_art_times(starts, count, duration)
+        temporary = timings.with_suffix('.json.tmp')
+        temporary.write_text(json.dumps(edited, ensure_ascii=False, indent=2), encoding='utf-8')
+        temporary.replace(timings)
+        save_art_times(self.folder, starts)
+        texts = [line['text'] for line in edited]
+        for name in ('lyrics.txt', 'video.lyrics.txt'):
+            path = self.folder/name
+            if path.is_file():
+                path.write_text(rewrite_lyrics(path.read_text(encoding='utf-8-sig'), texts), encoding='utf-8')
+        if (self.folder/'video.mp4').exists():
+            self.state['timeline_dirty'] = True
+        self.log('Timeline saved: word timing, lyrics and illustration times updated.')
+        self.save()
+
     def manifest(self):
         from active_artwork import select_manifest
         return select_manifest(self.folder,self.config,self.state)
@@ -350,7 +419,7 @@ class Job:
             entries = []
             seen = set()
             for path in variants:
-                if '.tmp.' in path.name or '.rejected-' in path.name or (path.name == '000.raw.png' and path.parent != manifest.parent):
+                if '.tmp.' in path.name or '.rejected-' in path.name or path.name.endswith('.plate.png') or (path.name == '000.raw.png' and path.parent != manifest.parent):
                     continue
                 stat = path.stat()
                 signature = (stat.st_mtime_ns, stat.st_size)
@@ -503,7 +572,7 @@ def start_job(fields, files):
             vision_model=fields.get('vision_model','').strip(),auto_verify=fields.get('auto_verify')=='on',
             auto_accept=fields.get('auto_accept')=='on', auto_repair=fields.get('auto_repair','on')=='on',review_threshold=int(fields.get('review_threshold',DEFAULT_THRESHOLD)))
         config.update(typography_options(fields))
-        if config['artwork_mode'] not in ('cutout','fullscreen','verse'):
+        if config['artwork_mode'] not in ('cutout','fullscreen','verse','matte'):
             raise ValueError('Invalid artwork mode')
         if not 0 <= config['review_threshold'] <= 100:
             raise ValueError('Review threshold must be between 0 and 100 percent')
@@ -528,7 +597,7 @@ def start_job(fields, files):
 
         if is_restart:
             if start_step == 'timing':
-                for f in [folder/'video.timings.json', folder/'video.theme.json']:
+                for f in [folder/'video.timings.json', folder/'video.theme.json', folder/'video.art-times.json']:
                     if f.exists(): f.unlink()
             elif start_step == 'prompts':
                 for f in [folder/'video.theme.json']:
@@ -578,6 +647,14 @@ def start_job(fields, files):
                 timings_path = folder/'video.timings.json'
                 if timings_path.exists():
                     command += ['--timings', str(timings_path)]
+                    if lyrics:
+                        from timeline import rewrite_lyrics
+                        timed = [line['text'] for line in json.loads(timings_path.read_text(encoding='utf-8'))]
+                        submitted = [s for s in (l.strip() for l in lyrics.splitlines()) if s and not re.fullmatch(r'\[.*\]', s)]
+                        if len(submitted) == len(timed):
+                            (folder/'lyrics.txt').write_text(rewrite_lyrics(lyrics, timed), encoding='utf-8')
+            if start_step in ('review', 'render') and (folder/'video.art-times.json').exists():
+                command += ['--art-times', str(folder/'video.art-times.json')]
         command += ['--style-reference', *map(str, refs)] if refs else ['--no-default-style-references']
         if config['cinematic']:
             command.append('--cinematic')
@@ -630,7 +707,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond((UI_ROOT/'studio.html').read_bytes(), content_type='text/html; charset=utf-8')
             if url.path == '/assets/default-style-reference.jpg':
                 return self.respond((PROJECT_ROOT/'assets'/'default-style-reference.jpg').read_bytes(), content_type='image/jpeg')
-            if url.path in ('/studio.css', '/studio-profiles.js', '/studio-models.js', '/studio-particles.js'):
+            if url.path in ('/studio.css', '/studio-profiles.js', '/studio-models.js', '/studio-particles.js', '/studio-timeline.js', '/studio-timeline.css'):
                 path = UI_ROOT/url.path.lstrip('/')
                 return self.respond(path.read_bytes(), content_type='text/css' if path.suffix=='.css' else 'text/javascript')
             if url.path == '/api/profile-audio':
@@ -694,7 +771,7 @@ class Handler(BaseHTTPRequestHandler):
                     images = [p.name for p in manifest.parent.glob('[0-9][0-9][0-9].png') if not p.name.endswith('.raw.png')]
                     reviews = [p.name for p in manifest.parent.glob('*.review.json')]
                 if not images and manifest and manifest.parent in (folder,folder/'video.artwork'):
-                    images = [p.name for p in (folder / 'video.artwork').glob('*/*.png') if not p.name.endswith('.raw.png')]
+                    images = [p.name for p in (folder / 'video.artwork').glob('*/*.png') if not p.name.endswith(('.raw.png', '.plate.png'))]
                 if not reviews and manifest and manifest.parent in (folder,folder/'video.artwork'):
                     reviews = [p.name for p in (folder / 'video.artwork').glob('*/*.review.json')]
                 has_timings = (folder / 'video.timings.json').exists()
@@ -713,6 +790,16 @@ class Handler(BaseHTTPRequestHandler):
                     has_video=has_video,
                     current_step=current_step
                 ))
+            if url.path.startswith('/api/jobs/') and url.path.endswith('/timeline'):
+                return self.respond(JOBS[url.path.split('/')[3]].timeline())
+            if url.path.startswith('/api/jobs/') and '/waveform/' in url.path:
+                from timeline import stem_sources, waveform
+                _, _, _, job_id, _, stem = url.path.split('/')
+                job = JOBS[job_id]
+                sources = stem_sources(job.folder, job.config['audio'])
+                if stem not in sources:
+                    return self.respond(dict(error='This stem is not available'), 404)
+                return self.respond(waveform(sources[stem], job.folder/'waveforms'/f'{stem}.json'))
             if url.path.startswith('/api/jobs/'):
                 job = JOBS[url.path.split('/')[3]]
                 cursor = max(0, int(parse_qs(url.query).get('cursor', [0])[0]))
@@ -721,7 +808,7 @@ class Handler(BaseHTTPRequestHandler):
                 _, _, job_id, relative = unquote(url.path).split('/', 3)
                 job = JOBS[job_id]
                 path = (job.folder/relative).resolve()
-                valid=path.is_relative_to(job.folder.resolve()) and path.is_file() and path.suffix in {'.png', '.mp4', '.txt', '.json'}
+                valid=path.is_relative_to(job.folder.resolve()) and path.is_file() and path.suffix.lower() in {'.png', '.mp4', '.txt', '.json', *AUDIO_SUFFIXES}
                 if not valid:
                     return self.respond(dict(error='File not found'), 404)
                 size, start, end = path.stat().st_size, 0, path.stat().st_size-1
@@ -792,6 +879,9 @@ class Handler(BaseHTTPRequestHandler):
             if operation in ('regenerate','reprompt') and (not isinstance(args.get('prompt',''),str) or len(args.get('prompt',''))>32768):
                 raise ValueError('The generation prompt must be text no longer than 32,768 characters')
             with LOCK:
+                if operation == 'timeline':
+                    job.save_timeline(args)
+                    return self.respond(dict(ok=True))
                 if operation in ('regenerate','reprompt') and (job.state['status'] == 'running' or job.state['action']):
                     index = int(args.get('index', -1))
                     count = len(json.loads(job.manifest().read_text(encoding='utf-8'))['prompts'])
@@ -875,6 +965,8 @@ class Handler(BaseHTTPRequestHandler):
                     if verified:job.state['dirty'] = changes
                     if job.state['status'] != 'complete':
                         raise ValueError('Rebuild is available after the first video completes')
+                    if job.state.get('timeline_dirty'):
+                        raise ValueError('The timeline changed, so the whole video needs rebuilding. Use Rebuild video in the timeline editor.')
                     job.state['queued_actions'].extend(dict(action='patch', index=i) for i in job.state['dirty'])
                     job.start_next()
                     job.save()
