@@ -161,7 +161,7 @@ def generate_candidate(root, job, index, cache, prompt):
     candidate_job=copy.deepcopy(job)
     folder=root/'candidates'/f'{index:03d}'/str(time.time_ns())
     folder.mkdir(parents=True)
-    for key in ('prompts','layouts','visual_descriptions','reference_modes','groups'):
+    for key in ('prompts','plate_prompts','layouts','visual_descriptions','reference_modes','groups'):
         if key in candidate_job:candidate_job[key]=[candidate_job[key][index]]
     candidate_job['seed']+=time.time_ns()%1000000
     if prompt.strip():candidate_job['prompts'][0]=prompt.strip()
