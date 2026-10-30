@@ -5,7 +5,7 @@ from pathlib import Path
 import shutil
 import time
 from filelock import FileLock
-from review_policy import rejected, DEFAULT_THRESHOLD, MAX_AUTO_REPAIRS
+from review_policy import rejected, anatomy_only, DEFAULT_THRESHOLD, MAX_AUTO_REPAIRS, CANDIDATES_PER_REPAIR
 
 
 def review_one(worker, root, manifest, job, config, item):
@@ -93,36 +93,53 @@ def repair_batch(worker, root, manifest, items, threshold=None):
         from model_lifecycle import current_session
         from prompt_repair import revise_repair_prompts
         session=current_session()
-        if session:
-            session.release()
-            session.unload_vision()
-        planned=revise_repair_prompts(worker,job,config,pending)
+        rewrite=[item for item in pending if not anatomy_only(item['review'])]
+        planned={}
+        if rewrite:
+            if session:
+                from gpu_models import resolve_prompt_model
+                from ollama_service import local_json
+                session.before_prompting(resolve_prompt_model(local_json,config.get('ai_model','auto')))
+            planned=revise_repair_prompts(worker,job,config,rewrite)
         candidates=[]
         for item in pending:
             index=item['index'];target=Path(item.get('candidate') or manifest.parent/f'{index:03d}.png')
             if hashlib.sha256(target.read_bytes()).hexdigest()!=item['expected_sha']:continue
-            worker.emit('repair',attempt/MAX_AUTO_REPAIRS,message=f'Generating repair round {attempt+1}: illustration {index+1}')
-            revised=planned[index]
-            prompt=revised['prompts'][index]
-            candidate=worker.generate_candidate(root,revised,index,Path(config['image_cache']),prompt)
-            candidates.append((item,candidate,prompt))
+            if index in planned:
+                revised=planned[index];prompt=revised['prompts'][index]
+                worker.emit('repair',attempt/MAX_AUTO_REPAIRS,message=f'Generating repair round {attempt+1}: illustration {index+1}')
+            else:
+                revised=item.get('job',job);prompt=item['prompt']
+                worker.emit('repair',attempt/MAX_AUTO_REPAIRS,message=f'Repair round {attempt+1}: reseeding illustration {index+1} with its prompt unchanged (anatomy defect only)')
+            item['job']=revised
+            paths=[worker.generate_candidate(root,revised,index,Path(config['image_cache']),prompt)
+                   for _ in range(CANDIDATES_PER_REPAIR)]
+            candidates.append((item,paths,prompt))
         pending=[]
-        for item,candidate,prompt in sorted(candidates,key=lambda pair:pair[0]['model']):
+        from vision_response import ReviewUnavailable
+        for item,paths,prompt in sorted(candidates,key=lambda pair:pair[0]['model']):
             index=item['index'];target=manifest.parent/f'{index:03d}.png'
-            from vision_response import ReviewUnavailable
-            try:
-                report=worker.vision_review(candidate,item['model'],job['groups'][index],config['style_prompt'],
-                                           prompt,threshold)
-            except ReviewUnavailable as exc:
-                report=dict(score=0,validation_pending=True,rejected=True,verdict='pending',model=item['model'],
-                    summary='Validation could not finish: '+str(exc),issues=[],hand_checks=[],uncertain=True,
-                    image_sha256=hashlib.sha256(candidate.read_bytes()).hexdigest(),image=str(candidate),advisory=True)
-                candidate.with_suffix('.review.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
-                worker.emit('repair-complete',1,message=f'Illustration {index+1}: repair candidate saved; validation needs retry.',repaired=False,index=index)
+            candidate=report=best=None
+            for path in paths:
+                try:
+                    review=worker.vision_review(path,item['model'],job['groups'][index],config['style_prompt'],
+                                                prompt,threshold)
+                except ReviewUnavailable as exc:
+                    review=dict(score=0,validation_pending=True,rejected=True,verdict='pending',model=item['model'],
+                        summary='Validation could not finish: '+str(exc),issues=[],hand_checks=[],uncertain=True,
+                        image_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),image=str(path),advisory=True)
+                    path.with_suffix('.review.json').write_text(json.dumps(review,indent=2),encoding='utf-8')
+                    continue
+                path.with_suffix('.review.json').write_text(json.dumps(review,indent=2),encoding='utf-8')
+                if not rejected(review,threshold):
+                    candidate,report=path,review;break
+                if best is None or review.get('score',0)>best.get('score',0):best=review
+            if candidate is None:
+                if best is None:
+                    worker.emit('repair-complete',1,message=f'Illustration {index+1}: repair candidates saved; validation needs retry.',repaired=False,index=index)
+                else:
+                    item.update(review=best,prompt=prompt);pending.append(item)
                 continue
-            candidate.with_suffix('.review.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
-            if rejected(report,threshold):
-                item.update(review=report,prompt=prompt);pending.append(item);continue
             if item.get('candidate'):
                 from generation_queue import require_replacement_review
                 require_replacement_review(root,manifest,[dict(index=index,path=str(candidate))])

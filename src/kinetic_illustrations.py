@@ -296,6 +296,50 @@ def remove_negative_space(source, biref_session):
     return result
 
 
+def quantized_folder(model, cache):
+    """Per-snapshot home for NF4 weights, so later loads skip reading and quantizing the bf16 checkpoint."""
+    from huggingface_hub import snapshot_download
+    try:
+        snapshot = Path(snapshot_download(model, cache_dir=cache, local_files_only=True))
+    except Exception:
+        return None
+    return Path(cache)/'quantized-nf4'/model.replace('/', '--')/snapshot.name
+
+
+def load_quantized(folder, components, torch):
+    if not all((folder/name/'.complete').is_file() for name in components):
+        return {}
+    import importlib
+    loaded = {}
+    try:
+        for name in components:
+            meta = json.loads((folder/name/'.complete').read_text(encoding='utf-8'))
+            cls = getattr(importlib.import_module(meta['module']), meta['class'])
+            loaded[name] = cls.from_pretrained(folder/name, torch_dtype=torch.bfloat16)
+    except Exception as exc:
+        print(f'Saved 4-bit weights could not be loaded ({exc}); quantizing from the original checkpoint.', flush=True)
+        loaded.clear();gc.collect();torch.cuda.empty_cache()
+        shutil.rmtree(folder, ignore_errors=True)
+    return loaded
+
+
+def save_quantized(pipe, folder, components):
+    try:
+        for name in components:
+            component = getattr(pipe, name)
+            target = folder/name
+            if (target/'.complete').is_file():continue
+            staging = folder/(name+'.partial')
+            shutil.rmtree(staging, ignore_errors=True)
+            component.save_pretrained(staging)
+            (staging/'.complete').write_text(json.dumps({'module': type(component).__module__, 'class': type(component).__name__}), encoding='utf-8')
+            shutil.rmtree(target, ignore_errors=True)
+            staging.replace(target)
+        print(f'Saved 4-bit weights to {folder}; later loads skip quantization.', flush=True)
+    except Exception as exc:
+        print(f'Warning: could not save 4-bit weights ({exc}); the next load will quantize again.', flush=True)
+
+
 def load_pipeline(model, cache, torch, offload=False):
     """Quantize on CUDA; offload inactive components to RAM under pressure."""
     import diffusers
@@ -314,16 +358,18 @@ def load_pipeline(model, cache, torch, offload=False):
     pipeline_type = getattr(diffusers, spec['pipeline'])
     options = dict(torch_dtype=torch.bfloat16, cache_dir=cache, device_map='cuda',
                    max_memory={torch.cuda.current_device():int(free-.5*2**30)})
-    if spec['quantize']:
+    saved = quantized_folder(model, cache) if spec['quantize'] and spec['pipeline'] != 'QwenImagePipeline' else None
+    preloaded = load_quantized(saved, spec['quantize'], torch) if saved else {}
+    if spec['quantize'] and not preloaded:
         options['quantization_config'] = diffusers.PipelineQuantizationConfig(
             quant_backend='bitsandbytes_4bit',
             quant_kwargs=dict(load_in_4bit=True, bnb_4bit_quant_type='nf4',
                               bnb_4bit_compute_dtype=torch.bfloat16),
             components_to_quantize=spec['quantize'])
-    print(f'Loading {model} with CUDA quantization'+(' / 4-bit weights' if spec['quantize'] else '')
+    print(f'Loading {model} with CUDA quantization'+(' / saved 4-bit weights' if preloaded else ' / 4-bit weights' if spec['quantize'] else '')
           +(' / automatic RAM offload' if offload else ' / GPU resident'),flush=True)
     try:
-        pipe = pipeline_type.from_pretrained(model, **options)
+        pipe = pipeline_type.from_pretrained(model, **preloaded, **options)
     except Exception as exc:
         if 'gated' in str(exc).lower() or '401' in str(exc) or '403' in str(exc):
             raise ValueError(f'Access required: accept the model terms at https://huggingface.co/{model} '
@@ -336,6 +382,8 @@ def load_pipeline(model, cache, torch, offload=False):
         if hasattr(component,'parameters'):
             if any(parameter.device.type!='cuda' for parameter in component.parameters()):
                 raise ValueError('Image weights must finish CUDA preparation before automatic offload hooks can be installed.')
+    if saved and not preloaded:
+        save_quantized(pipe, saved, spec['quantize'])
     remaining, _ = gpu_memory.dedicated_memory(torch)
     offload = offload or remaining < 3*2**30
     if offload:
