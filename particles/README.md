@@ -55,7 +55,7 @@ families, plus a few petal, ink and thread lettering effects. For exits, they ar
 glass, petals, smoke and cinematic families. The other recipes on disk are kept so
 that older projects still load, but choosing one of them gives plain type and a
 warning. A new family is made available by adding it to the filter in
-`discover_effects` in `src/particle_catalog.py`.
+`discover_effects` in `src/effects/particles/catalog.py`.
 
 Here is `exit/glass-shatter.json`:
 
@@ -85,9 +85,9 @@ Here is `exit/glass-shatter.json`:
 | `hold: "particles"` | Optional. The word stays made of particles at rest instead of turning back into solid type |
 | `description` | Optional. Overrides the entry in `descriptions.json` |
 
-The allowed range of each number is defined in `src/particle_catalog.py`. New looks
+The allowed range of each number is defined in `src/effects/particles/catalog.py`. New looks
 can be built by combining these settings, but a brand-new material or simulation
-needs code changes in `src/particle_motion.py`.
+needs code changes in `src/effects/particles/motion.py`.
 
 Every recipe should have a description in `descriptions.json` of no more than ten
 words. Studio's search uses it, and so does AI selection.
