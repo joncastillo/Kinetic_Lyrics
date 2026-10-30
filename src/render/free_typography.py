@@ -1,4 +1,5 @@
 """Measured free word placement with collision correction inside a reading area."""
+from core.imaging import turn
 import math
 from PIL import Image,ImageDraw
 from render.typography_settings import KINETIC_TEXT_SCALE
@@ -18,7 +19,7 @@ def build_layout(line,choices,scene,width,height,font_loader,font_scale=1.25,bot
         sprite=Image.new('RGBA',span);ImageDraw.Draw(sprite).text((pad-bounds[0],pad-bounds[1]),label,font=font,fill=color)
         mask=sprite.getchannel('A');original_width=sprite.width
         boundaries=[0]+[max(0,min(sprite.width,round(pad-bounds[0]+font.getlength(label[:k])))) for k in range(1,len(label))]+[sprite.width]
-        sprite=sprite.rotate(choice['angle'],Image.Resampling.BICUBIC,expand=True)
+        sprite=turn(sprite,choice['angle'])
         mask=mask.rotate(choice['angle'],Image.Resampling.BICUBIC,expand=True)
         cosine=math.cos(math.radians(choice['angle']))
         boundaries=[0]+[round(sprite.width/2+(edge-original_width/2)*cosine) for edge in boundaries[1:-1]]+[sprite.width]
