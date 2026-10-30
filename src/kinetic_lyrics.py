@@ -380,6 +380,7 @@ def main(argv=None):
                         help='Local AI art direction (default), or explicit offline rules')
     parser.add_argument('--ai-model', default='auto', help='Ollama model; auto chooses a GPU-fit general-purpose Qwen model')
     parser.add_argument('--plan', type=Path, help='Reuse/edit a generated .design.json art direction plan')
+    parser.add_argument('--art-times', type=Path, help='Illustration start times saved by the Studio timeline editor')
     parser.add_argument('--lead-in', type=float, default=1.,
                         help='Minimum entrance lead-in in seconds (default: 1; particles finish before each line, with longer lead-ins for slower vocal pacing)')
     parser.add_argument('--width', type=int, default=1920)
@@ -510,6 +511,8 @@ def main(argv=None):
         meta_path.write_text(json.dumps(dict(prompt=args.theme, cinematic=args.cinematic, **theme), indent=2), encoding='utf-8')
         if args.renderer == 'editorial':
             from kinetic_director import direct, render, validate_plan
+            from timeline import load_art_times
+            args.art_times = load_art_times(args.art_times) if args.art_times else None
             if not args.no_illustrations and args.illustrations is None:
                 from kinetic_illustrations import generate
                 args.illustrations = generate(data, output.parent / (output.stem+'.artwork'), args)
