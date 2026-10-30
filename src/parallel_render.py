@@ -23,6 +23,7 @@ def render_batch(task):
 WORKER_MEMORY=.35*2**30
 REALTIME_WORKER_MEMORY=.6*2**30
 MAX_AUTO_WORKERS=16
+STAGE_WORKERS=4
 MEMORY_RESERVE=3*2**30
 
 
@@ -42,11 +43,15 @@ def worker_count(args,count):
     if not 0<=selected<=limit:raise ValueError(f'Render workers must be between 0 (auto) and {limit}')
     if selected:return selected
     if count<args.fps*10:return 1
+    flow=getattr(args,'reading_flow','preview')
     cores,available=hardware()
     scale=max(1.,args.width*args.height/(1280*720))
-    budget=REALTIME_WORKER_MEMORY if getattr(args,'reading_flow','preview')=='realtime' else WORKER_MEMORY
+    if flow=='stage':
+        by_memory=int((available-MEMORY_RESERVE)//(REALTIME_WORKER_MEMORY*scale)) if available else STAGE_WORKERS
+        return max(1,min(STAGE_WORKERS,cores-1,by_memory))
+    budget=REALTIME_WORKER_MEMORY if flow in ('realtime','mixed','cinema') else WORKER_MEMORY
     by_memory=int((available-MEMORY_RESERVE)//(budget*scale)) if available else cores
-    return max(1,min(cores-1,MAX_AUTO_WORKERS,by_memory))
+    return max(1,min(cores-1,MAX_AUTO_WORKERS if flow!='mixed' else STAGE_WORKERS*2,by_memory))
 
 
 def frame_batches(module,data,plan,duration,args,compositor,start,count,workers):
@@ -56,6 +61,8 @@ def frame_batches(module,data,plan,duration,args,compositor,start,count,workers)
         for first,length,_,fps in tasks:
             yield first,length,b''.join(compositor.frame(start+i/fps).tobytes() for i in range(first,first+length))
         return
+    for name in ('OPENBLAS_NUM_THREADS', 'OMP_NUM_THREADS', 'MKL_NUM_THREADS', 'NUMEXPR_NUM_THREADS'):
+        os.environ[name] = '1'
     with ProcessPoolExecutor(max_workers=workers,mp_context=multiprocessing.get_context('spawn'),
             initializer=initialize,initargs=(module,data,plan,duration,vars(args))) as pool:
         pending=deque()

@@ -1,0 +1,14 @@
+{
+  "name": "Golden ornament",
+  "camera": "blocks",
+  "particles": [
+    "gold-filigree-lettering",
+    "jeweled-brocade-lettering",
+    "catholic-cross-lettering",
+    "pearl-lace-lettering",
+    "marble-chisel-reveal",
+    "clockwork-lettering",
+    "stained-glass-leading"
+  ],
+  "description": "3D blocks with gold filigree, jeweled brocade, or a Latin cross."
+}

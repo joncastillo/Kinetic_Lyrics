@@ -64,6 +64,27 @@ function setupModelControls(cfg){
  $('aiModel').addEventListener('change',()=>{$('gpuPreset').value='';scheduleModelDownloads()});
  $('visionModel').addEventListener('change',()=>{$('gpuPreset').value='';scheduleModelDownloads()});
  $('imageModel').addEventListener('change',()=>{$('gpuPreset').value='';scheduleModelDownloads()});
+ if($('rollSeed')){
+  $('rollSeed').onclick=()=>{
+   $('imageSeed').value=Math.floor(Math.random()*2147483647);
+   $('randomizeSeed').checked=false;
+  };
+  $('imageSeed').oninput=()=>{
+   if($('imageSeed').value.trim()!==''){
+    $('randomizeSeed').checked=false;
+   }else{
+    $('randomizeSeed').checked=true;
+   }
+  };
+  $('randomizeSeed').onchange=()=>{
+   if($('randomizeSeed').checked){
+    $('imageSeed').value='';
+    $('imageSeed').placeholder='Random (fresh per run)';
+   }else if(!$('imageSeed').value.trim()){
+    $('imageSeed').value=Math.floor(Math.random()*2147483647);
+   }
+  };
+ }
 }
 
 
@@ -313,7 +334,7 @@ document.addEventListener('DOMContentLoaded',()=>{
  syncLetteringChecks();
 });
 
-const KINETIC_DEFAULTS={camera:'pan',pan_speed:.05,backdrop_rate:.6,backdrops:['outline','filled','vertical','echo','giant'],traces:true,geometry:.8,frames:.1,glows:['drums','other','bass'],glow_words:.5,glow_strength:.55,glitch:true,text_pulse:.1,word_shapes:.6};
+const KINETIC_DEFAULTS={camera:'pan',pan_speed:.05,backdrop_rate:.6,backdrops:['outline','filled','vertical','echo','giant'],traces:true,geometry:.8,frames:.1,glows:['drums','other','bass'],glow_words:.15,glow_strength:.55,glitch:true,text_pulse:0,word_shapes:0,drum_reactivity:.8,chorus_fx:.75,fade:true};
 function kineticSettings(){
  const hidden=document.getElementById('kinetic');let value={};
  try{value=JSON.parse(hidden?.value||'{}')||{}}catch{value={}}
@@ -324,7 +345,7 @@ function syncKineticControls(){
  const settings=kineticSettings();
  document.querySelectorAll('[data-kinetic]').forEach(input=>{input.value=settings[input.dataset.kinetic];showKineticValue(input)});
  document.querySelectorAll('[data-kinetic-flag]').forEach(box=>box.checked=!!settings[box.dataset.kineticFlag]);
- document.querySelectorAll('[data-kinetic-list]').forEach(box=>box.checked=(settings[box.dataset.kineticList]||[]).includes(box.value));
+ document.querySelectorAll('[data-kinetic-list]').forEach(box=>{const list=settings[box.dataset.kineticList];box.checked=list==null||list.includes(box.value)});
  document.querySelectorAll('[data-kinetic-choice]').forEach(select=>select.value=settings[select.dataset.kineticChoice]);
  syncCameraMode();
 }
@@ -332,6 +353,15 @@ function syncCameraMode(){
  const flow=document.getElementById('readingFlow')?.value;
  const camera=document.querySelector('[data-kinetic-choice="camera"]')?.value;
  const panning=flow==='realtime'&&camera==='pan';
+ const stage=document.querySelector('.stage-controls');if(stage)stage.hidden=!['stage','mixed'].includes(flow);
+ const scenes=document.querySelector('.scene-controls');if(scenes)scenes.hidden=flow!=='mixed';
+ const kinetic=document.querySelector('.kinetic-controls');if(kinetic)kinetic.hidden=!['realtime','mixed'].includes(flow);
+ const help=document.getElementById('readingFlowHelp');
+ if(help)help.textContent={realtime:'Real-time mixes typewriter, heavy and huge hero words, follows the newest word with the camera and reacts to the melody.',
+  preview:'Each line appears in full before it is sung, then words animate on their timing.',
+  stage:'Lines sung together form a rectangular block of justified words in a 3D space; the camera glides from block to block.',
+  mixed:'Each verse, chorus and bridge gets its own scene effect, chosen by the AI from the ones ticked below; the video moves between them.',
+  cinema:'Two or three words at a time, centred over the artwork: hairline words settle in from oversized, heavy words slide in blurred, some flip in mirrored or stand on end. Works best with full-screen artwork.'}[flow]||'';
  for(const id of ['exitEffect','browseExit']){const el=document.getElementById(id);if(el)el.disabled=panning;}
  const hint=document.getElementById('exitHint');if(hint)hint.hidden=!panning;
  const pan=document.querySelector('[data-kinetic="pan_speed"]');if(pan)pan.disabled=flow==='realtime'&&camera==='still';
@@ -346,12 +376,41 @@ function storeKineticControls(){
  document.querySelectorAll('[data-kinetic-flag]').forEach(box=>settings[box.dataset.kineticFlag]=box.checked);
  document.querySelectorAll('[data-kinetic-choice]').forEach(select=>settings[select.dataset.kineticChoice]=select.value);
  for(const key of ['backdrops','glows'])settings[key]=[...document.querySelectorAll(`[data-kinetic-list="${key}"]`)].filter(b=>b.checked).map(b=>b.value);
+ const scenes=[...document.querySelectorAll('[data-kinetic-list="scenes"]')];
+ if(scenes.length)settings.scenes=scenes.filter(b=>b.checked).map(b=>b.value);
  const hidden=document.getElementById('kinetic');if(hidden)hidden.value=JSON.stringify(settings);
  syncCameraMode();
 }
 window.syncKineticControls=syncKineticControls;
+function sceneSampleQuery(id){
+ const value=key=>document.getElementById(key)?.value;
+ const query={scene:id,v:'scene-samples-1'};
+ for(const [key,field] of [['font_family','fontFamily'],['font_style','fontStyle'],['font_scale','fontScale']])if(value(field))query[key]=value(field);
+ return '/api/scene-preview?'+new URLSearchParams(query);
+}
+function renderSceneEffects(scenes){
+ const group=document.getElementById('sceneEffects');if(!group||!Array.isArray(scenes))return;
+ group.classList.add('scene-choices');
+ group.replaceChildren(...scenes.map(scene=>{
+  const card=document.createElement('div');card.className='scene-choice';
+  const label=document.createElement('label');label.className='check-toggle';label.title=scene.description||'';
+  const box=document.createElement('input');box.type='checkbox';box.value=scene.id;box.dataset.kineticList='scenes';
+  box.addEventListener('input',()=>{if(!group.querySelector('input:checked'))box.checked=true;storeKineticControls()});
+  label.append(box,scene.name);
+  // An animated sample of the scene, rendered (and cached) on first view.
+  const sample=document.createElement('img');sample.className='scene-thumbnail';sample.loading='lazy';
+  sample.alt=scene.name+' animated sample';sample.title=scene.description||'';sample.dataset.scene=scene.id;sample.src=sceneSampleQuery(scene.id);
+  sample.addEventListener('click',()=>{box.checked=!box.checked;box.dispatchEvent(new Event('input'))});
+  card.append(label,sample);return card;
+ }));
+ syncKineticControls();
+}
+function refreshSceneSamples(){document.querySelectorAll('.scene-thumbnail').forEach(img=>{img.src=sceneSampleQuery(img.dataset.scene)})}
+window.refreshSceneSamples=refreshSceneSamples;
+window.renderSceneEffects=renderSceneEffects;
 document.addEventListener('DOMContentLoaded',()=>{
  document.querySelectorAll('[data-kinetic],[data-kinetic-flag],[data-kinetic-list],[data-kinetic-choice]').forEach(input=>input.addEventListener('input',storeKineticControls));
  document.getElementById('readingFlow')?.addEventListener('change',syncCameraMode);
+ for(const id of ['fontFamily','fontStyle','fontScale'])document.getElementById(id)?.addEventListener('change',refreshSceneSamples);
  syncKineticControls();storeKineticControls();
 });

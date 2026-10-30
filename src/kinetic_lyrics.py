@@ -17,7 +17,8 @@ from kinetic_progress import emit
 
 
 def run(command):
-    return subprocess.run(command, check=True, capture_output=True, text=True).stdout
+    return subprocess.run(command, check=True, capture_output=True, text=True,
+                          encoding='utf-8', errors='replace').stdout
 
 
 def archive_legacy_subtitles(path):
@@ -35,8 +36,48 @@ def archive_legacy_subtitles(path):
     print(f'Archived old subtitle layer: {target}', flush=True)
 
 
+def sanitize_lyrics(text):
+    """Deterministically strip Genius/web-scraper ad banners, recommendation blocks, and embed tags."""
+    if not text:
+        return ''
+    lines = []
+    skip_block = False
+    for raw in str(text).replace('\r', '').split('\n'):
+        line = re.sub(r'\s+', ' ', raw).strip()
+        line = re.sub(r'\d*\s*Embed$', '', line, flags=re.I).strip()
+        if not lines and re.fullmatch(r'\d*\s*Contributors?|.*Lyrics', line, re.I):
+            continue
+        if re.search(r'\bYou might also like\b', line, re.I):
+            skip_block = True
+            continue
+        if re.search(r'See\s+.*\s+Live|Get tickets as low as', line, re.I):
+            skip_block = True
+            continue
+        if skip_block:
+            if re.match(r'^\s*\[.*\]\s*$', line):
+                skip_block = False
+            elif not line:
+                skip_block = False
+                continue
+            else:
+                continue
+        if re.fullmatch(r'\d*\s*Embed', line, re.I):
+            continue
+        if line or (lines and lines[-1]):
+            lines.append(line)
+    return '\n'.join(lines).strip()
+
+
 def lyrics_lines(path):
-    lines = [s.strip() for s in path.read_text(encoding="utf-8-sig").splitlines()]
+    raw = path.read_text(encoding="utf-8-sig")
+    cleaned = sanitize_lyrics(raw)
+    if cleaned != raw.strip():
+        try:
+            path.write_text(cleaned + '\n', encoding='utf-8')
+            print('Cleaned web scraping and recommendation artifacts from lyrics.', flush=True)
+        except OSError:
+            pass
+    lines = [s.strip() for s in cleaned.splitlines()]
     lines = [s for s in lines if s and not re.fullmatch(r"\[.*\]", s)]
     if not lines:
         raise ValueError("Lyrics contain no lines. Use UTF-8 text; section labels are ignored.")
@@ -168,19 +209,34 @@ def align(audio, lines, args):
 
 
 def repair_zero_durations(data, duration):
-    """Give collapsed automatic alignments a short, reviewable duration."""
+    """Give collapsed or non-chronological automatic alignments a valid, reviewable duration."""
     repaired = 0
+    previous = 0.0
     for line in data:
-        for word in line['words']:
-            start, end = float(word['start']), float(word['end'])
-            if math.isfinite(start) and start == end and 0 <= start <= duration:
-                word['end'] = min(duration, start + .08)
-                if word['end'] == start:
-                    word['start'] = max(0, start - .08)
+        for word in line.get('words', []):
+            start = float(word.get('start', 0.0))
+            end = float(word.get('end', 0.0))
+            if not math.isfinite(start) or not math.isfinite(end):
+                continue
+            if start < previous:
+                word['start'] = previous
+                start = previous
                 repaired += 1
+            if end <= start:
+                word['end'] = min(duration, start + .08)
+                if word['end'] <= word['start']:
+                    word['start'] = max(0.0, word['end'] - .08)
+                repaired += 1
+            if word['end'] > duration + 0.05:
+                word['end'] = duration
+                if word['start'] >= word['end']:
+                    word['start'] = max(0.0, word['end'] - .08)
+                repaired += 1
+            previous = float(word['start'])
     if repaired:
-        print(f'Warning: repaired {repaired} zero-duration aligned word(s). '
+        print(f'Warning: repaired {repaired} timing issue(s) (zero duration or non-chronological). '
               'Review the generated timings JSON for synchronization.', file=sys.stderr)
+    return repaired
 
 
 def validate(data, lines, duration):
@@ -338,6 +394,12 @@ def validate_ocr(video, data, duration, report_path):
     print(f"OCR: {sum(r['passed'] for r in results)}/{len(results)} lines passed; {report_path}")
 
 
+class _AnyEffect:
+    """Accepts every effect ID: reads a pool's raw selection to report what was dropped."""
+    def __contains__(self, item):
+        return True
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('audio', type=Path)
@@ -364,14 +426,21 @@ def main(argv=None):
     parser.add_argument('--type-effect', choices=EFFECTS, default='none', help='Typography effect: mixed, shatter, melt, slime or liquid')
     from typography_settings import FONT_FAMILIES,FONT_STYLES,typography_options
     parser.add_argument('--font-family',choices=FONT_FAMILIES,default='auto')
-    parser.add_argument('--reading-flow',choices=('realtime','preview'),default='realtime',help='realtime: words land as sung; preview: whole line before the vocal')
+    parser.add_argument('--reading-flow',choices=('realtime','preview','stage','mixed','cinema'),default='realtime',help='realtime: words land as sung; preview: whole line before the vocal; stage: lines grouped into blocks in a 3D world; mixed: each song section in one of the ticked scene effects (kinetic "scenes"); cinema: black hole sun, one short phrase at a time in hairline and heavy type over the artwork')
+    parser.add_argument('--stage-pictures',choices=('ai-painted','ai-library','keywords','off'),default='ai-painted',
+                        help='3D stage pictures: AI picks them and paints new ones, AI picks from the library only, keyword matches, or none')
     parser.add_argument('--effect-speeds',default=None,help='JSON per-effect particle speeds, e.g. {"glass-shatter": 0.5}')
+    parser.add_argument('--instruments',choices=('auto','off'),default='off',help='Also paint and animate pictures of the instruments the analysis confidently hears (auto); by default (off) the music shows only as words pulsing with light')
+    parser.add_argument('--effect-intensities',default=None,help='JSON per-effect letter-effect intensities, e.g. {"paper-burn": 1.5}')
     parser.add_argument('--kinetic',default=None,help='JSON real-time effect settings (pan_speed, backdrop_rate, backdrops, traces, geometry, frames, glows, glow_strength, glitch)')
+    parser.add_argument('--instructions',default='',help='Special instructions for the renderer, one per line, e.g. Apply a neon effect to the word "neong"')
     parser.add_argument('--lettering-styles',default=None,help='JSON list of allowed text styles: swiss, poster, outline, cutout (default: all, as planned)')
     parser.add_argument('--font-style',choices=FONT_STYLES,default='auto')
     parser.add_argument('--font-scale',type=float,default=1.25,help='Relative font size, 0.6 to 2; long lines still fit the reading area')
     parser.add_argument('--text-pool',default=None,help='JSON list of word animations enabled in mixed mode')
     parser.add_argument('--text-animation', choices=TEXT_ANIMATIONS, default='directed', help='Word highlighting, timed sweep, slide, fade or scene-directed motion')
+    parser.add_argument('--audio-mode', choices=('original', 'karaoke'), default='original',
+                        help='Use the original song or export an instrumental mix without the vocal stem')
     parser.add_argument('--entrance-pool', default=None, help='JSON list of enabled entrance IDs for mixed mode')
     parser.add_argument('--exit-pool', default=None, help='JSON list of enabled exit IDs for mixed mode')
     parser.add_argument('--entrance-effect', default=None, help='Entrance recipe filename without .json, mixed, ai (chosen per line from scene, lyrics and readable colours), or none')
@@ -391,14 +460,16 @@ def main(argv=None):
     art_options = parser.add_mutually_exclusive_group()
     art_options.add_argument('--illustrations', type=Path, nargs='+', help='Illustration files in sequence; transparent PNGs blend with typography (editorial only)')
     art_options.add_argument('--no-illustrations', action='store_true', help='Render typography without illustration panels')
-    parser.add_argument('--illustration-lines', type=int, default=2, help='Generate and hold one unique illustration per this many lyric lines (default: 2)')
+    parser.add_argument('--illustration-lines', default='2', help='Lyric lines per illustration (1–50), or auto to let the text model choose after alignment')
     parser.add_argument('--style-reference', type=Path, nargs='+', help='One or more reference images for generated linework, palette and paint style')
     from kinetic_illustrations import STYLE_PROMPT
     parser.add_argument('--style-prompt', default=STYLE_PROMPT, help='Art style instruction accompanying reference images')
+    parser.add_argument('--image-instructions', default='', help='Additional direction for the AI image prompt model and generated image prompts')
     parser.add_argument('--image-cache', type=Path, default=default_model_cache(), help='Model cache (default: KINETIC_LYRICS_MODEL_CACHE, else OLLAMA_MODELS or ~/.ollama/models)')
     parser.add_argument('--image-model', default='Qwen/Qwen-Image-2512', help='Local image repository (default: Qwen Image 2512)')
     parser.add_argument('--image-steps', type=int, default=None, help='Illustration inference steps (default: selected model recommendation)')
-    parser.add_argument('--image-seed', type=int, default=42)
+    parser.add_argument('--image-seed', '--seed', dest='image_seed', type=int, default=None,
+                        help='Model seed for image generation, prompts and layouts (default: random per run)')
     parser.add_argument('--validate-ocr', action='store_true', help='OCR one encoded frame per lyric line')
     parser.add_argument('--overwrite', action='store_true')
     parser.add_argument('--review-artwork', action='store_true', help='Wait for studio approval before rendering')
@@ -406,10 +477,17 @@ def main(argv=None):
     parser.add_argument('--no-default-style-references', action='store_true', help='Use only explicitly supplied style references')
     args = parser.parse_args(argv)
     args.preserve_art_slots = args.preserve_art_slots or args.review_artwork
+    if args.image_seed is None or args.image_seed < 0:
+        import secrets
+        args.image_seed = secrets.randbelow(2**31)
+    print(f'Model seed: {args.image_seed}', flush=True)
     if args.cinematic and args.renderer != 'editorial':
         parser.error('--cinematic requires --renderer editorial.')
-    if args.illustration_lines < 1:
-        parser.error('--illustration-lines must be positive.')
+    if args.illustration_lines != 'auto':
+        try:args.illustration_lines = int(args.illustration_lines)
+        except ValueError:parser.error('--illustration-lines must be auto or an integer from 1 to 50.')
+        if not 1 <= args.illustration_lines <= 50:
+            parser.error('--illustration-lines must be auto or an integer from 1 to 50.')
     if args.image_steps is None:
         from image_models import model_spec
         args.image_steps = model_spec(args.image_model)['steps']
@@ -434,8 +512,13 @@ def main(argv=None):
         catalog = discover_effects()
         validate_choice(args.entrance_effect, 'entrance', catalog)
         validate_choice(args.exit_effect, 'exit', catalog)
-        args.entrance_pool = parse_pool(args.entrance_pool, 'entrance', catalog)
-        args.exit_pool = parse_pool(args.exit_pool, 'exit', catalog)
+        for phase in ('entrance', 'exit'):  # a saved job may still list effects that were removed since
+            chosen = getattr(args, phase+'_pool')
+            pool = parse_pool(chosen, phase, catalog, strict=False)
+            dropped = sorted(set(parse_pool(chosen, phase, {phase: _AnyEffect()}) or [])-set(pool or []))
+            if dropped:
+                print(f"Skipping {phase} effects that no longer exist: {', '.join(dropped)}", flush=True)
+            setattr(args, phase+'_pool', pool)
         if not math.isfinite(args.particle_speed) or not .2 <= args.particle_speed <= 3:
             raise ValueError('--particle-speed must be between 0.2 and 3')
         if not math.isfinite(args.particle_intensity) or not 0 <= args.particle_intensity <= 2:
@@ -483,8 +566,9 @@ def main(argv=None):
             lines = [line['text'] for line in data]
             if not lines:
                 raise ValueError('No lyric lines were found in the timing data.')
-        if not args.timings:
-            repair_zero_durations(data, duration)
+        repaired = repair_zero_durations(data, duration)
+        if args.timings and repaired and timing_path.exists():
+            timing_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
         validate(data, lines, duration)
         from vocal_onsets import refine_line_starts
         emit('alignment', .95, message='Measuring where each line is sung')
@@ -493,11 +577,26 @@ def main(argv=None):
         args.melody = ensure_melody(data, output.parent)
         from rhythm import ensure_rhythm
         args.rhythm = ensure_rhythm(audio, output.parent)
+        if getattr(args, 'instruments', 'off') != 'off':
+            from instrument_analysis import ensure_instruments
+            args.instruments_found = ensure_instruments(audio, output.parent, duration, getattr(args, 'image_cache', None))
         if moved:
             print(f'Moved {moved} line start(s) to the measured vocal onset.', flush=True)
+            repair_zero_durations(data, duration)
+            validate(data, lines, duration)
             timing_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
         from song_structure import annotate_sections
         annotate_sections(data,args.lyrics)
+        if args.illustration_lines == 'auto':
+            from image_grouping import estimate_lines
+            emit('direction', 0, message='Choosing how many lyric lines each image should cover')
+            args.illustration_lines = estimate_lines(data, args.ai_model)
+            studio_config = output.parent/'config.json'
+            if studio_config.is_file():
+                saved = json.loads(studio_config.read_text(encoding='utf-8'))
+                saved['illustration_lines'] = args.illustration_lines
+                saved['illustration_lines_mode'] = 'auto'
+                studio_config.write_text(json.dumps(saved, indent=2), encoding='utf-8')
         emit('alignment', 1, message='Lyric timing validated')
         theme = theme_for(args.theme)
         print(f"Theme: {theme['name']}; {len(lines)} lines; {duration:.1f}s", flush=True)
@@ -526,7 +625,7 @@ def main(argv=None):
                 print('Illustration panels: none (typography only).', flush=True)
             emit('direction', 0, message='Planning typography and motion')
             plan = (validate_plan(json.loads(args.plan.read_text(encoding='utf-8-sig')), data)
-                    if args.plan else direct(data, theme, args.theme, args.ai_model, args.director))
+                    if args.plan else direct(data, theme, args.theme, args.ai_model, args.director, seed=args.image_seed))
             if args.text_animation=='ai':
                 from animation_director import ensure_word_direction
                 plan=ensure_word_direction(data,plan,vars(args))
@@ -549,6 +648,8 @@ def main(argv=None):
             emit('complete', 1, message='Video ready')
             return
         write_ass(ass_path, data, duration, args.width, args.height, theme, args.font)
+        from rhythm import audio_for_mode
+        export_audio = audio_for_mode(audio, output.parent, args.audio_mode)
         with tempfile.TemporaryDirectory(prefix='kinetic-', dir=output.parent) as temp:
             temp = Path(temp)
             shutil.copyfile(ass_path, temp / 'lyrics.ass')
@@ -569,7 +670,7 @@ def main(argv=None):
                         if args.encoder == 'h264_nvenc' else
                         ['-c:v', 'libx264', '-preset', 'medium', '-crf', '18'])
             command = ['ffmpeg', '-hide_banner', '-loglevel', 'warning', '-y', *source,
-                       '-i', str(audio), '-map', '0:v:0', '-map', '1:a:0',
+                       '-i', str(export_audio), '-map', '0:v:0', '-map', '1:a:0',
                        '-vf', base_filter + 'ass=lyrics.ass' + fonts + ',scale=out_color_matrix=bt709:out_range=tv', '-t', str(duration),
                        *encoding, '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv', '-pix_fmt', 'yuv420p',
                        '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', str(temp / 'video.mp4')]

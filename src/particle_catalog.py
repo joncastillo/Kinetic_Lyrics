@@ -29,7 +29,11 @@ FAMILIES = (
     "ornament",
     "trees",
     "cinematic",
+    "material",
 )
+# "top" marks effects that grow above the word (trees, ornaments), so a block uses them
+# only on its top row, where nothing sits above.
+PLACEMENTS = ("any", "top")
 PATHS = ("radial", "left", "right", "up", "down", "spiral", "wave", "fan", "grow")
 
 
@@ -48,6 +52,7 @@ class Effect:
     hold: str = "solid"
     description: str = ""
     base_color: str = "ink"
+    placement: str = "any"
 
 
 def read_effect(path):
@@ -76,6 +81,8 @@ def read_effect(path):
         raise ValueError('Effect description must contain at most 10 words')
     if effect.family not in FAMILIES or effect.trajectory not in PATHS:
         raise ValueError("Unknown particle family or trajectory")
+    if effect.placement not in PLACEMENTS:
+        raise ValueError("placement must be any or top")
     if effect.hold not in ("solid", "particles"):
         raise ValueError("hold must be solid or particles")
     if effect.hold == "particles" and effect.family != "petals" and effect.trajectory != "grow":
@@ -112,8 +119,8 @@ def discover_effects(root=None):
                 warnings.warn(f"Skipping particle effect {path}: {exc}", stacklevel=2)
                 continue
             if curated:
-                allowed=(effect.family in ('glass','letters','ornament','trees','cinematic') or effect.id in
-                         ('petals-breeze-lettering','petals-spiral-lettering','petals-wind-lettering','petals-grow-lettering','ink-bloom-lettering','thread-stitch-lettering')) if phase=='entrance' else effect.family in ('glass','petals','smoke','cinematic')
+                allowed=(effect.family in ('glass','letters','ornament','trees','cinematic','material') or effect.id in
+                         ('petals-breeze-lettering','petals-spiral-lettering','petals-wind-lettering','petals-grow-lettering','ink-bloom-lettering','thread-stitch-lettering')) if phase=='entrance' else effect.family in ('glass','petals','smoke','cinematic','material')
                 if not allowed:continue
             catalog[phase][effect.id] = effect
     return catalog
@@ -124,7 +131,7 @@ def catalog_choices(catalog=None):
     return {
         phase: [
             dict(id=effect.id, name=effect.name, family=effect.family, hold=effect.hold, description=effect.description,
-                 base_color=effect.base_color)
+                 base_color=effect.base_color, placement=effect.placement)
             for effect in effects.values()
         ]
         for phase, effects in catalog.items()

@@ -100,6 +100,21 @@ function initParticleEffects(cfg) {
     const speed=document.createElement('div');speed.id='particlePreviewSpeedControl';speed.className='effect-preview-speed';
     speed.innerHTML='<label for="particlePreviewSpeed">Speed for this effect <output id="particlePreviewSpeedValue"></output></label><input id="particlePreviewSpeed" type="range" min="0.2" max="3" step="0.1" value="1"><button type="button" id="particlePreviewSpeedReset">Use global speed</button>';
     $('particleSampleDescription').after(speed);
+    const strength=document.createElement('div');strength.id='particlePreviewIntensityControl';strength.className='effect-preview-speed';
+    strength.innerHTML='<label for="particlePreviewIntensity">Intensity for this effect <output id="particlePreviewIntensityValue"></output></label><input id="particlePreviewIntensity" type="range" min="0" max="2" step="0.1" value="1"><button type="button" id="particlePreviewIntensityReset">Use global intensity</button>';
+    speed.after(strength);
+    $('particlePreviewIntensity').addEventListener('input',()=>{
+      if(!currentParticleSample)return;
+      const amounts=effectIntensities();amounts[currentParticleSample[1]]=+$('particlePreviewIntensity').value;
+      $('effectIntensities').value=JSON.stringify(amounts);
+      showParticleSample(...currentParticleSample);
+    });
+    $('particlePreviewIntensityReset').addEventListener('click',()=>{
+      if(!currentParticleSample)return;
+      const amounts=effectIntensities();delete amounts[currentParticleSample[1]];
+      $('effectIntensities').value=JSON.stringify(amounts);
+      showParticleSample(...currentParticleSample);
+    });
     $('particlePreviewSpeed').addEventListener('input',()=>{
       if(!currentParticleSample)return;
       const speeds=effectSpeeds();speeds[currentParticleSample[1]]=+$('particlePreviewSpeed').value;
@@ -116,6 +131,7 @@ function initParticleEffects(cfg) {
       if($('effectBrowser').open && currentParticleSample && currentParticleSample[0])showParticleSample(...currentParticleSample);
     });
   }
+  window.renderSceneEffects?.(cfg.scene_effects);
   window.aiTypographyAvailable=!!cfg.ai_typography_supported;
   const aiOption=$('textAnimation').querySelector('option[value=ai]');
   if(aiOption)aiOption.disabled=!window.aiTypographyAvailable;
@@ -146,7 +162,7 @@ function initParticleEffects(cfg) {
     const family = $(phase + 'Family');
     family.replaceChildren(new Option('All families', ''));
     for (const name of [...new Set(particleChoices[phase].map(effect => effect.family))]) {
-      family.add(new Option(name==='cinematic'?'Cinematic particles':name==='trees'?'Trees':name==='flock'?'Birds & bats':name==='ornament'?'Ornamental growth':name==='petals'?'Petals & leaves':name[0].toUpperCase() + name.slice(1), name));
+      family.add(new Option(name==='cinematic'?'Cinematic particles':name==='material'?'Real materials':name==='trees'?'Trees':name==='flock'?'Birds & bats':name==='ornament'?'Ornamental growth':name==='petals'?'Petals & leaves':name[0].toUpperCase() + name.slice(1), name));
     }
     for (const effect of particleChoices[phase]) {
       const row = document.createElement('div');
@@ -230,6 +246,7 @@ function showParticleSample(phase, id) {
   const effect = particleChoices[phase].find(item => item.id === id);
   if (!effect) return;
   currentParticleSample = [phase, id];
+  if($('particlePreviewIntensityControl')){ const own=effectIntensities()[id];const value=own??+$('particleIntensity').value;$('particlePreviewIntensityControl').hidden=phase==='text';$('particlePreviewIntensity').value=value;$('particlePreviewIntensityValue').value=Math.round(value*100)+'%'+(own==null?' (global)':''); }
   if($('particlePreviewSpeedControl')){ const own=effectSpeeds()[id];const value=own??+$('particleSpeed').value;$('particlePreviewSpeedControl').hidden=false;$('particlePreviewSpeed').value=value;$('particlePreviewSpeedValue').value=Number(value).toFixed(1)+'×'+(own==null?' (global)':''); }
   const controller = particlePreviewController = new AbortController();
   $('particleSampleTitle').textContent = effect.name;
@@ -249,7 +266,7 @@ function showParticleSample(phase, id) {
   particlePreviewTimer = setTimeout(async () => {
     try {
       const query = sampleQuery(phase,id);
-      const response = await fetch('/api/particle-preview?' + query, { signal: controller.signal });
+      const response = await fetch('/api/particle-preview?' + query, { signal: controller.signal, cache: 'no-store' });
       if (!response.ok) { const result = await response.json(); throw Error(result.error || 'Preview failed'); }
       const blob = await response.blob();
       if (controller.signal.aborted) return;
@@ -412,8 +429,9 @@ function refreshTypographyLabels(){
   if($('fontScaleValue'))$('fontScaleValue').value=Math.round(+$('fontScale').value*100)+'%';
 }
 function effectSpeeds(){try{return JSON.parse($('effectSpeeds')?.value||'{}')||{}}catch{return {}}}
+function effectIntensities(){try{return JSON.parse($('effectIntensities')?.value||'{}')||{}}catch{return {}}}
 function sampleQuery(phase,id){
-  return new URLSearchParams({phase,effect:id,intensity:$('particleIntensity').value,speed:(phase==='text'?null:effectSpeeds()[id])??$('particleSpeed').value,
+  return new URLSearchParams({phase,effect:id,intensity:(phase==='text'?null:effectIntensities()[id])??$('particleIntensity').value,speed:(phase==='text'?null:effectSpeeds()[id])??$('particleSpeed').value,
     font_family:$('fontFamily').value,font_style:$('fontStyle').value,font_scale:$('fontScale').value,v:'word-materials-14'});
 }
 function refreshWordSamples(){
