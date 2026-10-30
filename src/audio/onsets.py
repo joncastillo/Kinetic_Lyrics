@@ -7,7 +7,7 @@ RISE_DB = 9.
 
 SUSTAIN_DB = 15.
 
-ONSET_VERSION = 2
+ONSET_VERSION = 3
 
 
 def read_mono(path):
@@ -53,7 +53,7 @@ def syllable_onset(samples, rate, start, end):
 
 def refine_line_starts(data, audio, folder):
     """Aligners often stretch a line's first word back over the silence before it. Returns lines moved."""
-    pending = [line for line in data if line['words'][0].get('onset') != 'measured' and line['words'][0].get('onset_version', 0) < ONSET_VERSION]
+    pending = [line for line in data if line['words'][0].get('onset') != 'measured' or line['words'][0].get('onset_version', 0) < ONSET_VERSION]
     if not pending:
         return 0
     stem = vocal_stem(audio, folder)
@@ -71,6 +71,11 @@ def refine_line_starts(data, audio, folder):
         word['onset'] = 'measured' if onset else 'aligned'
         word['onset_version'] = ONSET_VERSION
         if onset and onset > word['start']+.05:
-            word['start'] = round(min(onset, word['end']-.12), 3)
-            moved += 1
+            max_start = word['end'] - 0.08
+            if len(line['words']) > 1:
+                max_start = min(max_start, float(line['words'][1]['start']))
+            target = min(onset, max_start)
+            if target > word['start'] + 0.05:
+                word['start'] = round(target, 3)
+                moved += 1
     return moved

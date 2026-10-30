@@ -1,12 +1,14 @@
-"""Real-time kinetic typography on a continuously panning, stitched canvas.
+"""Real-time kinetic typography over one full-frame illustration at a time.
 
-The camera glides across one panorama of every illustration at a constant speed, from the
-first frame to the last. Each line is written onto the canvas ahead of the camera as it is
-sung, sized so it stays fully on screen until its last word, then drifts away with the
-picture. Words use a role-based font mix (small typewriter function words, heavy content
+The typography camera glides at a constant speed from the first frame to the last. Each
+line is written onto its path ahead of the camera as it is sung, sized so it stays fully
+on screen until its last word, then drifts away. Background illustrations remain screen
+aligned so adjacent paintings cannot overlap. Words use a role-based font mix (small typewriter function words, heavy content
 words, huge condensed hero words); hero words form through the line's particle entrance;
 melody drives colour and pace. A per-line backdrop (marquee, echo, giant word...) adds
 variety. Every frame is a pure function of time, so renders split across processes exactly.
+When the video mixes scenes, `only` limits the drawn lines (and the thread between hero words)
+to the song sections this scene films; the canvas and camera still span the whole song.
 """
 import bisect
 from dataclasses import dataclass
@@ -17,7 +19,7 @@ from pathlib import Path
 import random
 import string
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
 FUNCTION_WORDS = frozenset('''
 a an and are as at be but by for from i if in is it its me my of on or our so than that the their them they this to
@@ -38,6 +40,7 @@ BAND_UNIT = .014
 BAND_ALPHA = 46
 STRAND_STEP = 6.
 THREAD_LIFE = 30.
+DIE_TIME, HEAD_FADE = 4., .8  # when a wisp's run ends: its tail fades back to the head; the head dims out
 # The wisp leads the singing: its head reaches each hero word this many seconds early, and the
 # first hero word of a line this long before the line starts.
 THREAD_LEAD = .8
@@ -54,9 +57,14 @@ MIN_SHAPE_CONTRAST = 3.
 MIN_GLOW_CONTRAST = 1.5
 SHAPE_COLORS = ('#FF3D7F', '#4CC9FF', '#FFD23F', '#8A6BFF', '#F2F2F2', '#16243F', '#3B1230', '#0E3B43')
 FRAME_RETRACT = .9
-SHAPES = ('ring', 'circle', 'triangle', 'square', 'hexagon')
+SHAPES = ('triangle', 'square', 'hexagon')
 SHAPE_LIFE = 3.2
 LINE_FRAMES = ('ellipse', 'frame', 'hexagon', 'diamond')
+ROW_LEADING = .12  # gap between the rows of one line, as a share of its base size
+LINE_GAP = .05  # clear space between separate lines on the canvas, as a share of the screen height
+HIDE_TIME = .5
+TRACE_TIME = (1.5, 6.)  # seconds the wisp may take round a traced shape
+CURL_TIME = (1.2, 4.)
 BASE_SCALE = .75
 OLDER_LINES, DIM_TIME, FADE_TIME = .5, .8, 1.2
 STILL_HOLD = 6.
@@ -108,6 +116,8 @@ class Word:
     row: int = 0
     glow: str = ''
     shape: tuple = ()
+    ink: tuple = (0., 0.)  # top and bottom of the drawn glyphs, relative to y
+    effect: object = None  # a letter effect a special instruction gave this word
 
 
 def bare(text):
@@ -132,7 +142,8 @@ def assign_roles(line, features, emphasis):
 
 
 class LineLayout:
-    """Mixed-size, left-justified rows inside a box (screen coordinates at the line's start)."""
+    """Mixed-size, left-justified rows inside a box (screen coordinates at the line's start). Rows sit
+    close together, measured from the glyphs' own ink so no row touches the next."""
 
     def __init__(self, line, features, scene, palette, base, box, min_scale=.55):
         ink, accent = hex_rgb(palette[2]), hex_rgb(palette[3])
@@ -149,20 +160,31 @@ class LineLayout:
         scale = 1.
         while True:
             rows = self._flow(base*scale, w)
-            height = sum(r['height'] for r in rows)*1.08
+            leading = base*scale*ROW_LEADING
+            height = sum(r['height'] for r in rows)+leading*(len(rows)-1)
             if height <= h or scale <= min_scale:
                 break
             scale *= .92
         self.height = height
         self.width = max(r['width'] for r in rows)
+        self.gap = rows[0]['gap']
         y = y0+(h-height)/2
         for number, row in enumerate(rows):
-            x, baseline = x0, y+row['ascent']
+            x, baseline = x0, y-row['top']
             for word in row['words']:
                 word.row = number
                 word.x, word.y = x, baseline-role_font(word.role, word.size).getmetrics()[0]
                 x += word.width+row['gap']
-            y += row['height']*1.08
+            y += row['height']+leading
+
+    def bounds(self):
+        return (min(w.x for w in self.words), min(w.y+w.ink[0] for w in self.words),
+                max(w.x+w.width for w in self.words), max(w.y+w.ink[1] for w in self.words))
+
+    def move(self, dx, dy):
+        for word in self.words:
+            word.x += dx
+            word.y += dy
 
     def _flow(self, base, max_width):
         for word in self.words:
@@ -171,6 +193,10 @@ class LineLayout:
             if word.width > max_width:
                 word.size = max(10, round(word.size*max_width/word.width))
                 word.width = role_font(word.role, word.size).getlength(word.text)
+        for word in self.words:
+            font = role_font(word.role, word.size)
+            box = font.getbbox(word.text)
+            word.ink = (box[1], box[3])
         rows, current = [], []
         gap = base*.24
         for word in self.words:
@@ -182,9 +208,11 @@ class LineLayout:
             rows.append(current)
         result = []
         for row in rows:
-            metrics = [role_font(w.role, w.size).getmetrics() for w in row]
-            ascent, descent = max(m[0] for m in metrics), max(m[1] for m in metrics)
-            result.append(dict(words=row, gap=gap, ascent=ascent, height=ascent+descent*.6,
+            # Ink extents relative to the shared baseline.
+            ascents = [role_font(w.role, w.size).getmetrics()[0] for w in row]
+            top = min(w.ink[0]-a for w, a in zip(row, ascents))
+            bottom = max(w.ink[1]-a for w, a in zip(row, ascents))
+            result.append(dict(words=row, gap=gap, top=top, height=bottom-top,
                                width=sum(w.width for w in row)+gap*(len(row)-1)))
         return result
 
@@ -208,14 +236,19 @@ def word_sprite(word, size, color, alpha=1., glitch=False):
 
 
 class RealtimeTypography:
-    def __init__(self, compositor, melody=None, speed=1., rhythm=None, options=None):
+    def __init__(self, compositor, melody=None, speed=1., rhythm=None, options=None, only=None, large=()):
         from render.typography_settings import kinetic_options
         self.c = compositor
+        self.only = frozenset(only) if only is not None else None
+        self.large = frozenset(large)
         self.options = kinetic_options(options)
         self.rhythm = rhythm or {}
+        from audio.rhythm import four_floor_hits
+        self.floor_hits = four_floor_hits(self.rhythm.get('drums'))
         self.melody = melody.get('lines') if isinstance(melody, dict) else None
         self.speed = max(.2, speed)
         self.lines = self.path = self.world = self.mattes = None
+        self.veils = []  # (start, end) times when the scene mix carries the wisp instead (see wisp_screen)
         self.still = self.options['camera'] == 'still'
         self.shapes = None
 
@@ -237,40 +270,37 @@ class RealtimeTypography:
         self.still = self.options['camera'] == 'still'
         self.path = CameraPath(spans, 0. if self.still else max(1e-3, self.options['pan_speed'])*c.width, c.duration,
                                ALONG_HORIZON if c.artwork_mode == 'matte' else DIRECTIONS)
-        if c.artwork_mode in FULL_FRAME and paths and not self.still:
-            if c.artwork_mode == 'matte':
-                import artwork.greenscreen as greenscreen
-                self.world = WorldCanvas(paths[:len(spans)], spans, c.width, c.height, self.path, load=lambda p: greenscreen.load(p)[0])
-                self.mattes = WorldCanvas(paths[:len(spans)], spans, c.width, c.height, self.path, load=lambda p: greenscreen.load(p)[1], mode='L')
-            else:
-                self.world = WorldCanvas(paths[:len(spans)], spans, c.width, c.height, self.path)
+        if c.artwork_mode == 'matte' and paths and not self.still:
+            # Greenscreen scenery is one canvas the camera pans across, with a matching canvas of mattes so
+            # lyrics stay inside the open sky; other artwork comes from the compositor's background.
+            import artwork.greenscreen as greenscreen
+            self.world = WorldCanvas(paths[:len(spans)], spans, c.width, c.height, self.path, load=lambda p: greenscreen.load(p)[0])
+            self.mattes = WorldCanvas(paths[:len(spans)], spans, c.width, c.height, self.path, load=lambda p: greenscreen.load(p)[1], mode='L')
         margin = c.width*MARGIN
         self.lines, previous = [], None
         for index, line in enumerate(c.data):
             start, end = line['words'][0]['start'], line['words'][-1]['end']
-            box = self.reading_box(index, start, end+LINE_LINGER, margin)
+            large = index in self.large
+            box, region = self.reading_box(index, start, end+LINE_LINGER, c.width*.03 if large else margin, full=large)
             scene = c.plan['scenes'][index]
             features = self.melody[index] if self.melody and index < len(self.melody) else None
-            layout = LineLayout(line, features, scene, PALETTES[scene['palette']], c.reading_size()*BASE_SCALE, box)
+            base_size = c.reading_size()*BASE_SCALE*(2.1 if index in self.large else 1.)
+            layout = LineLayout(line, features, scene, c.scene_palette(scene), base_size, box)
+            for word in layout.words:  # special instructions typed for the renderer
+                directive = getattr(c, 'word_directives', {}).get((index, word.index), {})
+                word.color = directive.get('color') or word.color
+                word.effect = c.effect_catalog['entrance'].get(directive.get('effect'))
             camera = self.path.at(start)
-            row_starts = {}
-            for word in layout.words:
-                row_starts.setdefault(word.row, word.start)
-            shifts, floor = {}, -math.inf
-            for row in sorted(row_starts):
-                words = [w for w in layout.words if w.row == row]
-                there = self.path.at(row_starts[row])
-                top = min(w.y for w in words)
-                shifts[row] = (there[0]-camera[0], max(there[1]-camera[1], floor-top))
-                floor = max(w.y+w.size*1.15 for w in words)+shifts[row][1]
-            for word in layout.words:
-                word.x += shifts[word.row][0]
-                word.y += shifts[word.row][1]
+            offset = (camera[0]-c.width/2, camera[1]-c.height/2)
+            if self.shown(index) and not self.still:
+                self.keep_clear(layout, offset, region, start)
+            bounds = layout.bounds()
             rng = random.Random(index*7919+13)
             kinds = [b for b in self.options['backdrops'] if b != previous] or self.options['backdrops']
             backdrop = rng.choice(kinds) if kinds and rng.random() < self.options['backdrop_rate'] else 'none'
             previous = backdrop
-            self.lines.append(dict(layout=layout, start=start, end=end, offset=(camera[0]-c.width/2, camera[1]-c.height/2),
+            self.lines.append(dict(layout=layout, start=start, end=end, offset=offset,
+                                   bounds=(bounds[0]+offset[0], bounds[1]+offset[1], bounds[2]+offset[0], bounds[3]+offset[1]),
                                    backdrop=backdrop, color=hex_rgb(rng.choice(BACKDROP_COLORS)), direction=rng.choice((-1, 1)),
                                    frame=rng.choice(LINE_FRAMES) if self.still or rng.random() < self.options['frames'] else None,
                                    filled=rng.random() < .5,
@@ -281,8 +311,40 @@ class RealtimeTypography:
         self.assign_accents()
         return self.lines
 
+    def shown(self, index):
+        return self.only is None or index in self.only
+
+    def lingers(self, index, t):
+        """Whether an already planned line is still on the panning canvas at time t (see opacity)."""
+        if self.lines[index].get('hide', math.inf) <= t:
+            return False
+        return index+2 >= len(self.lines) or t < self.lines[index+2]['start']+FADE_TIME
+
+    def keep_clear(self, layout, offset, region, start):
+        """Slide a new line up or down within its reading region so a clear LINE_GAP separates it from every
+        earlier line still on screen. Lines it cannot get clear of fade out just before it starts."""
+        c = self.c
+        gap = c.height*LINE_GAP
+        left, top, right, bottom = layout.bounds()
+        height = bottom-top
+        others = [j for j in range(len(self.lines)) if self.shown(j) and self.lingers(j, start)]
+        rects = {j: (self.lines[j]['bounds'][0]-offset[0], self.lines[j]['bounds'][1]-offset[1],
+                     self.lines[j]['bounds'][2]-offset[0], self.lines[j]['bounds'][3]-offset[1]) for j in others}
+        across = {j: r for j, r in rects.items() if r[0] < right+gap and r[2] > left-gap}
+        blocked = [(r[1]-gap-height, r[3]+gap) for r in across.values()]
+        low, high = min(top, region[0]), max(top, region[1]-height)
+        candidates = sorted({top, low, high, *(min(high, max(low, y)) for pair in blocked for y in pair)}, key=lambda y: abs(y-top))
+        y = next((y for y in candidates if all(not a < y < b for a, b in blocked)), None)
+        if y is None:
+            y = top
+            for j, r in across.items():
+                if r[1]-gap < bottom and r[3]+gap > top:
+                    self.lines[j]['hide'] = min(self.lines[j].get('hide', math.inf), start)
+        layout.move(0., y-top)
+
     def assign_accents(self):
-        """Pick the words that glow with an instrument (`glow_words` share of all words) and the hero words
+        """Pick the few words that glow with an instrument (`glow_words` share of the content and hero words;
+        small function words never glow) and the hero words
         that get a translucent shape behind them (`word_shapes` share), in a colour that keeps them readable."""
         from effects.colors import contrast
         enabled = [stem for stem in INSTRUMENT_GLOWS if stem in self.options['glows']]
@@ -290,7 +352,7 @@ class RealtimeTypography:
             material = self.effect(index) is not None
             for word in line['layout'].words:
                 rng = random.Random(round(word.start*1000)*31+word.index)
-                if enabled and rng.random() < self.options['glow_words'] and not (material and word.role == 'hero'):
+                if enabled and word.role != 'function' and rng.random() < self.options['glow_words'] and not (material and word.role == 'hero'):
                     hits = {stem: sum(1 for time, _ in (self.rhythm.get(stem) or []) if word.start-.5 <= time <= word.end+3)
                             for stem in enabled if contrast(hex_rgb(INSTRUMENT_GLOWS[stem][0]), word.color) >= MIN_GLOW_CONTRAST}
                     best = max(hits, key=hits.get, default=None)
@@ -304,9 +366,10 @@ class RealtimeTypography:
     def exit_window(self, index):
         """On a still camera a line stays until its half of the screen is needed again (or a long pause), then exits."""
         c, line = self.c, self.lines[index]
-        recipe = c.effect_catalog['exit'].get(c.effect_pairs[index][1]) if c.particle_intensity > 0 else None
+        recipe = c.effect_catalog['exit'].get(c.effect_pairs[index][1]) if c.effect_intensity(c.effect_pairs[index][1]) > 0 else None
         length = STILL_EXIT/c.effect_speed(recipe.id) if recipe else FADE_TIME
-        due = self.lines[index+2]['start'] if index+2 < len(self.lines) else c.duration
+        later = [j for j in range(index+1, len(self.lines)) if self.shown(j)][:2]
+        due = self.lines[later[1]]['start'] if len(later) > 1 else c.duration
         start = max(line['end']+.3, min(due-length, line['end']+STILL_HOLD))
         return start, length, recipe
 
@@ -316,16 +379,24 @@ class RealtimeTypography:
         best = max(counts, key=counts.get, default=None)
         return best if best and counts[best] else None
 
-    def text_pulse(self, index, t):
+    def instrument_signals(self, t):
+        """Compute each stem's envelope and recent hits once for the whole frame."""
+        from audio.rhythm import pulse
+        return {stem: pulse(self.rhythm.get(stem), t, decay)
+                for stem, (_, decay) in INSTRUMENT_GLOWS.items()}
+
+    def text_pulse(self, index, signals):
         """Instrument colour and strength pulsing through this line's words, if the line was chosen."""
         stem = self.lines[index].get('pulse')
         if not stem:
             return None, 0.
-        from audio.rhythm import envelope
-        return hex_rgb(INSTRUMENT_GLOWS[stem][0]), envelope(self.rhythm.get(stem), t, INSTRUMENT_GLOWS[stem][1])
+        return hex_rgb(INSTRUMENT_GLOWS[stem][0]), signals[stem].level
 
-    def reading_box(self, index, start, end, margin):
-        """Write the line where the camera is heading, so it crosses the whole screen while it is sung."""
+    def reading_box(self, index, start, end, margin, full=False):
+        """Write the line ahead of the camera, on the side it is heading, so the camera travels onto it and it
+        stays wholly on screen while it is sung. Also returns the vertical span (the region) the line may slide
+        within and still stay on screen. A `full` (full-screen typography) line takes all the room the camera's
+        travel leaves instead of one half of the screen."""
         c = self.c
         a, b = self.path.at(start), self.path.at(end)
         dx, dy = b[0]-a[0], b[1]-a[1]
@@ -339,8 +410,8 @@ class RealtimeTypography:
             if height >= c.height*.3:
                 height = (height-margin/2)/2
                 y += (index % 2)*(height+margin/2)
-            return x, y, width, height
-        lead = 1. if self.still else LEAD_WIDTH
+            return (x, y, width, height), (y, y+height)
+        lead = 1. if self.still or full else LEAD_WIDTH
         width = min(c.width*lead-(2*margin if self.still else 0), max(c.width*MIN_WIDTH, c.width-2*margin-abs(dx)))
         height = max(c.height*MIN_HEIGHT, c.height-2*margin-abs(dy))
         x = c.width-margin-width if dx >= 0 else margin
@@ -351,14 +422,16 @@ class RealtimeTypography:
             if right-left < c.width*MIN_WIDTH:
                 left, right = sky[0], sky[0]+sky[2]
             x, y, width, height = left, sky[1], right-left, sky[3]
-            if height >= c.height*.3:
+            region = (y, y+height)
+            if height >= c.height*.3 and not full:
                 height = (height-margin/2)/2
                 y += (index % 2)*(height+margin/2)
-            return x, y, width, height
-        if height >= c.height*.5:
+            return (x, y, width, height), region
+        region = (y, y+height)
+        if height >= c.height*.5 and not full:
             height = (height-margin)/2
             y += (index % 2)*(height+margin)
-        return x, y, width, height
+        return (x, y, width, height), region
 
     def travelled_sky(self, a, b, margin):
         """Screen box (at camera position `a`) that is open sky in every view between camera positions a and b."""
@@ -383,15 +456,18 @@ class RealtimeTypography:
             value -= (1-OLDER_LINES)*smooth((t-lines[index+1]['start'])/DIM_TIME)
         if index+2 < len(lines):
             value *= 1-smooth((t-lines[index+2]['start'])/FADE_TIME)
+        if 'hide' in lines[index]:
+            value *= 1-smooth((t-lines[index]['hide']+HIDE_TIME)/HIDE_TIME)
         return value
 
     def visible(self, t):
-        """Started lines that are still visible, newest first, each with its eased opacity."""
+        """Include the entrance lead so the first word can finish arriving at its cue."""
         lines = self.plan()
-        newest = max((i for i, line in enumerate(lines) if line['start'] <= t), default=None)
+        newest = max((i for i, line in enumerate(lines)
+                      if line['start']-max(PARTICLE_ENTRY, .38/self.speed) <= t and self.shown(i)), default=None)
         if newest is None:
             return []
-        shown = [(i, self.opacity(i, t)) for i in range(newest, max(-1, newest-(8 if self.still else 4)), -1)]
+        shown = [(i, self.opacity(i, t)) for i in range(newest, max(-1, newest-(8 if self.still else 4)), -1) if self.shown(i)]
         return [(i, value) for i, value in shown if value > .005]
 
 
@@ -402,35 +478,42 @@ class RealtimeTypography:
         left, top = center[0]-c.width/2, center[1]-c.height/2
         base = (math.floor(left), math.floor(top))
         fraction = (left-base[0], top-base[1])
+        signals = self.instrument_signals(t)
         scenery = None
         if self.world:
-            canvas = self.world.view(base[0], base[1], c.width+2, c.height+2)
+            screen = self.world.view(base[0], base[1], c.width+2, c.height+2)
             if self.mattes:
-                scenery = canvas.copy()
+                scenery = screen.copy()
                 scenery.putalpha(self.mattes.view(base[0], base[1], c.width+2, c.height+2))
         else:
             scenery = c.scenery(t)
             index = max(0, sum(1 for line in c.data if line['words'][0]['start'] <= t)-1)
             screen = c.background(index, t, veil=False).convert('RGBA')
             c.illustration(screen, index, t)
-            canvas = Image.new('RGBA', (c.width+2, c.height+2))
-            canvas.paste(screen, (0, 0))
+        chorus_hit = self.c.chorus_fx.active(t) is not None
+        if chorus_hit and self.options['drum_reactivity'] > 0 and self.floor_hits:
+            from render.drum_typography import shake_background
+            floor_hit = next((hit for hit in reversed(signals['drums'].hits)
+                              if hit[0] in self.floor_hits), None)
+            screen = shake_background(screen, floor_hit, self.options['drum_reactivity'])
+        canvas = Image.new('RGBA', (c.width+2, c.height+2))
+        canvas.paste(screen, (0, 0))
         visible = self.visible(t)
         if visible:
             newest = visible[0][0]
             handover = smooth((t-self.lines[newest]['start'])/BACKDROP_FADE)
-            if newest and handover < 1:
+            if newest and handover < 1 and self.shown(newest-1):
                 self.paint_backdrop(canvas, newest-1, t, fraction, 1-handover)
             self.paint_backdrop(canvas, newest, t, fraction)
-        self.paint_shapes(canvas, t, fraction)
-        if self.options['traces']:
+        if self.options['traces'] or self.options['geometry'] > 0:
             self.paint_traces(canvas, t, base, visible)
         for index, opacity in visible:
             if self.still and t >= self.lines[index]['exit'][0]:
                 self.paint_exit(canvas, index, t, base)
                 continue
-            self.paint_frame(canvas, index, t, opacity, base)
-            self.paint_line(canvas, index, t, opacity, base)
+            if self.still:  # on the panning canvas the wisp traces the frames instead (see trace_shape)
+                self.paint_frame(canvas, index, t, opacity, base)
+            self.paint_line(canvas, index, t, opacity, base, impact=chorus_hit and index == newest, signals=signals)
         if scenery is not None:
             canvas.alpha_composite(scenery)
         shifted = canvas.transform((c.width, c.height), Image.Transform.AFFINE, (1, 0, fraction[0], 0, 1, fraction[1]),
@@ -441,41 +524,88 @@ class RealtimeTypography:
         offset = self.lines[index]['offset']
         return offset[0]-base[0], offset[1]-base[1]
 
-    def paint_line(self, layer, index, t, opacity, base):
+    def paint_line(self, layer, index, t, opacity, base, impact=False, signals=None):
         entrance = self.effect(index)
-        pulse_color, pulse = self.text_pulse(index, t)
+        signals = signals if signals is not None else self.instrument_signals(t)
+        pulse_color, pulse = self.text_pulse(index, signals)
         shift = self.shift(index, base)
-        for word in self.lines[index]['layout'].words:
-            if t < word.start:
+        layout = self.lines[index]['layout']
+        hit, target = None, None
+        if impact and self.options['drum_reactivity'] > 0:
+            hit = signals['drums'].hit
+            if hit:
+                def settled_at_hit(w):
+                    recipe = w.effect or entrance
+                    particle = w.effect is not None or (entrance is not None and w.role == 'hero')
+                    if particle and (getattr(recipe, 'trajectory', '') == 'grow' or
+                                     getattr(recipe, 'hold', 'solid') == 'particles'):
+                        return False
+                    entry = min(1., PARTICLE_ENTRY/self.c.effect_speed(recipe.id)) if particle else .28/self.speed
+                    return w.start+(0 if particle else entry) <= t-hit[1]
+                ready = [w for w in layout.words if w.role != 'function' and
+                         settled_at_hit(w) and t-w.start < 5.]
+                if ready:
+                    # One word takes each impact. The newest hero carries heavy hits;
+                    # otherwise the newest landed content word answers the drum.
+                    heroes = [w for w in ready if w.role == 'hero']
+                    target = max(heroes if hit[2] >= .68 and heroes else ready, key=lambda w: w.start)
+        for word in layout.words:
+            recipe = word.effect or entrance
+            particle = word.effect is not None or (entrance is not None and word.role == 'hero')
+            text_motion = self.c.word_animations[index][word.index]
+            designed_motion = text_motion in ('mask-rise', 'cartoon-pop')
+            if designed_motion:
+                particle = False
+            entry = min(1., PARTICLE_ENTRY/self.c.effect_speed(recipe.id)) if particle else ((.38 if designed_motion else .1 if word.fast else .2 if word.role == 'function' else .28)/self.speed)
+            if t < word.start-(entry if particle or designed_motion else 0):
                 continue
-            if word.shape:
+            word_hit = hit if word is target else None
+            if word.shape and self.still:
                 self.paint_word_shape(layer, word, shift, t, opacity)
-            if word.glow:
-                self.paint_word_glow(layer, word, shift, t, opacity)
-            particle = entrance is not None and word.role == 'hero'
-            entry = min(1., PARTICLE_ENTRY/self.c.effect_speed(entrance.id)) if particle else (.1 if word.fast else .2 if word.role == 'function' else .28)/self.speed
-            progress = (t-word.start)/entry
+            glow_stem = 'drums' if word_hit and 'drums' in self.options['glows'] else word.glow
+            if glow_stem:
+                glow_strength = self.options['glow_strength']
+                if word_hit and glow_stem == 'drums':
+                    glow_strength = max(glow_strength, self.options['drum_reactivity']*.7)
+                self.paint_word_glow(layer, word, shift, t, opacity, glow_stem,
+                                     signals[glow_stem].level, glow_strength)
+            progress = (t-word.start+(entry if particle or designed_motion else 0))/entry
             settled = overshoot(progress)
             drift = math.sin((t-word.start)*1.6+word.index*.9)*word.size*.015
+            tint = (pulse_color, pulse*.7) if pulse > .02 else None
+            if word_hit and 'drums' in self.options['glows']:
+                tint = (hex_rgb(INSTRUMENT_GLOWS['drums'][0]), signals['drums'].level*.3)
             if particle:
-                self.paint_particle_word(layer, word, shift, drift, max(0., 1-progress), entrance, opacity)
+                if word_hit and progress >= 1.:
+                    self.paint_word(layer, word, 1., shift, drift, opacity, active=word.start <= t < word.end,
+                                    tint=tint, hit=word_hit)
+                    continue
+                self.paint_particle_word(layer, word, shift, drift, max(0., 1-progress), recipe, opacity)
                 continue
+            # Words grow into place rather than shrinking onto it, and never wider than the gap beside them.
             scale, dy, alpha = 1., drift, smooth(progress*1.6)
-            if word.role == 'function':
-                dy += (1-smooth(progress))*word.size*.5
+            if text_motion == 'mask-rise':
+                alpha = 1.
+            elif text_motion == 'cartoon-pop':
+                from render.text_effects import cartoon_scale
+                scale, alpha = cartoon_scale(progress), 1.
+                dy -= (1-smooth(progress))*word.size*.16
+            elif word.role == 'function':
+                dy += (1-smooth(progress))*word.size*.25
             elif word.role == 'content':
-                scale = 1.35-.35*settled
+                scale = .82+.18*settled
             else:
-                scale = 2.1-1.1*settled
+                scale = .6+.4*settled
             if word.held and t < word.end:
                 scale *= 1+.08*smooth((t-word.start)/max(.2, word.end-word.start))
-            self.paint_word(layer, word, scale, shift, dy, alpha*opacity, glitch=self.options['glitch'] and word.role == 'hero' and progress < .8,
-                            active=word.start <= t < word.end, tint=(pulse_color, pulse*.7) if pulse > .02 else None)
+            scale = min(scale, 1+layout.gap/max(1., word.width))
+            self.paint_word(layer, word, scale, shift, dy, alpha*opacity, glitch=self.options['glitch'] and not designed_motion and word.role == 'hero' and progress < .8,
+                            active=word.start <= t < word.end, tint=tint,
+                            hit=word_hit, mask_progress=progress if text_motion == 'mask-rise' else None)
 
     def word_box(self, word, shift):
-        ascent = role_font(word.role, word.size).getmetrics()[0]
-        left, top = word.x+shift[0], word.y+shift[1]+ascent*.08
-        return left, top, left+word.width, word.y+shift[1]+ascent*1.02
+        left = word.x+shift[0]
+        return left, word.y+shift[1]+word.ink[0], left+word.width, word.y+shift[1]+word.ink[1]
 
     def paint_word_shape(self, layer, word, shift, t, opacity):
         """A polygon or ellipse that fades in behind the word with a translucent fill and a clean edge."""
@@ -490,11 +620,10 @@ class RealtimeTypography:
         draw.line(outline, fill=(*color, round(200*fade)), width=max(2, round(self.c.height*.004)), joint='curve')
         layer.alpha_composite(art)
 
-    def paint_word_glow(self, layer, word, shift, t, opacity):
+    def paint_word_glow(self, layer, word, shift, t, opacity, stem, pulse_level, strength):
         """A soft halo in the instrument's colour behind the word, pulsing on that instrument's hits."""
-        from audio.rhythm import envelope
-        color, decay = INSTRUMENT_GLOWS[word.glow]
-        level = envelope(self.rhythm.get(word.glow), t, decay)*self.options['glow_strength']*opacity*smooth((t-word.start)/.4)
+        color, _ = INSTRUMENT_GLOWS[stem]
+        level = pulse_level*strength*opacity*smooth((t-word.start)/.4)
         if level <= .02:
             return
         halo, pad = self.word_halo(word, hex_rgb(color))
@@ -518,31 +647,40 @@ class RealtimeTypography:
 
     def effect(self, index):
         c = self.c
-        return c.effect_catalog['entrance'].get(c.effect_pairs[index][0]) if c.particle_intensity > 0 else None
+        return c.effect_catalog['entrance'].get(c.effect_pairs[index][0]) if c.effect_intensity(c.effect_pairs[index][0]) > 0 else None
 
-    def paint_word(self, layer, word, scale, shift, dy, alpha, glitch=False, active=False, tint=None):
+    def paint_word(self, layer, word, scale, shift, dy, alpha, glitch=False, active=False, tint=None, hit=None, mask_progress=None):
         if alpha <= .01:
             return
         size = max(8, round(word.size*scale))
         color = word.color if active or word.role != 'content' else tuple(round(v*.92) for v in word.color)
         if tint:
             color = tuple(round(a+(b-a)*tint[1]) for a, b in zip(color, tint[0]))
-        sprite, pad, _ = word_sprite(word, size, color, alpha, glitch)
+        sprite, pad, spans = word_sprite(word, size, color, 1., glitch)
+        if mask_progress is not None:
+            from render.text_effects import mask_rise
+            sprite = mask_rise(sprite, mask_progress)
         font = role_font(word.role, size)
         x = word.x+shift[0]+word.width/2-font.getlength(word.text)/2-pad
         y = word.y+shift[1]+role_font(word.role, word.size).getmetrics()[0]-font.getmetrics()[0]+dy-pad
-        paste_clipped(layer, sprite, round(x), round(y))
+        if hit:
+            from render.drum_typography import paint_impact
+            paint_impact(layer, sprite, x, y, spans, hit, self.options['drum_reactivity'], alpha)
+        else:
+            if alpha < .999:
+                sprite.putalpha(sprite.getchannel('A').point(lambda a: round(a*alpha)))
+            paste_clipped(layer, sprite, round(x), round(y))
 
     def paint_particle_word(self, layer, word, shift, dy, amount, recipe, opacity):
         from effects.particles.motion import paint_transition
         sprite, pad, spans = word_sprite(word, word.size, word.color)
         x, y = round(word.x+shift[0]-pad), round(word.y+shift[1]+dy-pad)
         if opacity >= .99:
-            paint_transition(layer, sprite, x, y, 'entrance', amount, recipe, word.index, self.c.particle_intensity, .6,
+            paint_transition(layer, sprite, x, y, 'entrance', amount, recipe, word.index, self.c.effect_intensity(recipe), .6,
                              self.c.effect_cache, glyph_spans=spans)
             return
         overlay = Image.new('RGBA', layer.size)
-        paint_transition(overlay, sprite, x, y, 'entrance', amount, recipe, word.index, self.c.particle_intensity, .6,
+        paint_transition(overlay, sprite, x, y, 'entrance', amount, recipe, word.index, self.c.effect_intensity(recipe), .6,
                          self.c.effect_cache, glyph_spans=spans)
         overlay.putalpha(overlay.getchannel('A').point(lambda a: round(a*opacity)))
         layer.alpha_composite(overlay)
@@ -562,7 +700,7 @@ class RealtimeTypography:
             layer.alpha_composite(line)
             return
         from effects.particles.motion import paint_transition
-        paint_transition(layer, line.crop(bounds), bounds[0], bounds[1], 'exit', amount, recipe, index, self.c.particle_intensity, .6,
+        paint_transition(layer, line.crop(bounds), bounds[0], bounds[1], 'exit', amount, recipe, index, self.c.effect_intensity(recipe), .6,
                          self.c.effect_cache)
 
     def paint_frame(self, layer, index, t, opacity, base):
@@ -593,10 +731,9 @@ class RealtimeTypography:
 
 
     def shape_events(self):
-        """Shapes on strong bass notes (or line starts without bass), on screen for about the
-        `geometry` share of the song and spread across it."""
+        """Choose bass-led shape loops for the traveling white thread head."""
         if self.shapes is None:
-            count = round(self.options['geometry']*self.c.duration/SHAPE_LIFE)
+            count = round(self.options['geometry']*self.c.duration/(SHAPE_LIFE*1.7))
             moments = [time for time, strength in (self.rhythm.get('bass') or []) if strength >= .6]
             if not moments:
                 moments = [line['start'] for line in self.plan()]
@@ -609,41 +746,9 @@ class RealtimeTypography:
                     continue
                 last = time
                 rng = random.Random(round(time*1000))
-                self.shapes.append(dict(start=time, kind=rng.choice(SHAPES), filled=rng.random() < .4,
-                                        x=rng.uniform(.12, .88), y=rng.uniform(.15, .85), size=rng.uniform(.12, .32),
-                                        spin=rng.uniform(-25, 25), drift=(rng.uniform(-.03, .03), rng.uniform(-.03, .03)),
-                                        color=hex_rgb(rng.choice(BACKDROP_COLORS))))
+                mode = ('glide', 'word', 'glide', 'loop', 'word', 'glide')[len(self.shapes) % 6]
+                self.shapes.append(dict(start=time, kind=rng.choice(SHAPES), size=rng.uniform(.12, .24), mode=mode))
         return self.shapes
-
-    def paint_shapes(self, layer, t, fraction):
-        """Outlined or translucent shapes that drift, turn slowly and fade in and out."""
-        import bisect
-        events = self.shape_events()
-        live = events[max(0, bisect.bisect_right([e['start'] for e in events], t-SHAPE_LIFE)):
-                      bisect.bisect_right([e['start'] for e in events], t)]
-        if not live:
-            return
-        c = self.c
-        art = Image.new('RGBA', layer.size)
-        draw = ImageDraw.Draw(art)
-        for shape in live:
-            age = t-shape['start']
-            reveal = smooth(age/.8)
-            retract = smooth((age-SHAPE_LIFE+1.)/1.)
-            if retract >= 1:
-                continue
-            radius = c.height*shape['size']*(1+.08*age/SHAPE_LIFE)
-            cx = (shape['x']+shape['drift'][0]*age)*c.width
-            cy = (shape['y']+shape['drift'][1]*age)*c.height
-            angle = math.radians(shape['spin']*age)
-            sides = {'ring': 72, 'circle': 72, 'triangle': 3, 'square': 4, 'hexagon': 6}[shape['kind']]
-            points = [(cx+radius*math.cos(angle+2*math.pi*k/sides-math.pi/2), cy+radius*math.sin(angle+2*math.pi*k/sides-math.pi/2))
-                      for k in range(sides+1)]
-            if shape['filled'] and shape['kind'] != 'ring':
-                draw.polygon(points, fill=(*shape['color'], round(45*reveal*(1-retract))))
-            trace_outline(draw, points, retract, reveal, shape['color'], max(2, round(c.height*.004)), alpha=170)
-        layer.alpha_composite(art.transform(art.size, Image.Transform.AFFINE, (1, 0, -fraction[0], 0, 1, -fraction[1]),
-                                            resample=Image.Resampling.BILINEAR))
 
 
     def paint_traces(self, layer, t, base, visible):
@@ -710,6 +815,8 @@ class RealtimeTypography:
                 wisps.append((partner, max(tail, joined), together))
         for points, start, strength in wisps:
             self.paint_bands(draw, fill_layer, points, start, head, t, base, strength)
+            if any(start <= t < end for start, end in self.veils):
+                continue  # the scene mix is carrying the wisp across a change of scene
             x, y = points[-1][0]-base[0], points[-1][1]-base[1]
             draw.ellipse((x-5, y-5, x+5, y+5), fill=(255, 255, 255, round(230*strength)))
 
@@ -731,6 +838,8 @@ class RealtimeTypography:
                 px, py = x-base[0], y-base[1]
                 upper.append((px+normal[0]*(middle-half), py+normal[1]*(middle-half), color))
                 lower.append((px+normal[0]*(middle+half), py+normal[1]*(middle+half), color))
+            # Drawn opaque as one small quad per step (a closed loop stays a ring, never a filled disc), then
+            # made translucent as a whole so the quads' shared edges do not show.
             band_layer = Image.new('RGBA', fill_layer.size)
             band_draw = ImageDraw.Draw(band_layer)
             for (color, top), (_, bottom) in zip(group_by_color(upper), group_by_color(lower)):
@@ -742,14 +851,34 @@ class RealtimeTypography:
             box = (max(0, box[0]-4), max(0, box[1]-4), min(bands.width, box[2]+4), min(bands.height, box[3]+4))
             fill_layer.alpha_composite(bands.crop(box).filter(ImageFilter.GaussianBlur(1.1)), box[:2])
 
+    def wisp_runs(self):
+        """(start, end) time of the wisp's one run, for the scene mix's hand-over."""
+        if not self.options['traces']:
+            return []
+        times = self.thread_path()['keys'][0]
+        return [(times[0], times[-1])] if times else []
+
+    def wisp_screen(self, number, when, t):
+        """Screen pixel of the wisp where it was at time `when`, with the camera at time t."""
+        thread = self.thread_path()
+        head = thread_distance(thread['keys'], when)
+        if head is None:
+            return None
+        samples = sample_thread(thread['pieces'], max(0., head-1.), head, STRAND_STEP)
+        if not samples:
+            return None
+        center = self.path.at(t)
+        return samples[-1][0]-(center[0]-self.c.width/2), samples[-1][1]-(center[1]-self.c.height/2)
+
     def thread_path(self):
-        """The whole thread on the canvas: a curve into each hero word, with the distance its head has
-        reached as each is sung. Joins match direction so it never kinks, and each curve bends just
-        enough to fill its time at one cruising speed."""
+        """The whole thread on the canvas: a smooth path through each hero word, with the distance its head
+        has reached as each is sung. It turns continuously and keeps one cruising speed (see flow_path)."""
         if getattr(self, '_thread', None) is not None:
             return self._thread
         stops = []
         for number, line in enumerate(self.plan()):
+            if not self.shown(number):  # in a scene mix the wisp visits only this scene's own lines
+                continue
             for word in line['layout'].words:
                 if word.role == 'hero':
                     ascent = role_font(word.role, word.size).getmetrics()[0]
@@ -834,8 +963,7 @@ class RealtimeTypography:
 
 
     def paint_backdrop(self, layer, index, t, fraction, strength=1.):
-        """One of several treatments behind a line, using only words already sung; eases in and hands over.
-        Marquees always carry the entire line, laid out once, with each word appearing as it is sung."""
+        """One of several treatments behind a line; marquees fade in place."""
         line = self.lines[index]
         words = line['layout'].words
         sung = [w for w in words if w.start <= t]
@@ -849,6 +977,11 @@ class RealtimeTypography:
         start = words[0].start if marquee else min(w.start for w in sung if w.text.upper() in strong)
         arrive = smooth((t-start)/BACKDROP_FADE)
         alpha = arrive*strength
+        if marquee:
+            alpha *= self.opacity(index, t)
+            if self.still:
+                exit_start, exit_length, _ = line['exit']
+                alpha *= 1-smooth((t-exit_start)/exit_length)
         if alpha <= .01:
             return
         art = Image.new('RGBA', layer.size)
@@ -857,28 +990,21 @@ class RealtimeTypography:
         if marquee:
             size = round(c.height*.28)
             font = role_font('hero', size)
-            gap, separator = font.getlength(' '), '  •  '
-            positions, cursor = [], 0.
-            for word in words:
-                positions.append((word, cursor))
-                cursor += font.getlength(word.text.upper())+gap
-            period = cursor+font.getlength(separator)
+            phrase = '  •  '.join(w.text.upper() for w in words)
+            length = layer.height if kind == 'vertical' else layer.width
+            while size > 12 and font.getlength(phrase) > length*.94:
+                size = max(12, round(size*.9))
+                font = role_font('hero', size)
             style = dict(fill=(*color, round(60*alpha))) if kind == 'filled' else \
                 dict(fill=(0, 0, 0, 0), stroke_width=max(2, round(size*.02)), stroke_fill=(*color, round(150*alpha)))
-            length = layer.height if kind == 'vertical' else layer.width
-            offset = (line['direction']*(elapsed*c.width*.08+(1-arrive)*c.width*.2)) % period-period
-            strip = Image.new('RGBA', (round(length+period*2), round(size*1.5)))
-            strip_draw = ImageDraw.Draw(strip)
-            for copy in range(int(length//period)+2):
-                for word, x in positions:
-                    if word.start <= t:
-                        strip_draw.text((offset+copy*period+x, 0), word.text.upper(), font=font, **style)
+            strip = Image.new('RGBA', (round(length), round(size*1.5)))
+            ImageDraw.Draw(strip).text(((length-font.getlength(phrase))/2, 0), phrase, font=font, **style)
             if kind == 'vertical':
-                strip = strip.crop((0, 0, length, strip.height)).rotate(90 if line['direction'] > 0 else -90, expand=True)
+                strip = strip.rotate(90 if line['direction'] > 0 else -90, expand=True)
                 edge = round(c.width*.02) if index % 2 else layer.width-strip.width-round(c.width*.02)
                 paste_clipped(art, strip, edge, 0)
             else:
-                paste_clipped(art, strip.crop((0, 0, length, strip.height)), 0, round(c.height*.62))
+                paste_clipped(art, strip, 0, round(c.height*.62))
         elif kind == 'echo':
             word = strong[0]
             for step in range(4):
@@ -892,6 +1018,20 @@ class RealtimeTypography:
             font = role_font('hero', size)
             draw.text(((layer.width-font.getlength(word))/2, c.height*.5-size*.62), word, font=font, fill=(0, 0, 0, 0),
                       stroke_width=max(3, round(size*.012)), stroke_fill=(*color, round(110*alpha)))
+        # Decorative lettering leaves room for the words being sung: it parts round each word's own letter
+        # shapes (their soft halo), never in boxes.
+        camera = self.path.at(t)
+        base = (math.floor(camera[0]-c.width/2), math.floor(camera[1]-c.height/2))
+        knockout = Image.new('L', art.size)
+        for active, _ in self.visible(t):
+            shift = self.shift(active, base)
+            for word in self.lines[active]['layout'].words:
+                if word.start > t:
+                    continue
+                halo, pad = self.word_halo(word, (255, 255, 255))
+                paste_lighter(knockout, halo.getchannel('A'), round(word.x+shift[0]-pad), round(word.y+shift[1]-pad))
+        if knockout.getbbox():
+            art.putalpha(ImageChops.multiply(art.getchannel('A'), ImageChops.invert(knockout)))
         layer.alpha_composite(art.transform(art.size, Image.Transform.AFFINE, (1, 0, -fraction[0], 0, 1, -fraction[1]),
                                             resample=Image.Resampling.BILINEAR))
 
@@ -921,6 +1061,113 @@ def rounded(corners, cy, passes=4):
     start = min(range(len(ring)), key=lambda i: (round(ring[i][0]), abs(ring[i][1]-cy)))
     ring = ring[start:]+ring[:start]
     return ring+[ring[0]]
+
+
+def dying_tail(keys, t, reach=math.inf):
+    """Where the ribbon's tail is: THREAD_LIFE behind the head (and no more than `reach` behind it). Once the
+    run ends and its wisp dies, the tail slowly fades back from its end to where the head stopped."""
+    head = thread_distance(keys, t) or 0.
+    tail = max(thread_distance(keys, t-THREAD_LIFE) or 0., head-reach)
+    end = keys[0][-1] if keys[0] else t
+    if t <= end:
+        return tail
+    last = thread_distance(keys, end) or 0.
+    stopped = max(thread_distance(keys, end-THREAD_LIFE) or 0., last-reach)
+    return max(tail, stopped+(last-stopped)*smooth((t-end)/DIE_TIME))
+
+
+def loop_duration(keys, length, limits):
+    """How long the head takes over an extra loop of `length`: about as long as it would take at its cruising
+    pace, within limits, so it eases round instead of whipping through (and its tail does the same later)."""
+    times, distances, _ = keys
+    cruise = (distances[-1]-distances[0])/max(1e-6, times[-1]-times[0]) if len(times) > 1 else 0.
+    return min(limits[1], max(limits[0], length/cruise if cruise > 1e-6 else limits[0]))
+
+
+def inside(polygon, point):
+    """Even-odd test: is the point inside the closed polygon?"""
+    x, y = point
+    result = False
+    for (x0, y0), (x1, y1) in zip(polygon, polygon[1:]+polygon[:1]):
+        if (y0 > y) != (y1 > y) and x < x0+(y-y0)*(x1-x0)/(y1-y0):
+            result = not result
+    return result
+
+
+def unique_color(number, ink):
+    """A distinct hue for the ribbon round each traced shape (golden-ratio steps round the colour wheel),
+    light or dark enough to stand apart from the word it circles."""
+    import colorsys
+    from effects.colors import contrast
+    hue = (.07+number*.618034) % 1
+    options = [tuple(round(v*255) for v in colorsys.hls_to_rgb(hue, light, .78)) for light in (.62, .72, .38, .26)]
+    return next((c for c in options if contrast(c, ink) >= MIN_SHAPE_CONTRAST), max(options, key=lambda c: contrast(c, ink)))
+
+
+def curl_route(x, y, radius, lean=1., steps=40):
+    """A graceful loop-de-loop for the thread: it rises from (x, y), swings once round a slightly tilted
+    teardrop and carries on from where it started, so the ribbon itself draws the flourish."""
+    points = []
+    for k in range(steps+1):
+        a = k/steps
+        theta = math.pi/2-lean*a*math.tau
+        r = radius*(1+.28*math.sin(math.pi*a))
+        drift = radius*.35*math.sin(math.pi*a)*lean
+        points.append((x+drift+r*math.cos(theta), y-radius+r*math.sin(theta)))
+    points[-1] = (x, y)
+    return points
+
+
+def swash_route(x, y, cx, cy, rx, ry, tilt=-.12, steps=56):
+    """A calligraphic swash round a word: an open, tilted oval that swells and thins like a pen stroke,
+    starting and ending where the thread meets it."""
+    start = math.atan2((y-cy)/max(ry, 1e-6), (x-cx)/max(rx, 1e-6))
+    points = [(x, y)]
+    for k in range(steps+1):
+        a = k/steps
+        theta = start+a*math.tau*1.08
+        swell = 1+.12*math.sin(a*math.pi*2+.6)
+        px, py = rx*swell*math.cos(theta), ry*swell*math.sin(theta)
+        points.append((cx+px*math.cos(tilt)-py*math.sin(tilt), cy+px*math.sin(tilt)+py*math.cos(tilt)))
+    points.append((x, y))
+    return points
+
+
+def insert_thread_loop(pieces, distance, loop, color, shape=True):
+    """Splice a closed route into the flowing path so its head and tail trace it. With shape=False the
+    ribbon itself draws the route (a curl or swash) instead of revealing a filled shape."""
+    result = []
+    inserted = False
+    for piece in pieces:
+        points = piece['points']
+        if not inserted and distance <= piece['start']:
+            result.append(dict(points=loop, color=color, shape=shape))
+            inserted = True
+        if not inserted and piece['start'] < distance < piece['end']:
+            remaining = distance-piece['start']
+            for index, (a, b) in enumerate(zip(points, points[1:])):
+                span = math.dist(a, b)
+                if remaining <= span:
+                    u = remaining/max(span, 1e-9)
+                    knot = tuple(a[k]+(b[k]-a[k])*u for k in range(len(a)))
+                    result.extend((dict(points=points[:index+1]+[knot], color=piece['color']),
+                                   dict(points=loop, color=color, shape=shape),
+                                   dict(points=[knot]+points[index+1:], color=piece['color'])))
+                    inserted = True
+                    break
+                remaining -= span
+            if inserted:
+                continue
+        result.append(dict(points=points, color=piece['color']))
+    if not inserted:
+        return 0.
+    travelled = 0.
+    for piece in result:
+        piece['start'] = travelled
+        travelled += sum(math.dist(a, b) for a, b in zip(piece['points'], piece['points'][1:]))
+        piece['end'] = travelled
+    pieces[:] = result
+    return sum(math.dist(a, b) for a, b in zip(loop, loop[1:]))
 
 
 def direction(a, b):
@@ -955,6 +1202,14 @@ def thread_curve(previous, stop, wanted, side, most=2.5):
     return curve(low)
 
 
+def add_piece(pieces, points, color, total):
+    length = sum(math.hypot(b[0]-a[0], b[1]-a[1]) for a, b in zip(points, points[1:]))
+    if length > 1e-6:
+        pieces.append(dict(points=points, color=color, start=total, end=total+length))
+    return total+length
+
+
+
 def sample_thread(pieces, tail, head, step):
     """Evenly spaced (x, y, distance, colour) points along the thread, starting exactly at `tail` and
     ending exactly at `head` so both ends move every frame instead of in whole steps."""
@@ -980,7 +1235,8 @@ def sample_thread(pieces, tail, head, step):
             for distance in sorted(set(marks)):
                 if not samples or distance > samples[-1][2]+1e-6:
                     u = (distance-travelled)/length
-                    samples.append((a[0]+(b[0]-a[0])*u, a[1]+(b[1]-a[1])*u, distance, piece['color']))
+                    position = tuple(a[k]+(b[k]-a[k])*u for k in range(len(a)))
+                    samples.append((*position, distance, piece['color']))
             travelled += length
     return samples
 
@@ -1017,13 +1273,6 @@ def group_by_color(points):
     return runs
 
 
-def add_piece(pieces, points, color, total):
-    length = sum(math.hypot(b[0]-a[0], b[1]-a[1]) for a, b in zip(points, points[1:]))
-    if length > 1e-6:
-        pieces.append(dict(points=points, color=color, start=total, end=total+length))
-    return total+length
-
-
 def monotone_keys(times, distances):
     """Monotone cubic (PCHIP) slopes through (time, distance) keys: the thread keeps moving forward, at a
     steady pace between keys, and its speed changes smoothly at each one instead of jumping."""
@@ -1040,6 +1289,25 @@ def monotone_keys(times, distances):
             slopes.append((w1+w2)/(w1/a+w2/b))
     slopes.append(deltas[-1])
     return times, distances, slopes
+
+
+def settle_keys(keys, seconds=1.):
+    """The same timing with its last `seconds` replaced by a gentle braking stop: the head's speed eases from
+    what it was to nothing (its acceleration changing smoothly too), instead of halting dead at the end."""
+    times, distances, _ = keys
+    if len(times) < 2:
+        return keys
+    end = times[-1]
+    start = max(times[0], end-seconds)
+    window = end-start
+    if window <= 1e-3:
+        return keys
+    d0 = thread_distance(keys, start)
+    v0 = (d0-thread_distance(keys, start-1e-3))/1e-3 if start-1e-3 >= times[0] else (distances[1]-distances[0])/max(1e-6, times[1]-times[0])
+    kept = [(t, d) for t, d in zip(times, distances) if t < start-1e-6]
+    braking = [(start+window*k/12, d0+v0*window*(s-s**3+s**4/2)) for k in range(13) for s in [k/12]]
+    clock, travelled = zip(*(kept+braking))
+    return monotone_keys(list(clock), list(travelled))
 
 
 def thread_distance(keys, t):
@@ -1074,9 +1342,14 @@ def trace_outline(draw, points, start, end, color, width, alpha=210):
     begin, finish = total*start, total*end
     path = [at(begin)]+[p for p, d in zip(points, lengths) if begin < d < finish]+[at(finish)]
     draw.line(path, fill=(*color, alpha), width=width, joint='curve')
-    if end < 1:
-        head = path[-1]
-        draw.ellipse((head[0]-5, head[1]-5, head[0]+5, head[1]+5), fill=(255, 255, 255, 230))
+
+
+def paste_lighter(mask, sprite, x, y):
+    """Merge a greyscale sprite into a mask at (x, y), keeping the brighter value, clipped to the mask."""
+    box = (max(0, -x), max(0, -y), min(sprite.width, mask.width-x), min(sprite.height, mask.height-y))
+    if box[2] > box[0] and box[3] > box[1]:
+        at = (max(0, x), max(0, y), max(0, x)+box[2]-box[0], max(0, y)+box[3]-box[1])
+        mask.paste(ImageChops.lighter(mask.crop(at), sprite.crop(box)), at[:2])
 
 
 def paste_clipped(layer, sprite, x, y):

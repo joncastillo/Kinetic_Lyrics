@@ -7,7 +7,26 @@ from PIL import Image, ImageDraw, ImageChops
 PARTICLE_EFFECTS = ("sparks", "dust", "trails", "fragments", "orbits", "confetti")
 EFFECTS = ("none", "mixed", *PARTICLE_EFFECTS, "shatter", "melt", "slime", "liquid")
 LETTER_MIX = ("shatter", "melt", "liquid", "slime", "dust", "fragments")
-TEXT_ANIMATIONS = ("ai", "mixed", "directed", "highlight", "karaoke", "slide", "fade", "none")
+TEXT_ANIMATIONS = ("ai", "mixed", "directed", "highlight", "karaoke", "slide", "fade", "mask-rise", "cartoon-pop", "none")
+
+
+def mask_rise(sprite, progress):
+    """Reveal letters through a rising matte, like a text layer behind a mask."""
+    progress = max(0., min(1., progress))
+    if progress >= 1.:
+        return sprite
+    result = sprite.copy()
+    alpha = result.getchannel('A')
+    top = round(sprite.height*(1-progress))
+    ImageDraw.Draw(alpha).rectangle((0, 0, sprite.width, top), fill=0)
+    result.putalpha(alpha)
+    return result
+
+
+def cartoon_scale(progress):
+    """A title card pop: fast growth, small overshoot, then a clean settle."""
+    p = max(0., min(1., progress))
+    return 0.25+0.75*(1-(1-p)**3)+0.14*math.sin(math.pi*p)
 
 
 def highlight_word(sprite, color, fraction, glyph_mask=None):
