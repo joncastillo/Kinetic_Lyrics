@@ -37,6 +37,7 @@ CARRIED = ('melody', 'rhythm', 'illustrations', 'review_artwork', 'image_seed', 
 
 class PipelineState(TypedDict, total=False):
     audio: str
+    audio_digest: Optional[str]
     output: str
     duration: float
     lines: Optional[list]
@@ -266,16 +267,19 @@ def run(args, audio, output, resume=False, poll=.5):
     output.parent.mkdir(parents=True, exist_ok=True)
     thread = dict(configurable=dict(thread_id=str(output)))
     context = Run(args)
+    from core.files import file_digest
+    digest = file_digest(audio)
     with SqliteSaver.from_conn_string(str(checkpoint_path(output))) as saver:
         graph = build().compile(checkpointer=saver)
         snapshot = graph.get_state(thread)
-        unfinished = bool(snapshot.next) and snapshot.values.get('audio') == str(audio)
+        # A replaced track (even under the same file name) starts again from the beginning.
+        unfinished = bool(snapshot.next) and snapshot.values.get('audio') == str(audio) and snapshot.values.get('audio_digest') == digest
         if resume and unfinished:
             print(f"Resuming from saved step: {', '.join(snapshot.next)}", flush=True)
             payload = None
         else:
             saver.delete_thread(str(output))
-            payload = dict(audio=str(audio), output=str(output))
+            payload = dict(audio=str(audio), audio_digest=digest, output=str(output))
         while True:
             graph.invoke(payload, thread, context=context)
             snapshot = graph.get_state(thread)

@@ -33,16 +33,18 @@ def onsets(path):
 def ensure_rhythm(audio, folder):
     folder = Path(folder)
     target = folder/'video.rhythm.json'
+    from core.files import file_digest
+    source = file_digest(audio)
     try:
         cached = json.loads(target.read_text(encoding='utf-8'))
-        if cached.get('version') == VERSION:
+        if cached.get('version') == VERSION and cached.get('audio') == source:
             return cached
     except (OSError, ValueError):
         pass
     stems = separate(audio, folder)
     if stems is None:
         return None
-    result = dict(version=VERSION, **{name: onsets(stems/f'{name}.wav') for name in STEMS})
+    result = dict(version=VERSION, audio=source, **{name: onsets(stems/f'{name}.wav') for name in STEMS})
     target.write_text(json.dumps(result), encoding='utf-8')
     return result
 
