@@ -215,7 +215,7 @@ function paintMap(){
  tl.art.forEach((a,i)=>{const e=i+1<tl.art.length?tl.art[i+1].start:tl.duration;ctx.fillStyle=i%2?'#9fb7ff12':'#9fb7ff22';ctx.fillRect(a.start*k,0,(e-a.start)*k,Hh);ctx.fillStyle='#bccbffaa';ctx.fillRect(a.start*k,0,1.5,Hh)});
  const stem=tl.stems.find(s=>s.id==='vocals'&&s.wave)||tl.stems.find(s=>s.wave);
  if(stem){const {rate,rms}=stem.wave,mid=Hh*.62,amp=Hh*.32;ctx.beginPath();ctx.moveTo(0,mid);const top=[];for(let x=0;x<W;x++){const a=Math.floor(x/k*rate),b=Math.max(a+1,Math.floor((x+1)/k*rate));let m=0;for(let i=a;i<Math.min(rms.length,b);i++)if(rms[i]>m)m=rms[i];top.push(Math.pow(m/255,.8)*amp)}
-  top.forEach((v,x)=>ctx.lineTo(x,mid-v));for(let x=top.length-1;x>=0;x--)ctx.lineTo(x,mid+top[x]);ctx.closePath();ctx.fillStyle=stem.color+'aa';ctx.fill()}
+  top.forEach((v,x)=>ctx.lineTo(x,mid-v));for(let x=top.length-1;x>=0;x--)ctx.lineTo(x,mid+top[x]);ctx.closePath();ctx.fillStyle=stem.color+'55';ctx.fill();ctx.strokeStyle=stem.color+'99';ctx.lineWidth=1;ctx.stroke()}
  tl.lines.forEach((words,li)=>{ctx.fillStyle=LINE_HUES[li%LINE_HUES.length]+'cc';ctx.fillRect(words[0].start*k,3,Math.max(2,(words.at(-1).end-words[0].start)*k),4)});
  const v0=viewStart()*k,vw=ui.scroller.clientWidth/tl.zoom*k;
  ctx.fillStyle='#00000066';ctx.fillRect(0,0,v0,Hh);ctx.fillRect(v0+vw,0,W,Hh);
@@ -266,16 +266,16 @@ function paintWords(ctx,lane,t0,t1,now){
 }
 function paintStem(ctx,lane,W,t0){
  const s=lane.stem,mid=lane.y+lane.h/2,amp=lane.h/2-6;
- ctx.fillStyle=s.color+'14';ctx.fillRect(0,lane.y,W,lane.h-1);
+ ctx.fillStyle=s.color+'0a';ctx.fillRect(0,lane.y,W,lane.h-1);
  if(!s.wave){ctx.fillStyle='#ffffff60';ctx.font='11px Inter,"Segoe UI",sans-serif';ctx.fillText(s.failed?'Waveform unavailable':'Reading audio…',12,mid);return}
- const {rate,peak,rms}=s.wave,perPx=rate/tl.zoom;
+ const {rate,peak,rms}=s.wave;
  const shape=(values,scale)=>{ctx.beginPath();const pts=[];for(let x=0;x<=W;x++){const a=Math.floor((t0+x/tl.zoom)*rate),b=Math.max(a+1,Math.floor((t0+(x+1)/tl.zoom)*rate));if(a>=values.length)break;let m=0;for(let k=Math.max(0,a);k<Math.min(values.length,b);k++)if(values[k]>m)m=values[k];pts.push([x,Math.pow(m/255,.75)*amp*scale])}
   if(!pts.length)return;ctx.moveTo(pts[0][0],mid-pts[0][1]);for(const [x,v] of pts)ctx.lineTo(x,mid-v);for(let k=pts.length-1;k>=0;k--)ctx.lineTo(pts[k][0],mid+pts[k][1]);ctx.closePath()};
  if(s.id==='vocals')for(const {w} of flat()){const a=X(w.start),b=X(w.end);if(b<0||a>W)continue;ctx.fillStyle='#ffffff0c';ctx.fillRect(a,lane.y+3,b-a,lane.h-7)}
- shape(peak,.92);ctx.fillStyle=s.color+'45';ctx.fill();
- shape(rms,.92);const g=ctx.createLinearGradient(0,mid-amp,0,mid+amp);g.addColorStop(0,s.color+'ee');g.addColorStop(.5,s.color+'99');g.addColorStop(1,s.color+'ee');ctx.fillStyle=g;ctx.fill();
- ctx.fillStyle=s.color+'40';ctx.fillRect(0,mid,W,1);
- if(perPx<0)return;
+ shape(peak,.92);ctx.fillStyle=s.color+'1c';ctx.fill();
+ shape(rms,.92);const g=ctx.createLinearGradient(0,mid-amp,0,mid+amp);g.addColorStop(0,s.color+'8c');g.addColorStop(.5,s.color+'26');g.addColorStop(1,s.color+'8c');ctx.fillStyle=g;ctx.fill();
+ ctx.save();ctx.strokeStyle=s.color+'b3';ctx.lineWidth=1;ctx.shadowColor=s.color;ctx.shadowBlur=6;ctx.stroke();ctx.restore();
+ ctx.fillStyle='#ffffff14';ctx.fillRect(0,mid,W,1);
 }
 
 /* ---------- now playing ---------- */
