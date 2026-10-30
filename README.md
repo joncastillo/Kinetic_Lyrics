@@ -138,6 +138,8 @@ Some useful options:
 - `--illustrations art.png ...` uses the user's own artwork, and `--no-illustrations`
   makes a typography-only video.
 - `--illustration-lines N` sets how many lyric lines share each illustration.
+- `--artwork-mode cutout|fullscreen|verse|matte` chooses the artwork layout. `matte`
+  is greenscreen scenery (see below).
 - `--language tl` sets the lyric language.
 - `--encoder libx264` and `--render-workers N` control encoding and how many CPU
   workers render frames.
@@ -147,6 +149,29 @@ Some useful options:
 - `--resume` continues an interrupted run from its last completed step.
 
 Run `kinetic-lyrics.cmd --help` to see every option.
+
+## Greenscreen scenery
+
+The `matte` artwork mode ("Greenscreen scenery with lyrics in the sky" in Studio) builds
+each scene from two generated images instead of one:
+
+1. A scenery painting with a horizon or skyline (hills, water, rooftops, trees) and no
+   main character. Everything above the skyline is painted flat chroma-key green.
+2. A plain painting of the sky that belongs above that scenery, with the same light and
+   palette.
+
+The green is keyed out into a matte, and the finished artwork is the plain sky seen
+through the scenery. When the video renders, the plain sky goes down first, the kinetic
+typography is drawn on it, and the keyed scenery is laid over both. The lyrics can only
+be seen where the green was, so a word that runs past the skyline disappears behind the
+land. Lines are placed inside the open sky, and while two scenes blend the scenery of
+both covers the lyrics. With a panning camera the camera travels along the horizon.
+
+If a generated scenery has too little green sky, it is retried with a new seed and then
+flagged for review. The matte is stored inside the artwork PNG, so selecting, archiving
+or repairing an image keeps it. A replacement image without a stored matte uses its own
+transparency as the sky, or keys any chroma green it contains. With neither, the whole
+replacement image is treated as the sky.
 
 ## Real-time kinetic flow
 

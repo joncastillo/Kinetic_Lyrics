@@ -12,12 +12,21 @@ def mark_lettering(path,readings):
     path.with_suffix('.review.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
 
 
+def mark_greenscreen(path):
+    path=Path(path)
+    report=dict(score=0,summary='No usable greenscreen sky after three attempts; the lyrics would have too little open sky.',
+        uncertain=True,issues=[dict(issue='Chroma-key green sky missing or too small',severity='high',location='sky')],hand_checks=[],
+        threshold=50,rejected=True,verdict='rejected',greenscreen_pending=True,model='greenscreen',advisory=True,
+        image_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),reviewed_at=time.time())
+    path.with_suffix('.review.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+
+
 def propagate_lettering(source,target):
     source,target=Path(source),Path(target)
     if target.with_suffix('.selection.json').exists():return
     try:report=json.loads(source.with_suffix('.review.json').read_text(encoding='utf-8'))
     except (OSError,ValueError):return
-    if not report.get('lettering_pending'):return
+    if not (report.get('lettering_pending') or report.get('greenscreen_pending')):return
     report['image_sha256']=hashlib.sha256(target.read_bytes()).hexdigest()
     target.with_suffix('.review.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
 
@@ -30,7 +39,7 @@ def require_review(paths,args):
     for path in paths:
         try:report=json.loads(Path(path).with_suffix('.review.json').read_text(encoding='utf-8'))
         except (OSError,ValueError):continue
-        if report.get('lettering_pending') or report.get('rejected'):
+        if report.get('lettering_pending') or report.get('greenscreen_pending') or report.get('rejected'):
             args.review_artwork=True
             return
 
