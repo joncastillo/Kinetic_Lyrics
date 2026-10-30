@@ -10,6 +10,8 @@ def regenerate_prompts(worker,job,config,items):
     from ollama_service import local_json
     from subject_director import request_subjects,lengthen_short_subjects
     from verse_backgrounds import DIRECTOR_PROMPT, LANGUAGE_RULE, PEOPLE_RULE
+    if job.get('artwork_mode')=='matte':
+        from greenscreen import DIRECTOR_PROMPT
     from kinetic_illustrations import image_prompt,subject_kind
     batches=defaultdict(list)
     for item in items:
@@ -19,7 +21,7 @@ def regenerate_prompts(worker,job,config,items):
     replacements={}
     for model,batch in batches.items():
         worker.emit('subjects',0,message=f'Preparing {len(batch)} replacement prompt(s) with {model}')
-        system=(DIRECTOR_PROMPT if job.get('artwork_mode')=='verse' else LANGUAGE_RULE+PEOPLE_RULE+
+        system=(DIRECTOR_PROMPT if job.get('artwork_mode') in ('verse','matte') else LANGUAGE_RULE+PEOPLE_RULE+
             'Interpret each lyric group into one fresh English visual scene for an illustrator. '
             'The lyrics determine subject matter, including Tagalog. Describe only visible forms, '
             'action, materials, lighting and mood in a detailed 120 to 180 word description. Choose subjects that best express the lyrics, '
@@ -41,7 +43,7 @@ def regenerate_prompts(worker,job,config,items):
             from song_gist import song_gist,attach_gist
             gist=job.get('song_gist') or song_gist(gpu_chat,model,[line for group in job['groups'] for line in group.split(' / ')],
                                                    job.get('image_instructions',config.get('image_instructions','')))
-            if job.get('artwork_mode')=='verse':
+            if job.get('artwork_mode') in ('verse','matte'):
                 from verse_backgrounds import lyric_meanings
                 guidance='\n'.join(str(item.get('prompt','')) for item in batch)
                 meanings=lyric_meanings(gpu_chat,model,groups,
@@ -71,12 +73,15 @@ def regenerate_prompts(worker,job,config,items):
             index=item['index'];updated=copy.deepcopy(job)
             updated.setdefault('visual_descriptions',list(job['prompts']))[index]=subject
             updated['prompts'][index]=prompt
+            if 'plate_prompts' in updated:
+                from greenscreen import plate_prompt
+                updated['plate_prompts'][index]=plate_prompt(subject,job['layouts'][index],job.get('style_prompt',config.get('style_prompt','')))
             if meanings:
                 updated.setdefault('lyric_meanings',['']*len(job['groups']))[index]=meanings[indices.index(index)]
             updated['prompt_audit']=dict(version=1,model=model)
             updated['song_gist']=gist
             if 'reference_modes' in updated:
-                updated['reference_modes'][index]='technique_prompt_only' if job.get('artwork_mode')=='verse' or subject_kind(subject)=='object' else 'image_conditioning'
+                updated['reference_modes'][index]='technique_prompt_only' if job.get('artwork_mode') in ('verse','matte') or subject_kind(subject)=='object' else 'image_conditioning'
             replacements[index]=updated
         worker.emit('subjects',1,message=f'{len(batch)} replacement prompts ready; prompting model released')
     return replacements
