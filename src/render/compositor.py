@@ -18,6 +18,7 @@ from render.line_arrival import line_arrivals, reading_lanes, reading_regions
 from render.timeline import tighten_line_starts, illustration_starts, checked_art_times
 from direction.typography import FONTS, PALETTES, STYLES, validate_plan
 from render.typography_settings import KINETIC_TEXT_SCALE, typography_options, selected_font, selected_word_animation
+from core.fonts import truetype
 
 READING_HOLD = 0.
 _REPORTED = set()  # special-instruction problems already reported in this process
@@ -71,7 +72,7 @@ def font_at(family, size, custom=None):
     for candidate in ([str(custom)] if custom else FONTS[family]):
         for path in [candidate, str(Path(os.environ.get('WINDIR', 'C:/Windows')) / 'Fonts' / candidate)]:
             try:
-                return ImageFont.truetype(path, size)
+                return truetype(path, size)
             except OSError:
                 pass
     raise ValueError('No bold font found. Supply --font with a TTF/OTF font.')

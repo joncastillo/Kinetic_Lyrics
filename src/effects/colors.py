@@ -11,6 +11,7 @@ import json
 from functools import lru_cache
 from pathlib import Path
 from core.paths import PROJECT_ROOT
+from core.fonts import truetype
 
 COLORS_PATH = PROJECT_ROOT/'particles'/'colors.json'
 PALETTES_PATH = COLORS_PATH.with_name('palettes.json')
@@ -61,7 +62,7 @@ def rendered_pixels(effect):
     from PIL import Image, ImageDraw, ImageFont
     from effects.particles.motion import paint_transition
     try:
-        font = ImageFont.truetype('impact.ttf', 120)
+        font = truetype('impact.ttf', 120)
     except OSError:
         font = ImageFont.load_default(120)
     sprite = Image.new('RGBA', (520, 180))
