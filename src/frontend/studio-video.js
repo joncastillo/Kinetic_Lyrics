@@ -1,18 +1,18 @@
 // Optional video step: the "Animate each image" checkbox and the image-to-video model picker.
 let videoModels=[];
 const VIDEO_MODES=['fullscreen','verse'];
-function videoHelp(){
+function videoHelp(note=''){
  const model=videoModels.find(m=>m.id===$('videoModel').value);
- const mode=$('artworkMode').value;
- if(!VIDEO_MODES.includes(mode)){$('videoHelp').textContent='Video generation needs full-screen or verse-inspired artwork. Change the artwork layout to use it.';return}
- $('videoHelp').textContent=model?`After the artwork is approved, every image becomes a ${Math.round(model.frames/model.fps)}-second clip that plays forwards and back behind the lyrics. ${model.description} ${model.license}. Allow ~${model.disk_gb} GB for the first download. Run src/video_generation/setup.ps1 once before first use.`:'Restart Kinetic Lyrics to enable video models.';
+ if(model)$('videoModelLink').href='https://huggingface.co/'+model.id;
+ $('videoModelLink').hidden=!model;
+ if(!videoModels.length){$('videoHelp').textContent='Restart Kinetic Lyrics to enable video models.';return}
+ const off=$('videoGeneration').checked?'':'Off: images stay still. ';
+ $('videoHelp').textContent=note+off+`After the artwork is approved, every image becomes a ${Math.round(model.frames/model.fps)}-second clip that plays forwards and back behind the lyrics. Works with full-screen and verse-inspired artwork. ${model.description} ${model.license}. Allow ~${model.disk_gb} GB for the first download. Run src/video_generation/setup.ps1 once before first use.`;
 }
-function syncVideoControls(){
- const allowed=VIDEO_MODES.includes($('artworkMode').value)&&videoModels.length>0;
- $('videoGeneration').disabled=!allowed;
- if(!allowed)$('videoGeneration').checked=false;
- $('videoModel').disabled=!allowed||!$('videoGeneration').checked;
- videoHelp();
+function syncVideoControls(note=''){
+ $('videoGeneration').disabled=!videoModels.length;
+ $('videoModel').disabled=!videoModels.length||!$('videoGeneration').checked;
+ videoHelp(note);
 }
 function initVideo(cfg){
  videoModels=cfg.video_models||[];
@@ -22,6 +22,23 @@ function initVideo(cfg){
  syncVideoControls();
 }
 document.addEventListener('DOMContentLoaded',()=>{
- for(const id of ['videoGeneration','videoModel','artworkMode'])$(id).addEventListener('change',syncVideoControls);
+ $('videoGeneration').addEventListener('change',()=>{
+  // Clips replace whole-frame backdrops, so turning video on picks a layout that has them.
+  if($('videoGeneration').checked&&!VIDEO_MODES.includes($('artworkMode').value)){
+   $('artworkMode').value='fullscreen';
+   $('artworkMode').dispatchEvent(new Event('change',{bubbles:true}));
+   return syncVideoControls('Artwork layout switched to full-screen artwork. ');
+  }
+  syncVideoControls();
+ });
+ $('videoModel').addEventListener('change',()=>syncVideoControls());
+ $('artworkMode').addEventListener('change',()=>{
+  if($('videoGeneration').checked&&!VIDEO_MODES.includes($('artworkMode').value)){
+   $('videoGeneration').checked=false;
+   return syncVideoControls('Video turned off: this artwork layout has no full-frame images to animate. ');
+  }
+  syncVideoControls();
+ });
 });
+window.initVideo=initVideo;
 window.syncVideoControls=syncVideoControls;
