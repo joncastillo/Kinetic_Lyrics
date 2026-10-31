@@ -127,9 +127,13 @@ class Job:
                 self.state['queued_actions'].append(dict(action='verify',index=item['index'],model=model))
         self.log(f'Queued anatomy review for {len(items)} illustrations with {model}.')
 
-    def queue_generation(self,index,operation,prompt,model):
+    def queue_generation(self,index,operation,prompt,model,image_model=None):
         from generation_queue import update_queue
         item=dict(request_id=secrets.token_hex(12),action=operation,index=index,prompt=prompt,model=model)
+        if image_model is not None:
+            if image_model not in {spec['id'] for spec in MODELS}:
+                raise ValueError('Choose a supported image model')
+            item['image_model']=image_model
         position=next((i for i,a in enumerate(self.state['queued_actions']) if a.get('action')=='verify'),len(self.state['queued_actions']))
         self.state['queued_actions'].insert(position,item)
         update_queue(self.folder,append=item)
@@ -157,7 +161,7 @@ class Job:
                 command+=['--model',item['model']]
                 if operation=='repair':command+=['--expected-sha',item['expected_sha']]
             elif operation=='regenerate':command+=['--prompt',item.get('prompt','')]
-            if len(batch)>1 or operation=='reprompt':
+            if generation or len(batch)>1:
                 batch_path=self.folder/f'actions-{time.time_ns()}.json'
                 batch_path.write_text(json.dumps(batch),encoding='utf-8');command+=['--batch',str(batch_path)]
             self.state.update(action=operation,action_percent=0,active_images=[i['index'] for i in batch] if generation else [],
@@ -324,6 +328,18 @@ class Job:
                       rejected_images=self.rejected_selections(),
                       elapsed=round(self.state.get('finished', time.time())-self.state['started']),
                       render_settings=dict(**typography_options(self.config),text_animation=self.config.get('text_animation','directed'), audio_mode=self.config.get('audio_mode','original'), auto_accept=self.config.get('auto_accept',False), type_effect=self.config.get('type_effect','none'), entrance_effect=self.config.get('entrance_effect','legacy'), exit_effect=self.config.get('exit_effect','legacy'), entrance_pool=self.config.get('entrance_pool'), exit_pool=self.config.get('exit_pool'), particle_speed=self.config.get('particle_speed',1.), particle_intensity=self.config.get('particle_intensity',1.), image_seed=self.config.get('image_seed'), randomize_seed=self.config.get('randomize_seed', True)))
+        prompt_model=self.config.get('ai_model','auto')
+        try:
+            manifest=json.loads(self.manifest().read_text(encoding='utf-8'))
+            prompt_model=manifest.get('prompt_audit',{}).get('model') or prompt_model
+        except (OSError,ValueError,KeyError):pass
+        result['production_models']=dict(
+            audio=self.config.get('audio_name') or Path(self.config.get('audio','')).name or self.config.get('name',''),
+            profile=self.config.get('profile_name',''),
+            asr=self.config.get('asr_model',''), alignment=self.config.get('alignment_model','auto'),
+            prompt=prompt_model, image=self.config.get('image_model',''),
+            vision=self.config.get('vision_model','') if self.config.get('auto_verify') else '',
+            encoder=self.config.get('encoder',''))
         if (self.folder/'video.mp4').exists():
             result['video'] = self.url(self.folder/'video.mp4')
         if (self.folder/'poster.png').exists():
@@ -541,7 +557,11 @@ def start_job(fields, files):
         if is_restart and start_step in ('images','review','render') and not seed_field:
             try:image_seed=json.loads((folder/'config.json').read_text(encoding='utf-8')).get('image_seed',image_seed)
             except (OSError,ValueError):pass
-        config = dict(name=Path(filename).stem, audio=str(audio), width=width, height=height, fps=30,
+        if is_restart and not files.get('audio'):
+            try:filename=json.loads((folder/'config.json').read_text(encoding='utf-8')).get('audio_name',filename)
+            except (OSError,ValueError):pass
+        config = dict(name=Path(filename).stem, audio=str(audio), audio_name=filename,
+            profile_name=str(fields.get('profile_name','')).strip()[:80], width=width, height=height, fps=30,
             image_cache=str(Path(fields.get('cache', '').strip() or str(default_model_cache())).expanduser().resolve()),
             style_prompt=fields.get('reference_prompt', '').strip() or STYLE_PROMPT,
             image_instructions=fields.get('image_instructions', '').strip()[:2000],
@@ -667,7 +687,7 @@ def start_job(fields, files):
         return job
 
 
-def regenerate_new_session(source):
+def regenerate_new_session(source, image_model=None):
     """Run the whole pipeline with the source job's inputs in a fresh project folder."""
     config = source.config
     fields = {key: json.dumps(value) if isinstance(value, (list, dict)) else str(value)
@@ -681,9 +701,15 @@ def regenerate_new_session(source):
                   auto_verify='on' if config['auto_verify'] else 'off',
                   auto_accept='on' if config['auto_accept'] else 'off',
                   auto_repair='on' if config['auto_repair'] else 'off')
+    if image_model is not None:
+        from image_models import model_spec
+        if image_model not in {spec['id'] for spec in MODELS}:
+            raise ValueError('Choose a supported image model')
+        fields['image_model']=image_model
+        fields['steps']=str(model_spec(image_model)['steps'])
     audio = Path(config['audio'])
     references = source.folder/'references'
-    files = dict(audio=[(audio.name, audio.read_bytes())],
+    files = dict(audio=[(config.get('audio_name') or audio.name, audio.read_bytes())],
                  references=[(path.name, path.read_bytes()) for path in sorted(references.iterdir()) if path.is_file()]
                  if references.is_dir() else [])
     fields['lyrics'] = (source.folder/'lyrics.txt').read_text(encoding='utf-8')
@@ -884,7 +910,10 @@ class Handler(BaseHTTPRequestHandler):
             _, _, _, job_id, operation = route.split('/')
             job = JOBS[job_id]
             if operation == 'regenerate-new':
-                return self.respond(dict(id=regenerate_new_session(job).folder.name), 201)
+                args=json.loads(body)
+                if not isinstance(args,dict) or not args.get('image_model'):
+                    raise ValueError('Reload the studio page to apply the selected image model')
+                return self.respond(dict(id=regenerate_new_session(job,args.get('image_model')).folder.name), 201)
             if operation == 'cancel':
                 stop_job(job)
                 return self.respond(dict(ok=True))
@@ -902,11 +931,13 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError('The generation prompt must be text no longer than 32,768 characters')
             with LOCK:
                 if operation in ('regenerate','reprompt') and (job.state['status'] == 'running' or job.state['action']):
+                    if not args.get('image_model'):
+                        raise ValueError('Reload the studio page to apply the selected image model')
                     index = int(args.get('index', -1))
                     count = len(json.loads(job.manifest().read_text(encoding='utf-8'))['prompts'])
                     if not 0 <= index < count:
                         raise ValueError('Invalid illustration index')
-                    job.queue_generation(index,operation,str(args.get('prompt','')),str(args.get('model') or job.config.get('ai_model','auto')))
+                    job.queue_generation(index,operation,str(args.get('prompt','')),str(args.get('model') or job.config.get('ai_model','auto')),args.get('image_model'))
                     job.log(f'Illustration {index+1} regeneration queued for the next GPU review pause.')
                     job.save()
                     return self.respond(dict(ok=True, queued=True))
@@ -1064,7 +1095,9 @@ class Handler(BaseHTTPRequestHandler):
                     job.save()
                     return self.respond(dict(ok=True))
                 if operation in ('regenerate','reprompt'):
-                    job.queue_generation(index,operation,str(args.get('prompt','')),str(args.get('model') or job.config.get('ai_model','auto')))
+                    if not args.get('image_model'):
+                        raise ValueError('Reload the studio page to apply the selected image model')
+                    job.queue_generation(index,operation,str(args.get('prompt','')),str(args.get('model') or job.config.get('ai_model','auto')),args.get('image_model'))
                     job.start_next();job.save()
                     return self.respond(dict(ok=True,queued=True))
                 if operation not in ('regenerate', 'verify', 'patch'):

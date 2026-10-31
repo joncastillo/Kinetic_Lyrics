@@ -56,7 +56,13 @@ def revise_repair_prompts(worker, job, config, items, variants=1):
             prompts = request_subjects(gpu_chat, payload, batch_size=2, max_words=660)
         from prompt_fit import fit_prompts
         from image_models import selected_model
-        prompts = fit_prompts(gpu_chat, model, selected_model(job, config), prompts, job.get('style_prompt', config.get('style_prompt', '')))
+        by_model={}
+        for position,item in enumerate(items):
+            image_model=item.get('image_model') or selected_model(job,config)
+            by_model.setdefault(image_model,[]).extend(range(position*variants,(position+1)*variants))
+        for image_model,positions in by_model.items():
+            fitted=fit_prompts(gpu_chat,model,image_model,[prompts[position] for position in positions],job.get('style_prompt',config.get('style_prompt','')))
+            for position,prompt in zip(positions,fitted):prompts[position]=prompt
     finally:
         try:
             unload_model(model)

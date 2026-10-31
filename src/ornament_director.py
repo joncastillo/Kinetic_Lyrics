@@ -30,7 +30,7 @@ import sys
 
 import glyph_art
 
-VERSION = 10  # ask for readable AI pictures and avoid unrelated fallback artwork
+VERSION = 10  # preserve block choices while replacing old shape-built pictures
 # Short words that never carry a picture: pronouns, particles and prepositions, in English and Tagalog.
 PICTURE_SKIP = frozenset('''nang mo natin namin ninyo nila niya akin aking 'king iyong kanyang din rin lang lamang pa po
 ba man kung 'di di hindi kong mong mo'y ako'y ika'y siya'y para upang kahit pero ngunit nga yung 'yung naman narito
@@ -292,13 +292,13 @@ def lettering_colors(effect, ink):
 
 
 def icon_prompt(subject, colors='', style_prompt='', verse_meaning='', image_instructions=''):
-    """Ask the image model for a simple subject whose staging background can be cut away."""
+    """Ask the image model for a recognizable subject whose staging background can be cut away."""
     from kinetic_illustrations import subject_kind
     subject = re.sub(r'^(?:(?:an?|the)\s+)?(?:small\b,?\s*)?', '', subject.strip(), flags=re.I)
     people = subject_kind(subject) != 'object'
-    return (f'Create one small vector-style clipart illustration of {subject}, alone at the center of a square canvas. '
-            f'The visible subject is exactly {subject}. Give it a clear outer silhouette, crisp contours, a few solid '
-            'colour areas, and minimal shading so it reads beside a lyric word and can be cut out cleanly. '
+    return (f'Create one detailed illustration of {subject}, alone at the center of a square canvas. '
+            f'The visible subject is exactly {subject}. Preserve its distinctive natural form, material texture, '
+            'and fine details, with crisp contours and subtle shading so it reads beside a lyric word. '
             'Keep any colour named in the subject as its dominant colour. '
             + (f'Use {colors} only as a secondary accent when it does not change the subject. ' if colors else '')
             + (f'Render people in this style: {style_prompt[:200]}. ' if people and style_prompt else '')
@@ -311,10 +311,7 @@ def icon_prompt(subject, colors='', style_prompt='', verse_meaning='', image_ins
 
 
 def paint_icons(prompts, subjects, folder, options, kind='video.ornaments'):
-    """Cache tiny transparent SVG/PNG art, with legacy raster painting as an option."""
-    if options.get('mini_image_mode', 'vector') != 'raster':
-        from vector_clipart import paint_icons as paint_vectors
-        return paint_vectors(prompts, subjects, folder, options, kind)
+    """Paint detailed transparent pictures with the selected image model."""
     from image_models import MODEL, model_spec
     from kinetic_layout import illustration_layout
     model = options.get('image_model') or MODEL
@@ -377,8 +374,7 @@ def set_picture_kept(folder, key, keep):
 
 
 def repaint_released(directions, folder, options):
-    """Keep every painted picture by default; delete and repaint only the ones the user released, plus any
-    whose file is missing. Repainted pictures are kept again until released."""
+    """Keep painted pictures, replacing released, missing, and old shape-built pictures."""
     released = released_pictures(folder)
     stale = []
     for entry in directions:
@@ -386,9 +382,10 @@ def repaint_released(directions, folder, options):
         if not ornament or ornament.get('source') != 'generate':
             continue
         image = ornament.get('image')
-        if image and Path(image).is_file() and picture_key(ornament) not in released:
+        legacy_vector = bool(image and Path(image).with_suffix('.svg').is_file())
+        if image and Path(image).is_file() and picture_key(ornament) not in released and not legacy_vector:
             continue
-        if image:
+        if image and not legacy_vector:
             for path in (Path(image), Path(image).with_suffix('.cutout.png')):
                 path.unlink(missing_ok=True)
         ornament['image'] = None

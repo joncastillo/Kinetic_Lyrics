@@ -62,7 +62,10 @@ def review_one(worker, root, manifest, job, config, item):
     worker.emit('verification', 1, message=f'Illustration {index+1}: quality {result["score"]}%')
     if unchanged and rejected(result,config.get('review_threshold',DEFAULT_THRESHOLD)):
         repair=dict(index=index,model=item['model'],expected_sha=result['image_sha256'],review=result)
-        if image.resolve()!=target.resolve():repair['candidate']=str(image)
+        if image.resolve()!=target.resolve():
+            repair['candidate']=str(image)
+            try:repair['image_model']=json.loads((image.parent/'illustrations.json').read_text(encoding='utf-8'))['model']
+            except (OSError,ValueError,KeyError):pass
         return repair
 
 
@@ -106,7 +109,7 @@ def repair_batch(worker, root, manifest, items, threshold=None):
             worker.emit('repair',attempt/MAX_AUTO_REPAIRS,message=f'Generating repair round {attempt+1}: illustration {index+1}')
             revised=planned[index][attempt]
             prompt=revised['prompts'][index]
-            candidate=worker.generate_candidate(root,revised,index,Path(config['image_cache']),prompt)
+            candidate=worker.generate_candidate(root,revised,index,Path(config['image_cache']),prompt,item.get('image_model'))
             candidates.append((item,candidate,prompt))
         pending=[]
         for item,candidate,prompt in sorted(candidates,key=lambda pair:pair[0]['model']):
