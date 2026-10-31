@@ -238,7 +238,10 @@ function renderProductionStages(s=null){
  const promptName=!prompt||prompt==='auto'?'Auto text model':prompt;
  const reviewName=saved?(vision||'Off'):($('autoVerify').checked?(vision||'Choose vision model'):'Off');
  const castName=saved?promptName:($('castReference')?.checked&&$('visionModel').value?$('visionModel').value+' · '+promptName:promptName);
- const labels={alignment:[asrName,alignment==='auto'?'Auto timing':alignment].filter(Boolean).join(' · '),song:castName,meanings:promptName,scenes:promptName,audit:promptName,fit:promptName+' → '+imageName,model:saved?'Used · '+imageName:imageName,illustrations:saved?'Used · '+imageName:imageName,cutouts:'BiRefNet General',review:reviewName,direction:promptName,render:encoder||'H.264'};
+ const layout=saved?.artwork_mode||$('artworkMode')?.value||'cutout';
+ const pictureMode=saved?.stage_pictures||$('stagePictures')?.value||'ai-painted';
+ const pictureName={'ai-painted':'AI · '+imageName.replace(/^Used · /,''),'ai-library':'AI · library pictures','keywords':'Keyword matches','off':'Off'}[pictureMode]||pictureMode;
+ const labels={pictures:pictureName,alignment:[asrName,alignment==='auto'?'Auto timing':alignment].filter(Boolean).join(' · '),song:castName,meanings:promptName,scenes:promptName,audit:promptName,fit:promptName+' → '+imageName,model:saved?'Used · '+imageName:imageName,illustrations:saved?'Used · '+imageName:imageName,cutouts:'BiRefNet General',review:reviewName,direction:promptName,render:encoder||'H.264'};
  const audio=saved?.audio||$('audio').files[0]?.name||'No audio selected';
  const profile=saved?saved.profile||'Not recorded':localStorage.getItem('lyricStudioProfilesV1Active')||'No saved profile';
  const selectedImage=$('imageModel').selectedOptions[0]?.textContent||'Choose image model';
@@ -249,6 +252,8 @@ function renderProductionStages(s=null){
  const stageName=s?.stage==='subjects'?'song':s?.stage;
  const current=s?.status==='complete'?stages.length:stages.indexOf(stageName);
  const startSelect=$('startStep'),substep=$('startSubstep');
+ // Only a run that is actually going highlights its sub-step; a cancelled or failed run leaves it plain.
+ const live=['running','queued'].includes(s?.status)&&!s?.action;
  window.headerProgress={current,hasJob:!!jobId,running:!!s?.action||['running','queued'].includes(s?.status),
   queued:s?.status==='queued',stage:stageName};
  PIPELINE_STEPS.forEach((step,index)=>{
@@ -264,7 +269,8 @@ function renderProductionStages(s=null){
    if(saved&&$('imageModel').value&&$('imageModel').value!==image&&['model','illustrations'].includes(name)){
     part.append(node('span','stage-selected','Selected · '+selectedImage));
    }
-   if(name===stageName&&s?.status!=='complete')part.classList.add('active');
+   if(name==='cutouts'&&layout!=='cutout'){part.classList.add('skipped');part.querySelector('.stage-model').textContent='Skipped · full-frame artwork'}
+   else if(name===stageName&&live)part.classList.add('active');
    else if(stages.indexOf(name)<current)part.classList.add('done');
    // Prompt sub-steps can be restarted from once everything before them is saved.
    if(step.value==='prompts'&&(window.promptSubsteps||[]).includes(name)&&option&&!option.disabled){
@@ -289,7 +295,7 @@ function renderProductionStages(s=null){
   const models=[...new Set(step.stages.map(name=>labels[name]))].join(' · ');
   const indices=step.stages.map(name=>stages.indexOf(name));
   if(Math.max(...indices)<current)pill.classList.add('done');
-  else if(step.stages.includes(stageName)){pill.classList.add('active');pill.setAttribute('aria-current','step')}
+  else if(step.stages.includes(stageName)&&live){pill.classList.add('active');pill.setAttribute('aria-current','step')}
   const available=option&&!option.disabled;
   pill.setAttribute('aria-disabled',String(!available));if(!available)pill.classList.add('unavailable');
   if(startSelect?.value===step.value)pill.classList.add('selected');
@@ -307,7 +313,7 @@ const PIPELINE_STEPS=[
  {value:'prompts',name:'Prompts',stages:['song','meanings','scenes','audit','fit']},
  {value:'images',name:'Images',stages:['model','illustrations','cutouts']},
  {value:'review',name:'Review',stages:['review']},
- {value:'render',name:'Video',stages:['direction','render']}];
+ {value:'render',name:'Video',stages:['direction','pictures','render']}];
 const stageTitle=name=>({audit:'Check'})[name]||name[0].toUpperCase()+name.slice(1);
 function syncStartAtStage(){
  const button=$('startAtStage'),select=$('startStep');if(!button||!select)return;

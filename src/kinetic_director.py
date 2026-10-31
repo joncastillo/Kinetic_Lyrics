@@ -1122,12 +1122,12 @@ def _render_video(audio, output, data, plan, duration, args):
             plan = dict(plan, ornaments=[], pictures='off')
         else:
             from ornament_director import ensure_ornaments
-            emit('direction', 0, message='AI choosing the small animated pictures for each block')
+            emit('pictures', 0, message='AI choosing the small animated pictures for each block')
             plan = ensure_ornaments(data, plan, compositor, dict(vars(args), ornament_images=pictures == 'ai-painted'), Path(output).parent)
         compositor = render_compositor(data,plan,duration,args)
     if getattr(args, 'instruments_found', None) and getattr(args, 'instruments', 'off') != 'off':
         from instrument_stage import instrument_pictures
-        emit('direction', 0, message='Painting the instruments heard in the song')
+        emit('pictures', .8, message='Painting the instruments heard in the song')
         args.instrument_pictures = instrument_pictures(args.instruments_found, Path(output).parent, vars(args))
         compositor = render_compositor(data,plan,duration,args)
     encoding = (['-c:v', 'h264_nvenc', '-preset', 'p5', '-tune', 'hq', '-rc', 'vbr', '-cq', '18', '-b:v', '0']

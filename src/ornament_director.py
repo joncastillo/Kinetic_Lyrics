@@ -36,7 +36,7 @@ PICTURE_SKIP = frozenset('''nang mo natin namin ninyo nila niya akin aking 'king
 ba man kung 'di di hindi kong mong mo'y ako'y ika'y siya'y para upang kahit pero ngunit nga yung 'yung naman narito
 nariyan doon dito diyan sakin sayo sa'yo 'to mga'''.split())
 BATCH = 8
-MOTIONS = ('drift', 'bob', 'spin', 'pulse', 'sway', 'flicker', 'twinkle')
+MOTIONS = ('drift', 'bob', 'spin', 'pulse', 'sway', 'flicker', 'twinkle', 'fall')  # fall: raindrops, tears, leaves, snow
 ENTRANCES = dict(flip='words flip up from lying flat: crisp, decisive', swing='words swing in like opening doors: playful, warm',
                  rise='words rise out of the depth: gentle, dreamy, tender', drop='words drop from above and bounce: bold, energetic')
 ACCENTS = dict(red='#EF4C54', gold='#FFD23F', pink='#FF3D7F', sky='#4CC9FF', violet='#A98BFF', mint='#5CE1B0',
@@ -243,7 +243,7 @@ def request_directions(stage, contexts, model, request, image_instructions=''):
     lyric_words = [set(re.findall(r"[\w']+", text.lower())) for text in lyric_texts]
     result = [direction(None, block, {}, kinds, a, p) for block, a, p in zip(blocks, accents, particles)]
     from kinetic_progress import counted
-    report = counted('direction', 0, 1, 'AI choosing the small animated pictures for 3D stage block')
+    report = counted('pictures', 0, .5, 'AI choosing the small animated pictures for 3D stage block')
     for first in range(0, len(blocks), BATCH):
         numbers = list(range(first, min(len(blocks), first+BATCH)))
         report(first, numbers[-1]+1, len(blocks))
