@@ -151,12 +151,6 @@ input,textarea,select{background:#00000026;border-color:#ffffff22}
 <select id="visionModel" name="vision_model"><option value="">Choose a vision model</option></select>
 <div class="help">Validates generated hands, finger counts, anatomy, lettering and relevance.</div>
 </div>
-<div class="video-generation-setting">
-<label class="row"><input id="videoGeneration" name="video_generation" type="checkbox"> 4. Animate each image (Video Model, optional)</label>
-<select id="videoModel" name="video_model" aria-label="Video generation model"></select>
-<div id="videoHelp" class="help">After the artwork is approved, every image becomes a short clip that plays behind the lyrics.</div>
-<a id="videoModelLink" class="download" target="_blank" rel="noopener">Model details &amp; access</a>
-</div>
 <div>
 <div class="row" style="justify-content:space-between;margin-bottom:6px">
 <label for="imageSeed" style="margin:0">Model Seed</label>
@@ -167,6 +161,15 @@ input,textarea,select{background:#00000026;border-color:#ffffff22}
 <button type="button" id="rollSeed" title="Roll a new random seed" style="font-size:12px;padding:4px 10px;white-space:nowrap">🎲 Roll</button>
 </div>
 <div class="help">Sets the random seed for image generation, prompts, layouts, and stage models. Leave blank or check Randomize for a fresh seed each run.</div>
+</div>
+</fieldset>
+<fieldset class="experimental-features" style="border:1px solid #2f6b45;border-radius:12px;padding:14px;display:grid;gap:14px;background:#0f2a1b">
+<legend style="font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#9be3b5;font-weight:600;padding:0 6px">Experimental Features</legend>
+<div class="video-generation-setting">
+<label class="row"><input id="videoGeneration" name="video_generation" type="checkbox"> Animate each image with a video model</label>
+<select id="videoModel" name="video_model" aria-label="Video generation model"></select>
+<div id="videoHelp" class="help">After the artwork is approved, every image becomes a short clip that plays behind the lyrics.</div>
+<a id="videoModelLink" class="download" target="_blank" rel="noopener">Model details &amp; access</a>
 </div>
 </fieldset>
 <div><label for="asrModel">Audio transcription model</label><select id="asrModel" name="asr_model"></select><div id="speechHelp" class="help"></div><a id="speechLink" class="download" target="_blank" rel="noopener">Audio model details</a></div>
