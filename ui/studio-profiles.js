@@ -58,7 +58,7 @@ function restoreVisionSelection(){
  gallerySignature='';if(state)renderGallery(state);
 }
 
-const PROFILE_FIELDS=['text_animation','audio_mode','text_pool','font_family','font_style','font_scale','auto_accept','entrance_pool','exit_pool','entrance_effect','exit_effect','artwork_mode','ai_model','particle_speed','image_model','vision_model','project_id','asr_model','alignment_model','reference_prompt','style','image_instructions','instructions','type_effect','particle_intensity','language','auto_verify','auto_repair','review_threshold','cinematic','resolution','lines','steps','encoder','cache','image_seed','randomize_seed'];
+const PROFILE_FIELDS=['text_animation','audio_mode','text_pool','font_family','font_style','font_scale','auto_accept','entrance_pool','exit_pool','entrance_effect','exit_effect','artwork_mode','ai_model','particle_speed','image_model','vision_model','project_id','asr_model','alignment_model','reference_prompt','cast_reference','style','image_instructions','instructions','type_effect','particle_intensity','language','auto_verify','auto_repair','review_threshold','cinematic','resolution','lines','steps','encoder','cache'];
 let imageModels=[],audioModels=[],backendReady=false;
 const DEFAULT_PROFILE_NAME='Mucha · Bright & Flowing';
 const DEFAULT_REFERENCE='/assets/filipina-reference.png';

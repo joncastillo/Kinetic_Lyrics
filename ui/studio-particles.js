@@ -439,7 +439,8 @@ function refreshWordSamples(){
 }
 
 async function hydrateLiveArtwork(snapshot,project){
-  if(snapshot.images?.some(image=>image.variants?.length))return snapshot;
+  // A run that makes new artwork clears the gallery on purpose; do not refill it with the previous attempt's images.
+  if(snapshot.gallery_cleared||snapshot.images?.some(image=>image.variants?.length))return snapshot;
   try{
     const response=await fetch('/files/'+encodeURIComponent(project)+'/live-artwork.json?t='+Date.now(),{cache:'no-store'});
     if(!response.ok)return snapshot;

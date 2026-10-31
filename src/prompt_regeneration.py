@@ -28,6 +28,9 @@ def regenerate_prompts(worker,job,config,items):
             'Follow the assigned composition and orientation. '
             'No text, captions, logos or copied lyric lines. Return only JSON with a subjects array in input order. ')
         system+=' Invent a new interpretation rather than repeating the previous scene. Apply optional user guidance and additional image instructions when they fit the lyrics.'
+        if job.get('main_character'):
+            from reference_character import casting_rule
+            system+=' '+casting_rule(job['main_character'])
         payload=dict(model=model,stream=False,think=False,keep_alive=-1,options=dict(num_ctx=8192),
             format=dict(type='object',properties=dict(subjects=dict(type='array',items=dict(type='string'))),required=['subjects']),
             messages=[dict(role='system',content=system),dict(role='user',content=json.dumps([
@@ -60,7 +63,9 @@ def regenerate_prompts(worker,job,config,items):
                                              max_words=550 if job.get('artwork_mode')=='verse' else 180)
             technique=job.get('style_prompt',config.get('style_prompt',''))
             extra=job.get('image_instructions',config.get('image_instructions',''))
-            prompts=[image_prompt(subject,job['layouts'][index],technique,bool(job.get('reference_paths')))
+            if job.get('main_character'):
+                extra=(casting_rule(job['main_character'])+extra).strip()
+            prompts=[image_prompt(subject,job['layouts'][index],technique,bool(job.get('reference_paths')),job.get('reference_use')=='likeness')
                      + (' Additional image direction: '+extra if extra else '') for index,subject in zip(indices,subjects)]
             from prompt_audit import audit_prompts
             prompts=audit_prompts(gpu_chat,model,audit_groups,subjects,prompts,[job['layouts'][i] for i in indices],job.get('artwork_mode','cutout'))

@@ -242,8 +242,11 @@ def request_directions(stage, contexts, model, request, image_instructions=''):
     notes = [notes_for_group(text, glosses) for text in lyric_texts]
     lyric_words = [set(re.findall(r"[\w']+", text.lower())) for text in lyric_texts]
     result = [direction(None, block, {}, kinds, a, p) for block, a, p in zip(blocks, accents, particles)]
+    from kinetic_progress import counted
+    report = counted('direction', 0, 1, 'AI choosing the small animated pictures for 3D stage block')
     for first in range(0, len(blocks), BATCH):
         numbers = list(range(first, min(len(blocks), first+BATCH)))
+        report(first, numbers[-1]+1, len(blocks))
         content = []
         for n in numbers:
             lines = blocks[n]['lines']

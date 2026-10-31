@@ -15,7 +15,7 @@ def song_gist(request, model, lines, image_instructions=''):
     from kinetic_progress import emit
     from llm_trace import trace_stage
     from verse_backgrounds import LANGUAGE_RULE
-    emit('subjects', .05, message='Reading the whole song for its message and hidden meanings')
+    emit('song', .2, message='Reading the whole song for its message and hidden meanings')
     payload = dict(model=model, stream=False, think=False, keep_alive=-1, options=dict(num_ctx=8192),
         format=dict(type='object', properties=dict(subjects=dict(type='array', items=dict(type='string'))),
                     required=['subjects']),

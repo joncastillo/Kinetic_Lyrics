@@ -4,8 +4,7 @@ import json
 
 def audit_prompts(request,model,groups,subjects,prompts,layouts,mode='cutout'):
     from subject_director import request_subjects
-    from kinetic_progress import emit
-    emit('subjects',.6,message='Second pass: reviewing every image prompt for relevance and conflicting instructions')
+    from kinetic_progress import emit,counted
     system=(
         'Review and improve every supplied image-generation prompt before it is sent to an image model. '
         'Return one complete corrected image prompt per input, in a JSON subjects array in input order. '
@@ -43,7 +42,9 @@ def audit_prompts(request,model,groups,subjects,prompts,layouts,mode='cutout'):
             for lyrics,subject,prompt,layout in zip(groups,subjects,prompts,layouts)]))])
     from llm_trace import trace_stage
     with trace_stage('Second pass / image prompt review'):
-        reviewed=request_subjects(request,payload,batch_size=2,max_words=780 if mode=='verse' else 300,avoid_repeats=False)
+        reviewed=request_subjects(request,payload,batch_size=2,max_words=780 if mode=='verse' else 300,avoid_repeats=False,
+                                  progress=counted('audit',0,1,'Second pass: checking image prompt',
+                                                   ' for lyric relevance and conflicting instructions'))
     if len(reviewed)!=len(prompts):raise ValueError('Prompt review must return one corrected prompt per scene')
     if mode=='verse':
         marker='Preserve the described subjects, actions, relationships and setting. '
@@ -58,5 +59,5 @@ def audit_prompts(request,model,groups,subjects,prompts,layouts,mode='cutout'):
                            'the painted environment depth without distracting from the lyric.')
             expanded.append(candidate)
         reviewed=expanded
-    emit('subjects',1,message='Second pass complete: image prompts reviewed')
+    emit('audit',1,message='Second pass complete: image prompts reviewed')
     return reviewed

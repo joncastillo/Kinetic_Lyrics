@@ -34,9 +34,12 @@ from speech_models import ASR_MODELS, LANGUAGES, DEFAULT_ASR, validate_speech
 
 HERE = Path(__file__).resolve().parent
 ROOT = studio_output(PROJECT_ROOT,'lyric-studio')
-STAGES = {'alignment': (0, 10), 'subjects': (10, 15), 'model': (15, 20),
-          'illustrations': (20, 70), 'cutouts': (70, 80), 'review': (80, 80),
+# Prompting is split into the steps it actually runs; together they take longer than image generation.
+STAGES = {'alignment': (0, 8), 'song': (8, 10), 'meanings': (10, 14), 'scenes': (14, 24), 'audit': (24, 30),
+          'fit': (30, 34), 'subjects': (8, 34), 'model': (34, 36),
+          'illustrations': (36, 74), 'cutouts': (74, 80), 'review': (80, 80),
           'direction': (80, 85), 'render': (85, 99), 'complete': (100, 100)}
+PROMPT_STAGES = ('subjects', 'song', 'meanings', 'scenes', 'audit', 'fit')
 TOKEN = secrets.token_urlsafe(32)
 AUTO_RESUMES = 2
 AUTO_RESUME_DELAY = 20
@@ -242,6 +245,7 @@ class Job:
                         self.log(f'{action} failed (exit {code}). See errors above.', 'error')
                     elif action == 'rerender':
                         self.state['dirty'] = []
+                        self.state['timing_dirty'] = False
                     elif action == 'patch':
                         index = int(command[command.index('--index')+1])
                         self.state['dirty'] = [i for i in self.state['dirty'] if i != index]
@@ -315,6 +319,10 @@ class Job:
     def snapshot(self, cursor=0):
         with LOCK:
             result = copy.deepcopy(self.state)
+        if (result['status'] == 'cancelled' and result['stage'] == 'complete'
+                and (self.folder/'video.mp4').is_file()):
+            result['status'] = 'complete'
+            result['message'] = 'Video ready; saved work can be edited'
         from video_versions import verified_changes, video_versions
         result['dirty'], result['dirty_verified'] = verified_changes(self.folder, result.get('dirty', []))
         result['video_versions'] = video_versions(self.folder, self.url)
@@ -324,10 +332,10 @@ class Job:
             result['replacement_review']=[c['index'] for c in waiting.get('candidates',[])] if waiting.get('manifest')==str(self.manifest()) else []
         except (OSError,ValueError):result['replacement_review']=[]
         logs = result.pop('logs')
-        result.update(logs=logs[cursor:], cursor=len(logs), images=self.images(), ornaments=self.ornaments(),
+        result.update(logs=logs[cursor:], cursor=len(logs), images=self.images(), gallery_cleared=bool(self.gallery_since()), ornaments=self.ornaments(),
                       rejected_images=self.rejected_selections(),
                       elapsed=round(self.state.get('finished', time.time())-self.state['started']),
-                      render_settings=dict(**typography_options(self.config),text_animation=self.config.get('text_animation','directed'), audio_mode=self.config.get('audio_mode','original'), auto_accept=self.config.get('auto_accept',False), type_effect=self.config.get('type_effect','none'), entrance_effect=self.config.get('entrance_effect','legacy'), exit_effect=self.config.get('exit_effect','legacy'), entrance_pool=self.config.get('entrance_pool'), exit_pool=self.config.get('exit_pool'), particle_speed=self.config.get('particle_speed',1.), particle_intensity=self.config.get('particle_intensity',1.), image_seed=self.config.get('image_seed'), randomize_seed=self.config.get('randomize_seed', True)))
+                      render_settings=dict(**typography_options(self.config),text_animation=self.config.get('text_animation','directed'), audio_mode=self.config.get('audio_mode','original'), auto_accept=self.config.get('auto_accept',False), auto_verify=self.config.get('auto_verify',False), cast_reference=self.config.get('reference_use')=='likeness', type_effect=self.config.get('type_effect','none'), entrance_effect=self.config.get('entrance_effect','legacy'), exit_effect=self.config.get('exit_effect','legacy'), entrance_pool=self.config.get('entrance_pool'), exit_pool=self.config.get('exit_pool'), particle_speed=self.config.get('particle_speed',1.), particle_intensity=self.config.get('particle_intensity',1.), image_seed=self.config.get('image_seed'), randomize_seed=self.config.get('randomize_seed', True)))
         prompt_model=self.config.get('ai_model','auto')
         try:
             manifest=json.loads(self.manifest().read_text(encoding='utf-8'))
@@ -392,6 +400,13 @@ class Job:
                                url=self.url(shown), key=key, keep=key not in released_pictures(self.folder)))
         return result
 
+    def gallery_since(self):
+        """Until a regenerating run reaches review, the gallery shows only images it made; a run that found its
+        artwork already made shows it again from review on. 0 when nothing is hidden."""
+        regenerating = (self.state.get('status') in ('running', 'queued') and
+                        self.state.get('stage') in (None, 'alignment', *PROMPT_STAGES, 'model', 'illustrations', 'cutouts'))
+        return self.config.get('gallery_since', 0) if regenerating else 0
+
     def images(self):
         try:
             manifest = self.manifest()
@@ -399,11 +414,15 @@ class Job:
         except (ValueError, OSError):
             return []
         result = []
+        since = self.gallery_since()
+        if since and manifest.stat().st_mtime < since:
+            return []
         for i, prompt in enumerate(job['prompts']):
             current, raw = manifest.parent/f'{i:03d}.png', manifest.parent/f'{i:03d}.raw.png'
             variants = [p for p in (current, raw) if p.exists()]
             variants += sorted((self.folder/'candidates'/f'{i:03d}').glob('*/*.png'))
             variants += sorted((self.folder/'versions'/f'{i:03d}').glob('*.png'))
+            variants = [p for p in variants if not since or p.stat().st_mtime >= since]
             entries = []
             seen = set()
             for path in variants:
@@ -432,7 +451,7 @@ class Job:
             queued=next((q for q in self.state.get('queued_actions',[]) if q.get('index')==i and q.get('action','regenerate') in ('regenerate','reprompt')),None)
             pending=('Prompt queued' if queued.get('action')=='reprompt' else 'Image queued') if queued else ''
             if i in self.state.get('active_images',[]) :
-                pending='Preparing prompt' if self.state.get('action_stage')=='subjects' else 'Generating replacement'
+                pending='Preparing prompt' if self.state.get('action_stage') in PROMPT_STAGES else 'Generating replacement'
             result.append(dict(index=i, pending=pending, subject=job.get('visual_descriptions', job['prompts'])[i],
                 lyrics=job['groups'][i], prompt=prompt, variants=entries))
         return result
@@ -447,6 +466,8 @@ def checked_file(job, value):
 
 def stop_job(job):
     with LOCK:
+        if job.state['status'] == 'complete' and not job.state.get('action'):
+            return
         job.cancelled = True
         from generation_queue import queue_path
         queue_path(job.folder).unlink(missing_ok=True)
@@ -565,6 +586,7 @@ def start_job(fields, files):
             image_cache=str(Path(fields.get('cache', '').strip() or str(default_model_cache())).expanduser().resolve()),
             style_prompt=fields.get('reference_prompt', '').strip() or STYLE_PROMPT,
             image_instructions=fields.get('image_instructions', '').strip()[:2000],
+            reference_use='likeness' if fields.get('cast_reference') == 'on' else 'style',
             theme=fields.get('style', '').strip() or 'Bright, uplifting mood; flowing fabric and long flowing hair; graceful movement and luminous color.',
             artwork_mode=fields.get('artwork_mode','cutout'), image_seed=image_seed, randomize_seed=randomize,
             cinematic=fields.get('cinematic') == 'on', encoder=fields.get('encoder', 'h264_nvenc'),
@@ -573,7 +595,8 @@ def start_job(fields, files):
             particle_speed=float(fields.get('particle_speed', 1.)),
             text_animation=fields.get('text_animation','directed'), audio_mode=fields.get('audio_mode','original'), entrance_effect=fields.get('entrance_effect', 'legacy'), exit_effect=fields.get('exit_effect', 'legacy'),
             type_effect=fields.get('type_effect','mixed'), language=fields.get('language','').strip(),
-            ai_model=ai_model, start_step=start_step, project_id=folder.name,
+            ai_model=ai_model, start_step=start_step, project_id=folder.name, run_started=time.time(),
+            start_substep=fields.get('start_substep', '') if start_step == 'prompts' and fields.get('start_substep') in PROMPT_STAGES[1:] else '',
             vision_model=fields.get('vision_model','').strip(),auto_verify=fields.get('auto_verify')=='on',
             auto_accept=fields.get('auto_accept')=='on', auto_repair=fields.get('auto_repair','on')=='on',review_threshold=int(fields.get('review_threshold',DEFAULT_THRESHOLD)),
             stage_pictures=fields.get('stage_pictures','ai-painted') or 'ai-painted')
@@ -603,6 +626,9 @@ def start_job(fields, files):
             raise ValueError('Select a vision model, or turn off anatomy review for this job')
         if config['encoder'] not in ('h264_nvenc', 'libx264'):
             raise ValueError('Invalid encoder')
+        if start_step in ('beginning', 'timing', 'prompts', 'images'):
+            # This run makes new artwork, so the gallery starts empty instead of showing the previous images.
+            config['gallery_since'] = time.time()
         (folder/'config.json').write_text(json.dumps(config, indent=2), encoding='utf-8')
 
         if is_restart:
@@ -613,7 +639,8 @@ def start_job(fields, files):
                 for f in [folder/'video.theme.json']:
                     if f.exists(): f.unlink()
             elif start_step == 'images':
-                pass
+                from active_artwork import archive_images
+                archive_images(folder, config)
             elif start_step == 'review':
                 pass
             elif start_step == 'render':
@@ -625,6 +652,7 @@ def start_job(fields, files):
         command += [
             '--theme', config['theme'], '--style-prompt', config['style_prompt'],
             '--image-instructions', config['image_instructions'], '--image-cache', config['image_cache'],
+            '--reference-use', config['reference_use'], '--vision-model', config['vision_model'],
             '--artwork-mode', config['artwork_mode'], '--image-seed', str(config['image_seed']),
             '--image-model', config['image_model'], '--image-steps', str(steps), '--illustration-lines', str(lines),
             '--width', str(width), '--height', str(height), '--encoder', config['encoder'], '--preserve-art-slots',
@@ -745,7 +773,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond((PROJECT_ROOT/'assets'/'default-style-reference.jpg').read_bytes(), content_type='image/jpeg')
             if url.path == '/assets/filipina-reference.png':
                 return self.respond((PROJECT_ROOT/'assets'/'filipina-reference.png').read_bytes(), content_type='image/png')
-            if url.path in ('/studio.css', '/studio-profiles.js', '/studio-models.js', '/studio-particles.js'):
+            if url.path in ('/studio.css', '/studio-profiles.js', '/studio-models.js', '/studio-particles.js', '/studio-timeline.js'):
                 path = UI_ROOT/url.path.lstrip('/')
                 return self.respond(path.read_bytes(), content_type='text/css' if path.suffix=='.css' else 'text/javascript')
             if url.path == '/api/profile-audio':
@@ -824,7 +852,9 @@ class Handler(BaseHTTPRequestHandler):
                 has_prompts = bool(manifest and manifest.exists())
                 has_video = (folder / 'video.mp4').exists()
                 current_step = 5 if has_video else 4 if reviews else 3 if images else 2 if has_prompts else 1 if has_timings else 0
-                return self.respond(dict(
+                from prompt_checkpoint import restartable
+                prompt_substeps = restartable(folder/'video.artwork') if has_timings and (folder/'video.artwork').is_dir() else []
+                return self.respond(dict(prompt_substeps=prompt_substeps,
                     exists=True, id=project_id,
                     has_audio=bool(list(folder.glob('audio.*'))),
                     has_lyrics=(folder / 'lyrics.txt').exists(),
@@ -836,6 +866,17 @@ class Handler(BaseHTTPRequestHandler):
                     has_video=has_video,
                     current_step=current_step
                 ))
+            if url.path.startswith('/api/jobs/') and url.path.endswith('/timeline'):
+                job = JOBS.get(url.path.split('/')[3])
+                if job is None:
+                    return self.respond(dict(error='This song is no longer loaded in the studio. Reload the page and choose it again.'), 404)
+                from timeline_data import song_duration, timeline_stems, word_timings
+                timings = word_timings(job.folder)
+                stems = timeline_stems(job.folder)
+                duration = song_duration(job.folder, job.config['audio'])
+                return self.respond(dict(timings=timings, stems=stems, duration=duration,
+                                         audio=job.url(Path(job.config['audio'])),
+                                         needs_render=job.state.get('timing_dirty', False)))
             if url.path.startswith('/api/jobs/'):
                 job = JOBS[url.path.split('/')[3]]
                 cursor = max(0, int(parse_qs(url.query).get('cursor', [0])[0]))
@@ -844,7 +885,7 @@ class Handler(BaseHTTPRequestHandler):
                 _, _, job_id, relative = unquote(url.path).split('/', 3)
                 job = JOBS[job_id]
                 path = (job.folder/relative).resolve()
-                valid=path.is_relative_to(job.folder.resolve()) and path.is_file() and path.suffix in {'.png', '.mp4', '.txt', '.json'}
+                valid=path.is_relative_to(job.folder.resolve()) and path.is_file() and path.suffix in {'.png', '.mp4', '.txt', '.json', '.wav', '.m4a', '.mp3'}
                 if not valid:
                     return self.respond(dict(error='File not found'), 404)
                 size, start, end = path.stat().st_size, 0, path.stat().st_size-1
@@ -909,6 +950,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond(dict(id=start_job(fields, files).folder.name), 201)
             _, _, _, job_id, operation = route.split('/')
             job = JOBS[job_id]
+            saved_video = (job.state['status'] == 'cancelled' and job.state['stage'] == 'complete'
+                           and (job.folder/'video.mp4').is_file())
             if operation == 'regenerate-new':
                 args=json.loads(body)
                 if not isinstance(args,dict) or not args.get('image_model'):
@@ -927,9 +970,36 @@ class Handler(BaseHTTPRequestHandler):
                 from ornament_director import set_picture_kept
                 set_picture_kept(job.folder, args['key'], bool(args.get('keep', True)))
                 return self.respond(dict(ok=True))
+            if operation == 'timings':
+                if job.state['status'] in ('running', 'queued') or job.state.get('action'):
+                    raise ValueError('Wait for the current video operation before editing timings')
+                from kinetic_lyrics import validate
+                from timeline_data import song_duration, timeline_stems, word_timings
+                current_path = job.folder/'video.timings.json'
+                current = word_timings(job.folder)
+                updated = args.get('timings')
+                if not isinstance(updated, list):
+                    raise ValueError('Supply lyric word timings')
+                duration = song_duration(job.folder, job.config['audio'])
+                validate(updated, [line['text'] for line in current], duration)
+                if [[word['text'] for word in line['words']] for line in updated] != [[word['text'] for word in line['words']] for line in current]:
+                    raise ValueError('The timeline editor can change timing, not lyric text')
+                backup = job.folder/'video.timings.before-editor.json'
+                if not backup.exists():
+                    shutil.copy2(current_path, backup)
+                temporary = job.folder/'video.timings.editing.json'
+                temporary.write_text(json.dumps(updated, ensure_ascii=False, indent=2), encoding='utf-8')
+                temporary.replace(current_path)
+                job.state['timing_dirty'] = True
+                job.log('Word timings edited in the timeline; rebuild the video to apply them.')
+                job.save()
+                return self.respond(dict(ok=True))
             if operation in ('regenerate','reprompt') and (not isinstance(args.get('prompt',''),str) or len(args.get('prompt',''))>32768):
                 raise ValueError('The generation prompt must be text no longer than 32,768 characters')
             with LOCK:
+                if saved_video:
+                    job.cancelled = False
+                    job.state['status'] = 'complete'
                 if operation in ('regenerate','reprompt') and (job.state['status'] == 'running' or job.state['action']):
                     if not args.get('image_model'):
                         raise ValueError('Reload the studio page to apply the selected image model')
@@ -947,7 +1017,7 @@ class Handler(BaseHTTPRequestHandler):
                                   and job.state['stage'] in ('illustrations','cutouts','verification','repair','repair-complete','direction','render'))
                 saved_review = (operation == 'skip-verify' and job.state['status'] == 'cancelled'
                                 and job.state['stage'] == 'review')
-                if job.state['status'] not in ('review', 'complete') and not live_selection and not saved_review:
+                if job.state['status'] not in ('review', 'complete') and not saved_video and not live_selection and not saved_review:
                     raise ValueError('Images can be changed at artwork review or after the video completes')
                 if any(other is not job and (other.state['status'] in ('queued', 'running', 'review') or other.state['action']) for other in JOBS.values()):
                     raise ValueError('Another job is active; finish or cancel it first')
@@ -982,8 +1052,11 @@ class Handler(BaseHTTPRequestHandler):
                     job.save()
                     return self.respond(dict(ok=True,queued=True))
                 if operation == 'rerender':
-                    if job.state['status'] != 'complete' or job.state['queued_actions']:
+                    if (job.state['status'] != 'complete' and not saved_video) or job.state['queued_actions']:
                         raise ValueError('Wait for the current video and queued operations to finish')
+                    if saved_video:
+                        job.cancelled = False
+                        job.state['status'] = 'complete'
                     effect = args.get('type_effect', job.config.get('type_effect','none'))
                     density = float(args.get('particle_intensity', job.config.get('particle_intensity',1.)))
                     if effect not in EFFECTS or not 0 <= density <= 2:
@@ -1021,8 +1094,11 @@ class Handler(BaseHTTPRequestHandler):
                     from video_versions import verified_changes
                     changes, verified = verified_changes(job.folder, job.state['dirty'])
                     if verified:job.state['dirty'] = changes
-                    if job.state['status'] != 'complete':
+                    if job.state['status'] != 'complete' and not saved_video:
                         raise ValueError('Rebuild is available after the first video completes')
+                    if saved_video:
+                        job.cancelled = False
+                        job.state['status'] = 'complete'
                     job.state['queued_actions'].extend(dict(action='patch', index=i) for i in job.state['dirty'])
                     job.start_next()
                     job.save()

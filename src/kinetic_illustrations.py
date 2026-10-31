@@ -6,6 +6,7 @@ import argparse
 import gc
 import gpu_memory
 import hashlib
+import secrets
 import json
 import os
 import re
@@ -50,13 +51,16 @@ def uses_reference(artwork_mode, subject):
     return not (artwork_mode in (None, 'cutout') and subject_kind(subject) == 'object')
 
 
-def with_reference_role(prompt):
+def with_reference_role(prompt, likeness=False):
     """Lead with what the reference image is for, unless the prompt already says it. It goes first so FLUX.2's
     512-token cut can never drop it."""
-    return prompt if any(marker in prompt for marker in REFERENCE_MARKERS) else REFERENCE_ROLE+prompt
+    from reference_character import CHARACTER_ROLE
+    if any(marker in prompt for marker in REFERENCE_MARKERS):
+        return prompt
+    return (CHARACTER_ROLE if likeness else REFERENCE_ROLE)+prompt
 
 
-def image_prompt(subject, layout, style_prompt=STYLE_PROMPT, has_references=False):
+def image_prompt(subject, layout, style_prompt=STYLE_PROMPT, has_references=False, likeness=False):
     if layout.get('artwork_mode') == 'verse':
         from verse_backgrounds import image_prompt as background_prompt
         return background_prompt(subject, layout, style_prompt)
@@ -64,7 +68,9 @@ def image_prompt(subject, layout, style_prompt=STYLE_PROMPT, has_references=Fals
         technique = (style_prompt if subject_kind(subject) != 'object' else
                      'Delicate ink contours, painterly shading, luminous color and elegant material textures.')
         return ('Paint this subject in a coherent environment: '+subject+'. '+layout['visual_prompt']+
-                ' Rendering technique: '+technique+'. Reference images guide technique only, never subject matter. '
+                ' Rendering technique: '+technique+'. '
+                +('The reference image shows the main character: keep their face, hair, skin tone, age and gender, with clothing and pose from this scene. '
+                  if likeness else 'Reference images guide technique only, never subject matter. ')+
                 'Preserve natural anatomy for any described people. Each person’s face and body match their stated gender; women have smooth faces with no moustache, beard or stubble. Do not add people who are not described in the scene. '
                 'No text, captions, watermarks or printed marks.')
     kind = subject_kind(subject)
@@ -86,7 +92,10 @@ def image_prompt(subject, layout, style_prompt=STYLE_PROMPT, has_references=Fals
              if kind == 'object' else 'Show only the described people and objects. ')
     return (
         'Draw only this visual scene: '+subject.strip()+'. '+STYLE+' '+layout['visual_prompt']+' '
-        + ('REFERENCE ROLE: rendering technique ONLY. '+style_prompt+' '
+        + ('REFERENCE ROLE: the main character and rendering technique. '+style_prompt+' '
+           'Give the main person the reference person’s face, hairstyle, skin tone, age and gender. '
+           'Do not copy reference clothes, pose, objects or composition. ' if has_references and likeness else
+           'REFERENCE ROLE: rendering technique ONLY. '+style_prompt+' '
            'Preserve only brushwork, ink quality, shading technique and color treatment. '
            'Do not copy reference people, clothes, objects or composition. ' if has_references else 'Rendering technique: '+style_prompt+' ')
         + 'FINAL SUBJECT TO DRAW: '+subject.strip()+'. '+scope
@@ -97,12 +106,15 @@ def image_prompt(subject, layout, style_prompt=STYLE_PROMPT, has_references=Fals
 
 def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=None, seed=42,
                 style_prompt=STYLE_PROMPT, director_model='auto', lookup_only=False,
-                width=1920, height=1080, cinematic=False, artwork_mode="cutout", image_instructions=''):
+                width=1920, height=1080, cinematic=False, artwork_mode="cutout", image_instructions='',
+                reference_use='style', vision_model=''):
     if steps is None:steps=model_spec(model)['steps']
     from kinetic_director import local_json
     from song_structure import analyze,grouped_lines,group_contexts
     structured=any('section_id' in line for line in data)
     config_path=Path(folder).parent/'config.json'
+    try:run_config=json.loads(config_path.read_text(encoding='utf-8'))
+    except (OSError,ValueError):run_config={}
     if structured and config_path.is_file():
         config=json.loads(config_path.read_text(encoding='utf-8'))
         if config.get('start_step') in ('images','review','render'):
@@ -119,13 +131,37 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
                      style=STYLE, style_prompt=style_prompt, image_instructions=image_instructions,
                      references=[hashlib.sha256(p.read_bytes()).hexdigest() for p in references])
     if structured:signature.update(line_groups=indices,song_structure=structure)
+    likeness = reference_use == 'likeness' and bool(references)
+    if likeness:signature['reference_use'] = 'likeness'
     key = hashlib.sha256(json.dumps(signature, sort_keys=True).encode()).hexdigest()[:20]
     folder = Path(folder)/key
     manifest = folder/'illustrations.json'
-    if manifest.exists() or lookup_only:
+    if lookup_only or (manifest.exists() and not fresh_prompts(manifest, run_config)):
         return manifest
+    if manifest.exists():
+        # Same settings as a finished run, but the person asked for new prompts: its images go aside, not away.
+        from active_artwork import archive_folder
+        archive_folder(folder)
     from gpu_models import resolve_prompt_model
     director_model = resolve_prompt_model(local_json, director_model)
+    character = ''
+    if likeness and vision_model:
+        from reference_character import describe
+        from ollama_gpu import gpu_chat, unload_model
+        try:
+            emit('song', .8, message=f'Describing the main character from the reference image with {vision_model}')
+            character = describe(gpu_chat, vision_model, references[0])
+            print(f'Main character from the reference image: {character or "no clear person found"}', flush=True)
+        except (OSError, ValueError) as exc:
+            print(f'Warning: the reference person could not be described, so scene prompts will not name them: {exc}', flush=True)
+        finally:
+            try:unload_model(vision_model)
+            except (OSError,ValueError) as exc:print(f'Warning: vision model cleanup: {exc}',flush=True)
+    elif likeness:
+        print('Warning: choose an Image Quality Scoring (VL) model so scene prompts know who the reference image shows.', flush=True)
+    if character:
+        from reference_character import casting_rule
+        image_instructions = (casting_rule(character)+image_instructions).strip()
     from verse_backgrounds import DIRECTOR_PROMPT, LANGUAGE_RULE, PEOPLE_RULE
     director_options = dict(num_ctx=8192)
     if seed is not None:
@@ -154,48 +190,93 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
             + 'Use additional image instructions only when they fit the lyric meaning. Return only JSON with a subjects array in input order.'))),
             dict(role='user', content=json.dumps([dict(lyrics=group, layout=layout['prompt'], image_instructions=image_instructions)
                  for group, layout in zip(groups, layouts)]))])
+    if character:
+        payload['messages'][0]['content'] += ' '+casting_rule(character)
     from subject_director import request_subjects, repair_duplicate_subjects, lengthen_short_subjects
     from ollama_gpu import gpu_chat, unload_model
     reference_images = bool(references) and model_spec(model)['references']
     meanings = []
     audit_groups = groups
     gist = ''
+    from prompt_checkpoint import Checkpoint
+    checkpoint = Checkpoint(folder, [line['text'] for line in data], run_config)
+    song = checkpoint.get('song')
+    if song:
+        saved_indices = song.get('indices')
+        expected = ([' / '.join(data[i]['text'] for i in group) for group in saved_indices]
+                    if saved_indices and all(0 <= i < len(data) for group in saved_indices for i in group) else groups)
+        if song.get('groups') != expected or len(song.get('layouts') or []) != len(expected):
+            print('Saved prompting work does not match these lyric lines; starting prompting from the song.', flush=True)
+            checkpoint.data.clear(); song = None
     try:
         contexts=None
         from song_gist import song_gist, attach_gist
-        gist = song_gist(gpu_chat, director_model, [line['text'] for line in data], image_instructions)
+        if song:
+            gist = song['gist']
+            if song.get('indices'):
+                structured, structure, indices = True, song['structure'], song['indices']
+            groups, layouts = song['groups'], song['layouts']
+        else:
+            gist = song_gist(gpu_chat, director_model, [line['text'] for line in data], image_instructions)
+            if structured:
+                emit('song',.5,message=f'Finding the verses, choruses and bridges in {len(data)} lyric lines')
+                structure=analyze(gpu_chat,director_model,data)
+                indices=grouped_lines(data,line_count,structure)
+                groups=[' / '.join(data[i]['text'] for i in group) for group in indices]
+                layouts=[illustration_layout(i,width,height,cinematic,artwork_mode,seed) for i in range(len(groups))]
+            checkpoint.save('song', dict(gist=gist, indices=indices if structured else None, structure=structure,
+                                         groups=groups, layouts=layouts))
         if structured:
-            structure=analyze(gpu_chat,director_model,data)
-            indices=grouped_lines(data,line_count,structure)
-            groups=[' / '.join(data[i]['text'] for i in group) for group in indices]
-            layouts=[illustration_layout(i,width,height,cinematic,artwork_mode,seed) for i in range(len(groups))]
             contexts=group_contexts(data,indices,structure)
             signature.update(groups=groups,layouts=layouts,line_groups=indices,song_structure=structure)
             audit_groups=groups
             payload['format']['properties']['subjects'].update(minItems=len(groups),maxItems=len(groups))
             payload['messages'][1]['content']=json.dumps([dict(lyrics=g,layout=l['prompt'],section_context=c,image_instructions=image_instructions) for g,l,c in zip(groups,layouts,contexts)])
+        else:
+            signature.update(groups=groups,layouts=layouts)
+            payload['messages'][1]['content']=json.dumps([dict(lyrics=g,layout=l['prompt'],image_instructions=image_instructions) for g,l in zip(groups,layouts)])
+        audit_groups=groups
         if artwork_mode == 'verse':
             from verse_backgrounds import lyric_meanings
-            meanings = lyric_meanings(gpu_chat, director_model, groups, contexts=contexts,
-                                     image_instructions=image_instructions, song_gist=gist)
+            meanings = checkpoint.get('meanings')
+            if not meanings or len(meanings) != len(groups):
+                meanings = lyric_meanings(gpu_chat, director_model, groups, contexts=contexts,
+                                         image_instructions=image_instructions, song_gist=gist)
+                checkpoint.save('meanings', meanings)
             payload['messages'][1]['content'] = json.dumps([
                 dict(lyrics=group,lyric_meaning=meaning,layout=layout['prompt'],section_context=contexts[i] if contexts else None,image_instructions=image_instructions)
                 for i,(group,meaning,layout) in enumerate(zip(groups,meanings,layouts))])
             audit_groups = [f'Original lyric group: {group}\nEnglish meaning: {meaning}'
                             for group, meaning in zip(groups, meanings)]
+        else:
+            checkpoint.save('meanings', [])
         attach_gist(payload, gist)
         audit_groups = [f'Song message: {gist}\n{group}' for group in audit_groups]
-        subjects = request_subjects(gpu_chat, payload, max_words=550 if artwork_mode == 'verse' else 180)
-        subjects = repair_duplicate_subjects(gpu_chat, payload, subjects)
-        subjects = lengthen_short_subjects(gpu_chat, payload, subjects, 400 if artwork_mode == 'verse' else 120,
-                                           max_words=550 if artwork_mode == 'verse' else 180)
-        prompts = [image_prompt(subject, layout, style_prompt, reference_images)
-                   + (' Additional image direction: '+image_instructions if image_instructions else '')
-                   for subject, layout in zip(subjects, layouts)]
-        from prompt_audit import audit_prompts
-        prompts = audit_prompts(gpu_chat,director_model,audit_groups,subjects,prompts,layouts,artwork_mode)
-        from prompt_fit import fit_prompts
-        prompts = fit_prompts(gpu_chat, director_model, model, prompts, style_prompt)
+        from kinetic_progress import counted
+        subjects = checkpoint.get('scenes')
+        if not subjects or len(subjects) != len(groups):
+            subjects = request_subjects(gpu_chat, payload, max_words=550 if artwork_mode == 'verse' else 180,
+                                        progress=counted('scenes', 0, .6, 'Writing the scene for lyric group',
+                                                         names=groups))
+            subjects = repair_duplicate_subjects(gpu_chat, payload, subjects)
+            subjects = lengthen_short_subjects(gpu_chat, payload, subjects, 400 if artwork_mode == 'verse' else 120,
+                                               max_words=550 if artwork_mode == 'verse' else 180)
+            checkpoint.save('scenes', subjects)
+        prompts = checkpoint.get('audit')
+        if not prompts or len(prompts) != len(groups):
+            prompts = [image_prompt(subject, layout, style_prompt, reference_images, likeness)
+                       + (' Additional image direction: '+image_instructions if image_instructions else '')
+                       for subject, layout in zip(subjects, layouts)]
+            from prompt_audit import audit_prompts
+            prompts = audit_prompts(gpu_chat,director_model,audit_groups,subjects,prompts,layouts,artwork_mode)
+            checkpoint.save('audit', prompts)
+        fitted = checkpoint.get('fit')
+        if fitted and len(fitted) == len(groups):
+            prompts = fitted
+        else:
+            from prompt_fit import fit_prompts
+            prompts = fit_prompts(gpu_chat, director_model, model, prompts, style_prompt)
+            checkpoint.save('fit', prompts)
     finally:
         try:unload_model(director_model)
         except (OSError,ValueError) as exc:print(f'Warning: prompt model cleanup: {exc}',flush=True)
@@ -206,10 +287,62 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
         if any(len(line['text']) > 12 and line['text'].casefold() in subject.casefold() for line in data):
             raise ValueError('Visual description contains a copied lyric line; rerun the illustration director.')
     folder.mkdir(parents=True, exist_ok=True)
-    manifest.write_text(json.dumps(dict(**signature, reference_paths=[str(p) for p in references],
-        lyric_meanings=meanings, song_gist=gist, visual_descriptions=subjects, prompt_audit=dict(version=1,model=director_model),
+    manifest.write_text(json.dumps(dict(signature, reference_paths=[str(p) for p in references],
+        lyric_meanings=meanings, song_gist=gist, visual_descriptions=subjects,
+        reference_use='likeness' if likeness else 'style', main_character=character, prompt_audit=dict(version=1,model=director_model),
         reference_modes=['image_conditioning' if reference_images and uses_reference(artwork_mode, s) else 'technique_prompt_only' for s in subjects],
         prompts=prompts), ensure_ascii=False, indent=2), encoding='utf-8')
+    return manifest
+
+
+def fresh_prompts(manifest, config):
+    """True when this run restarts at Prompts but `manifest` was written before it began, so it must be rewritten
+    even though the settings, and so its folder, are unchanged."""
+    return (config.get('start_step') == 'prompts' and Path(manifest).is_file()
+            and Path(manifest).stat().st_mtime < config.get('run_started', 0))
+
+
+def saved_prompts(data, folder, args):
+    """For a studio restart at Images: the saved run's manifest, kept for its prompts, with every image to make again.
+
+    Settings decide which manifest a normal run uses, so a changed setting would rewrite the prompts and an unchanged
+    one would find the old images and skip generation; the studio has already moved those images aside."""
+    config_path = Path(folder).parent/'config.json'
+    try:config = json.loads(config_path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):return None
+    if config.get('start_step') != 'images':
+        return None
+    from active_artwork import select_manifest, record_manifest
+    try:manifest = select_manifest(Path(folder).parent, dict(config, start_step='review'))
+    except ValueError:return None
+    job = json.loads(manifest.read_text(encoding='utf-8'))
+    indices = job.get('line_groups')
+    count = len(job.get('groups', []))
+    groups = ([' / '.join(data[i]['text'] for i in group) for group in indices] if indices else
+              [' / '.join(line['text'] for line in data[i:i+n]) for n in [-(-len(data)//max(1, count))] for i in range(0, len(data), n)])
+    if groups != job.get('groups'):
+        print('The lyric lines changed since these prompts were written; writing new prompts.', flush=True)
+        return None
+    # The main character is written into the scenes, so saved prompts from the other mode would contradict it.
+    wanted = 'likeness' if getattr(args, 'reference_use', 'style') == 'likeness' and job.get('reference_paths') else 'style'
+    if wanted != (job.get('reference_use') or 'style'):
+        print('The main-character option changed since these prompts were written; writing new prompts so the scenes '
+              'show the person in the reference image.' if wanted == 'likeness' else
+              'The main-character option was turned off since these prompts were written; writing new prompts.', flush=True)
+        return None
+    if job['model'] != args.image_model or (args.image_steps and job['steps'] != args.image_steps):
+        job.update(model=args.image_model, steps=args.image_steps or model_spec(args.image_model)['steps'])
+        from prompt_fit import over_budget, refit
+        long = [i for i, prompt in enumerate(job['prompts']) if over_budget(prompt, args.image_model)]
+        if long:
+            emit('fit', 0, message=f'Fitting {len(long)} saved image prompt{"s" if len(long) != 1 else ""} to {args.image_model.split("/")[-1]}')
+            for i, prompt in zip(long, refit([job['prompts'][i] for i in long], args.image_model, config, job.get('style_prompt', ''))):
+                job['prompts'][i] = prompt
+        manifest.write_text(json.dumps(job, ensure_ascii=False, indent=2), encoding='utf-8')
+    print(f'Restarting at Images: reusing all {len(job["prompts"])} saved prompts and generating every image again. '
+          'Changes to style text, instructions or the main-character option need Restart at Prompts.', flush=True)
+    record_manifest(manifest)
+    emit('fit', 1, message=f'Reusing {len(job["prompts"])} saved image prompts', manifest=str(manifest))
     return manifest
 
 
@@ -232,9 +365,21 @@ def generate(data, folder, args):
                 args.style_prompt+' Visual mood and materials: '+getattr(args,'theme',''), args.ai_model)
     layout_args = dict(width=getattr(args, 'width', 1920), height=getattr(args, 'height', 1080),
                        cinematic=getattr(args, 'cinematic', False), artwork_mode=getattr(args, 'artwork_mode', 'cutout'),
-                       image_instructions=getattr(args, 'image_instructions', ''))
+                       image_instructions=getattr(args, 'image_instructions', ''),
+                       reference_use=getattr(args, 'reference_use', 'style'), vision_model=getattr(args, 'vision_model', ''))
+    reused = saved_prompts(data, folder, args)
+    if reused is not None:
+        cache = Path(args.image_cache or str(default_model_cache())).resolve()
+        subprocess.run([sys.executable, '-u', str(Path(__file__).resolve()), str(reused), '--cache', str(cache)], check=True)
+        job = json.loads(reused.read_text(encoding='utf-8'))
+        paths = [reused.parent/f'{i:03d}.png' for i in range(len(job['prompts']))]
+        from lettering_review import require_review
+        require_review(paths, args)
+        return paths
     manifest = prepare_job(*job_args, lookup_only=True, **layout_args)
-    if manifest.exists():
+    try:run_config = json.loads((Path(folder).parent/'config.json').read_text(encoding='utf-8'))
+    except (OSError, ValueError):run_config = {}
+    if manifest.exists() and not fresh_prompts(manifest, run_config):
         job = json.loads(manifest.read_text(encoding='utf-8'))
         paths = [manifest.parent/f'{i:03d}.png' for i in range(len(job['prompts']))]
         from lettering_review import needs_validation
@@ -254,11 +399,11 @@ def generate(data, folder, args):
     required = next((m['disk_gb'] for m in __import__('image_models').MODELS if m['id']==args.image_model), 40)
     if not cached.exists() and shutil.disk_usage(existing).free < required*2**30:
         raise ValueError(f'Allow approximately {required} GiB for this model. Use --image-cache DRIVE:/models.')
-    emit('subjects', 0, message='Interpreting lyrics into illustration subjects')
+    emit('song', 0, message='Reading the whole song before writing image prompts')
     manifest = prepare_job(*job_args, **layout_args)
     from active_artwork import record_manifest
     record_manifest(manifest)
-    emit('subjects',1,message='Illustration subjects ready',manifest=str(manifest))
+    emit('fit',1,message='Image prompts ready',manifest=str(manifest))
     gc.collect()
     if 'torch' in sys.modules and sys.modules['torch'].cuda.is_available():
         sys.modules['torch'].cuda.empty_cache()
@@ -458,6 +603,11 @@ def _run_job(manifest, cache):
     if not torch.cuda.is_available():
         raise ValueError('FLUX.2 generation requires CUDA in this environment.')
     model = job['model']
+    # "Randomize per image" in the studio: each picture gets its own seed instead of run seed + index.
+    random_seeds = False
+    if manifest.parent.parent.name == 'video.artwork':
+        try:random_seeds = bool(json.loads((manifest.parent.parent.parent/'config.json').read_text(encoding='utf-8')).get('randomize_seed'))
+        except (OSError, ValueError):pass
     free, total = gpu_memory.dedicated_memory(torch)
     print(f'GPU memory before image model: {free/2**30:.1f} GiB free / {total/2**30:.1f} GiB total.', flush=True)
     emit('model', 0, message='Loading image model; first use may download weights')
@@ -471,7 +621,11 @@ def _run_job(manifest, cache):
         ocr = RapidOCR()
         print(f'Generating with {model}: {job["steps"]} steps, guidance {guidance}.', flush=True)
         references = []
+        # The same picture uploaded several times adds nothing but weight to its conditioning.
+        unique = {}
         for path in job['reference_paths']:
+            unique.setdefault(hashlib.sha256(Path(path).read_bytes()).hexdigest(), path)
+        for path in unique.values():
             with Image.open(path) as source:
                 reference = source.convert('RGB')
             reference.thumbnail((1024, 1024))
@@ -493,14 +647,16 @@ def _run_job(manifest, cache):
             layout['image_width'],layout['image_height'] = image_dimensions(layout['image_width'],layout['image_height'],min(total,gpu_memory.dedicated_memory(torch)[0]+torch.cuda.memory_reserved())/2**30)
             reference_input = references if model_spec(model)['references'] and uses_reference(job.get('artwork_mode'), job['visual_descriptions'][i]) else []
             best_path=None;best_lettering=None
+            seed=secrets.randbelow(2**31) if random_seeds else job['seed']+i
+            print(f'Illustration {i+1} seed: {seed}', flush=True)
             for attempt in range(3):
-                retry_prompt=with_reference_role(job['prompts'][i]) if reference_input else job['prompts'][i]
+                retry_prompt=with_reference_role(job['prompts'][i], job.get('reference_use') == 'likeness') if reference_input else job['prompts'][i]
                 if attempt and manifest.parent.parent.name=='video.artwork':
                     retry_prompt+=' Replace any written sign or neon lettering with unlettered geometric light tubes. All signs, screens, walls and panels are completely blank. No alphabetic marks, captions, numerals or logos anywhere.'
                 image = pipe(prompt=retry_prompt, **inference_options(model, reference_input),
                     width=layout['image_width'], height=layout['image_height'],
                     num_inference_steps=job['steps'],
-                    generator=torch.Generator('cpu').manual_seed(job['seed']+i+attempt*10000),
+                    generator=torch.Generator('cpu').manual_seed(seed+attempt*10000),
                     callback_on_step_end=diffusion_callback(i, len(job['prompts']), attempt, 3, job['steps'])).images[0]
                 lettering = detected_lettering(ocr, image)
                 if not lettering:
@@ -549,7 +705,7 @@ def _run_job(manifest, cache):
             propagate_lettering(manifest.parent/f'{i:03d}.raw.png',target)
             emit('cutouts', 1, message=f'Full-screen artwork {i+1} ready', artifact=str(target))
         return
-    emit('cutouts', 0, message='Removing illustration backgrounds on CPU')
+    emit('cutouts', 0, message=f'Removing backgrounds from {len(missing)} illustration{"s" if len(missing) != 1 else ""} on the CPU')
     session = new_session('birefnet-general', providers=['CPUExecutionProvider'])
     for i in missing:
         target=manifest.parent/f'{i:03d}.png'
@@ -571,7 +727,7 @@ def _run_job(manifest, cache):
                 temporary.unlink(missing_ok=True)
         from lettering_review import propagate_lettering
         propagate_lettering(manifest.parent/f'{i:03d}.raw.png',target)
-        emit('cutouts', (missing.index(i)+1)/len(missing), message=f'Transparent illustration {i+1} ready', artifact=str(manifest.parent/f'{i:03d}.png'))
+        emit('cutouts', (missing.index(i)+1)/len(missing), message=f'Background removed: illustration {i+1} ({missing.index(i)+1} of {len(missing)})', artifact=str(manifest.parent/f'{i:03d}.png'))
 
 
 if __name__ == '__main__':
