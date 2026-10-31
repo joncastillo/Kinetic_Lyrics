@@ -241,7 +241,7 @@ function renderProductionStages(s=null){
  const layout=saved?.artwork_mode||$('artworkMode')?.value||'cutout';
  const pictureMode=saved?.stage_pictures||$('stagePictures')?.value||'ai-painted';
  const pictureName={'ai-painted':'AI · '+imageName.replace(/^Used · /,''),'ai-library':'AI · library pictures','keywords':'Keyword matches','off':'Off'}[pictureMode]||pictureMode;
- const labels={pictures:pictureName,alignment:[asrName,alignment==='auto'?'Auto timing':alignment].filter(Boolean).join(' · '),song:castName,meanings:promptName,scenes:promptName,audit:promptName,fit:promptName+' → '+imageName,model:saved?'Used · '+imageName:imageName,illustrations:saved?'Used · '+imageName:imageName,cutouts:'BiRefNet General',review:reviewName,direction:promptName,render:encoder||'H.264'};
+ const labels={pictures:pictureName,alignment:[asrName,alignment==='auto'?'Auto timing':alignment].filter(Boolean).join(' · '),song:castName,meanings:promptName,scenes:promptName,fit:promptName+' → '+imageName,model:saved?'Used · '+imageName:imageName,illustrations:saved?'Used · '+imageName:imageName,cutouts:'BiRefNet General',review:reviewName,direction:promptName,render:encoder||'H.264'};
  const audio=saved?.audio||$('audio').files[0]?.name||'No audio selected';
  const profile=saved?saved.profile||'Not recorded':localStorage.getItem('lyricStudioProfilesV1Active')||'No saved profile';
  const selectedImage=$('imageModel').selectedOptions[0]?.textContent||'Choose image model';
@@ -310,11 +310,11 @@ function renderProductionStages(s=null){
 }
 const PIPELINE_STEPS=[
  {value:'timing',name:'Timing',stages:['alignment']},
- {value:'prompts',name:'Prompts',stages:['song','meanings','scenes','audit','fit']},
+ {value:'prompts',name:'Prompts',stages:['song','meanings','scenes','fit']},
  {value:'images',name:'Images',stages:['model','illustrations','cutouts']},
  {value:'review',name:'Review',stages:['review']},
  {value:'render',name:'Video',stages:['direction','pictures','render']}];
-const stageTitle=name=>({audit:'Check'})[name]||name[0].toUpperCase()+name.slice(1);
+const stageTitle=name=>name[0].toUpperCase()+name.slice(1);
 function syncStartAtStage(){
  const button=$('startAtStage'),select=$('startStep');if(!button||!select)return;
  const step=PIPELINE_STEPS.find(step=>step.value===select.value);
@@ -376,8 +376,8 @@ function renderReplacementQueue(s){
   entries.set(index,{label:ready?'Choose replacement':'Review replacement',kind:'review'});
  }
  for(const q of queued)entries.set(q.index,{label:q.action==='reprompt'?'Prompt queued':'Queued',kind:'queued'});
- if(['verify','repair'].includes(s?.action)&&['subjects','song','meanings','scenes','audit','fit','model','illustrations','cutouts','repair'].includes(s?.action_stage)){
-  for(const index of waiting)entries.set(index,{label:['subjects','song','meanings','scenes','audit','fit'].includes(s.action_stage)?'Revising prompt':'Repair in progress',kind:'active'});
+ if(['verify','repair'].includes(s?.action)&&['subjects','song','meanings','scenes','fit','model','illustrations','cutouts','repair'].includes(s?.action_stage)){
+  for(const index of waiting)entries.set(index,{label:['subjects','song','meanings','scenes','fit'].includes(s.action_stage)?'Revising prompt':'Repair in progress',kind:'active'});
  }
  for(const index of active)entries.set(index,{label:'Generating',kind:'active'});
  host.replaceChildren();host.hidden=!entries.size;if(!entries.size)return;
