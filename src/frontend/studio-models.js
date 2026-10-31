@@ -190,7 +190,7 @@ function syncValidationControls(){
 let livePipelinePending=false,livePipelineSignature='',livePipelineAt=0;
 function paintLivePipeline(s){
  const card=$('projectPipelineCard');if(!card)return;
- const mapping={alignment:1,subjects:2,model:3,illustrations:3,cutouts:3,verification:4,repair:4,'repair-complete':4,review:4,direction:5,render:5,complete:5};
+ const mapping={alignment:1,subjects:2,model:3,illustrations:3,cutouts:3,verification:4,repair:4,'repair-complete':4,review:4,video:4,direction:5,render:5,complete:5};
  const actionStep=s.action==='reprompt'?2:s.action==='regenerate'?3:['verify','repair'].includes(s.action)?4:['patch','rerender'].includes(s.action)?5:0;
  const current=actionStep||mapping[s.stage]||0;
  const running=!!s.action||['queued','running','review'].includes(s.status);

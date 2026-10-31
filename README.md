@@ -22,7 +22,8 @@ flowchart TD
     E --> F[Cut out subjects]
     F --> G{User reviews artwork}
     G -- redo --> E
-    G -- approve --> H[Plan typography]
+    G -- approve --> K[Animate images]
+    K --> H[Plan typography]
     H --> I[Render video]
     I --> V([MP4])
 ```
@@ -126,6 +127,8 @@ src/
                  greenscreen mattes
   render/        Frame compositor, layouts, real-time typography, camera canvas, encoding
   effects/       Lettering effects: particles/ and growth/
+  video_generation/  Optional video step: LTX-2.5 and MiniMax H3 image-to-video models,
+                 saved clips and looping playback (see its README.md)
   studio/        Studio web server, background worker, batches and exports
   core/          Paths, progress events, subprocess and text helpers
   frontend/      Studio web front end (HTML, CSS and JavaScript)
@@ -228,6 +231,18 @@ flagged for review. The matte is stored inside the artwork PNG, so selecting, ar
 or repairing an image keeps it. A replacement image without a stored matte uses its own
 transparency as the sky, or keys any chroma green it contains. With neither, the whole
 replacement image is treated as the sky.
+
+## Video generation
+
+The video step is optional and off by default. When it is on, every approved
+illustration is turned into a short clip by a local image-to-video model, and the clip
+plays behind the lyrics in place of the still image. In Studio, tick "Animate each image
+with a video model" under the artwork layout and choose LTX-2.5 or MiniMax H3. On the
+command line, pass `--video-model Lightricks/LTX-2.5-Diffusers` or
+`--video-model MiniMaxAI/MiniMax-H3`. It works with the `fullscreen` and `verse` artwork
+modes only. The models need their own Python environment, which
+`src/video_generation/setup.ps1` creates. Setup, model details, licences and timing are
+described in [src/video_generation/README.md](src/video_generation/README.md).
 
 ## Real-time kinetic flow
 
