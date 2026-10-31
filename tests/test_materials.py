@@ -13,10 +13,11 @@ from effects.materials.recipes import RECIPES
 from effects.particles.catalog import discover_effects
 from effects.particles.motion import paint_transition
 from effects.silk.geometry import sheet, word_cloth
+from core.fonts import truetype
 
 
 def word_sprite(text='Silk', size=72):
-    font = ImageFont.truetype('C:/Windows/Fonts/georgiab.ttf', size)
+    font = truetype('C:/Windows/Fonts/georgiab.ttf', size)
     box = font.getbbox(text)
     sprite = Image.new('RGBA', (box[2]-box[0]+20, box[3]-box[1]+24))
     ImageDraw.Draw(sprite).text((10-box[0], 12-box[1]), text, font=font, fill=(236, 230, 220, 255))

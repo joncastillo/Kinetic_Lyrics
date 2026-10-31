@@ -4,6 +4,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+from core.fonts import truetype
 
 
 def archive_legacy_subtitles(path):
@@ -34,16 +35,16 @@ def write_ass(path, data, duration, width, height, theme, font_path=None):
     from PIL import ImageFont
     size = round(height * .10)
     if font_path:
-        font_name = ImageFont.truetype(str(font_path), size).getname()[0]
+        font_name = truetype(str(font_path), size).getname()[0]
         font_source = str(font_path)
     else:
         font_name = theme['font']
         font_source = ('georgia.ttf' if font_name == 'Georgia' else 'arialbd.ttf')
     try:
-        font = ImageFont.truetype(font_source, size)
+        font = truetype(font_source, size)
     except OSError:
         font_source = 'DejaVuSans.ttf'
-        font = ImageFont.truetype(font_source, size)
+        font = truetype(font_source, size)
         font_name = font.getname()[0]
     header = f"""[Script Info]
 ScriptType: v4.00+
@@ -65,7 +66,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             line_end = min(line_end, data[index + 1]['words'][0]['start'])
         current_size = size
         while True:
-            font = ImageFont.truetype(font_source, current_size)
+            font = truetype(font_source, current_size)
             space = font.getlength(' ')
             rows, row, used = [], [], 0
             for word in words:

@@ -7,6 +7,7 @@ from threading import Semaphore
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from render.text_effects import paint_word
+from core.fonts import truetype
 
 _RENDER_SLOTS = Semaphore(1)
 
@@ -19,11 +20,11 @@ def _render_effect(effect, phase, intensity=1.0, speed=1.0,font_family="auto",fo
         from render.typography_settings import selected_font, typography_options
         typography_options(dict(font_family=font_family,font_style=font_style,font_scale=font_scale))
         font_path=str(selected_font(font_family,font_style) or 'C:/Windows/Fonts/seguisb.ttf')
-        font=ImageFont.truetype(font_path,round((96 if detailed else 62)*font_scale))
-        small = ImageFont.truetype("C:/Windows/Fonts/segoeui.ttf", 14)
+        font=truetype(font_path,round((96 if detailed else 62)*font_scale))
+        small = truetype("C:/Windows/Fonts/segoeui.ttf", 14)
         label = {'prismatic-helix':'PRISM','prismatic-singularity':'PRISM','liquid-chrome-assembly':'CHROME','liquid-chrome-collapse':'CHROME','ember-forge':'EMBER','ember-ash-drift':'EMBER','old-oak-lettering':'OAK','autumn-maple-lettering':'MAPLE','clockwork-lettering':'GEARS','folded-paper-lettering':'PAPER','obsidian-lattice-lettering':'VOID','gold-filigree-lettering':'GILDED','pearl-lace-lettering':'LACE','jeweled-brocade-lettering':'JEWEL','luminous-coral-lettering':'CORAL','frost-crystal-lettering':'FROST','ink-bloom-lettering':'INK','thread-stitch-lettering':'STITCH'}.get(effect.id,'BLOOM' if effect.family=='petals' else effect.name.split()[0].upper() if effect.family=='material' else effect.family.upper())
         while font.getlength(label) > canvas[0]-80:
-            font = ImageFont.truetype(font_path, font.size - 2)
+            font = truetype(font_path, font.size - 2)
         bounds = font.getbbox(label)
         sprite = Image.new(
             "RGBA", (bounds[2] - bounds[0] + 24, bounds[3] - bounds[1] + 24)

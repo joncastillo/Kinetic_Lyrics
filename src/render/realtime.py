@@ -20,6 +20,7 @@ import random
 import string
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
+from core.fonts import truetype
 
 FUNCTION_WORDS = frozenset('''
 a an and are as at be but by for from i if in is it its me my of on or our so than that the their them they this to
@@ -77,7 +78,7 @@ def role_font(role, size):
     for name in ROLE_FONTS[role]:
         for folder in ('', 'C:/Windows/Fonts/'):
             try:
-                return ImageFont.truetype(folder+name, size)
+                return truetype(folder+name, size)
             except OSError:
                 continue
     return ImageFont.load_default(size)

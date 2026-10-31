@@ -16,6 +16,7 @@ from functools import lru_cache
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from core.paths import PROJECT_ROOT
+from core.fonts import truetype
 
 FONT = PROJECT_ROOT/'assets'/'fonts'/'Montserrat-Variable.ttf'
 FALLBACK = {'thin': ('segoeuil.ttf', 'arial.ttf'), 'heavy': ('seguibl.ttf', 'ariblk.ttf', 'arialbd.ttf')}
@@ -44,14 +45,14 @@ def font(weight, size):
     size = max(6, int(size))
     if FONT.is_file():
         try:
-            face = ImageFont.truetype(str(FONT), size)
+            face = truetype(str(FONT), size)
             face.set_variation_by_axes([WEIGHT[weight]])
             return face
         except (OSError, ValueError):
             pass
     for name in FALLBACK[weight]:
         try:
-            return ImageFont.truetype(name, size)
+            return truetype(name, size)
         except OSError:
             continue
     return ImageFont.load_default(size)

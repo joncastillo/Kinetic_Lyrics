@@ -136,6 +136,10 @@ src/
 
 - `tests/` holds the test suite, which runs with `python -m unittest discover -s tests`.
 - `assets/`, `particles/` and `shaders/` hold images, effect recipes and GLSL shaders.
+- `assets/fonts/` holds openly licensed fonts, each with its licence file. The renderer asks for
+  Windows fonts such as Impact, Segoe UI Black and Georgia by name; on a machine without one,
+  `src/core/fonts.py` uses a bundled stand-in of the same weight (Anton, Archivo Black, Alfa Slab
+  One or DejaVu), so videos and tests render the same way on Linux and macOS.
 
 The packages are imported with `src/` on `PYTHONPATH`. The `.cmd` launchers set this and
 run `python -P -m pipeline.cli` (command line) or `python -P -m studio.server` (Studio).

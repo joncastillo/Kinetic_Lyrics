@@ -42,6 +42,7 @@ import threading
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
+from core.fonts import truetype
 import render.glyph_art as glyph_art
 from render.lyric_blocks import TARGET_RATIO, group_lines, layout_block
 from render.realtime import (BACKDROP_COLORS, CURL_TIME, FUNCTION_WORDS, HEAD_FADE, TRACE_TIME, SHAPE_LIFE, SHAPES, THREAD_LIFE, assign_roles, bare, curl_route, hex_rgb,
@@ -262,7 +263,6 @@ class GLStage:
         self.msaa = self.ctx.framebuffer([self.ctx.renderbuffer(self.size, 4, samples=samples)])
         self.output = self.ctx.framebuffer([self.ctx.renderbuffer(self.size, 4)])
         self.textures = OrderedDict()
-        self.chunks = OrderedDict()
         self.transients = []
 
     def upload(self, image):
@@ -283,16 +283,6 @@ class GLStage:
         texture = self.textures[key] = self.upload(image() if callable(image) else image)
         while len(self.textures) > TEXTURE_LIMIT:
             self.textures.popitem(last=False)[1].release()
-        return texture
-
-    def chunk(self, key, image):
-        """A cached piece of the backdrop collage; a few are kept, so long songs stay small in GPU memory."""
-        if key in self.chunks:
-            self.chunks.move_to_end(key)
-            return self.chunks[key]
-        texture = self.chunks[key] = self.upload(image())
-        while len(self.chunks) > CHUNK_LIMIT:
-            self.chunks.popitem(last=False)[1].release()
         return texture
 
     def transient(self, image):
@@ -353,10 +343,9 @@ class GLStage:
         return Image.frombytes('RGB', self.size, data).transpose(Image.Transpose.FLIP_TOP_BOTTOM)
 
     def close(self):
-        for texture in [*self.textures.values(), *self.chunks.values()]:
+        for texture in self.textures.values():
             texture.release()
         self.textures.clear()
-        self.chunks.clear()
         self.ctx.release()
 
 
@@ -384,7 +373,7 @@ def stage_font(name, size):
     for file in STAGE_FONTS[name]:
         for folder in ('', 'C:/Windows/Fonts/'):
             try:
-                return ImageFont.truetype(folder+file, size)
+                return truetype(folder+file, size)
             except OSError:
                 continue
     return role_font('content', size)
