@@ -31,13 +31,14 @@ from render.text_effects import EFFECTS, TEXT_ANIMATIONS
 from effects.particles.catalog import discover_effects, catalog_choices, validate_choice, parse_pool
 from direction.scene_catalog import scene_catalog
 from models.image.catalog import MODELS
+from video_generation.catalog import MODELS as VIDEO_MODELS, VIDEO_MODES
 from models.vision.policy import rejected, DEFAULT_THRESHOLD
 from models.speech.catalog import ASR_MODELS, LANGUAGES, DEFAULT_ASR, validate_speech
 
 ROOT = studio_output(PROJECT_ROOT,'lyric-studio')
 STAGES = {'alignment': (0, 10), 'subjects': (10, 15), 'model': (15, 20),
-          'illustrations': (20, 70), 'cutouts': (70, 80), 'review': (80, 80),
-          'direction': (80, 85), 'render': (85, 99), 'complete': (100, 100)}
+          'illustrations': (20, 70), 'cutouts': (70, 80), 'review': (80, 80), 'video': (80, 84),
+          'direction': (84, 86), 'render': (86, 99), 'complete': (100, 100)}
 TOKEN = secrets.token_urlsafe(32)
 AUTO_RESUMES = 2
 AUTO_RESUME_DELAY = 20
@@ -643,12 +644,17 @@ def start_job(fields, files):
             ai_model=ai_model, start_step=start_step, project_id=folder.name,
             vision_model=fields.get('vision_model','').strip(),auto_verify=fields.get('auto_verify')=='on',
             auto_accept=fields.get('auto_accept')=='on', auto_repair=fields.get('auto_repair','on')=='on',review_threshold=int(fields.get('review_threshold',DEFAULT_THRESHOLD)),
-            stage_pictures=fields.get('stage_pictures','ai-painted') or 'ai-painted')
+            stage_pictures=fields.get('stage_pictures','ai-painted') or 'ai-painted',
+            video_model=fields.get('video_model','').strip() if fields.get('video_generation')=='on' else '')
         config.update(typography_options(fields))
         if config['stage_pictures'] not in ('ai-painted','ai-library','keywords','off'):
             raise ValueError('Invalid 3D stage picture setting')
         if config['artwork_mode'] not in ('cutout','fullscreen','verse','matte'):
             raise ValueError('Invalid artwork mode')
+        if config['video_model'] and config['video_model'] not in [m['id'] for m in VIDEO_MODELS]:
+            raise ValueError('Choose a supported video model')
+        if config['video_model'] and config['artwork_mode'] not in VIDEO_MODES:
+            raise ValueError('Video generation needs full-screen or verse-inspired artwork')
         if not 0 <= config['review_threshold'] <= 100:
             raise ValueError('Review threshold must be between 0 and 100 percent')
         if not 0 <= config['particle_intensity'] <= 2:
@@ -706,6 +712,8 @@ def start_job(fields, files):
             command += ['--instructions', config['instructions']]
         if not config['auto_accept']:
             command.append('--review-artwork')
+        if config['video_model']:
+            command += ['--video-model', config['video_model']]
         command += ['--entrance-effect', config['entrance_effect'], '--exit-effect', config['exit_effect']]
         for phase in ('entrance', 'exit'):
             if config[phase + '_pool'] is not None:
@@ -816,7 +824,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond((PROJECT_ROOT/'assets'/'default-style-reference.jpg').read_bytes(), content_type='image/jpeg')
             if url.path == '/assets/filipina-reference.png':
                 return self.respond((PROJECT_ROOT/'assets'/'filipina-reference.png').read_bytes(), content_type='image/png')
-            if url.path in ('/studio.css', '/studio-profiles.js', '/studio-models.js', '/studio-particles.js', '/studio-timeline.js', '/studio-timeline.css'):
+            if url.path in ('/studio.css', '/studio-profiles.js', '/studio-models.js', '/studio-video.js', '/studio-particles.js', '/studio-timeline.js', '/studio-timeline.css'):
                 path = UI_ROOT/url.path.lstrip('/')
                 return self.respond(path.read_bytes(), content_type='text/css' if path.suffix=='.css' else 'text/javascript')
             if url.path == '/api/profile-audio':
@@ -859,7 +867,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond(render_preview(catalog[phase][effect],phase,intensity,speed,settings['font_family'],settings['font_style'],settings['font_scale']), content_type='image/gif')
             if url.path == '/api/config':
                 from models.gpu.presets import PRESETS; from models.ollama.catalog import PROMPT_MODELS, VISION_MODELS
-                return self.respond(dict(token=TOKEN, image_instructions_supported=True, auto_accept_supported=True, new_session_regeneration_supported=True, particle_materials_version=13, ai_typography_supported=True, typography_controls_supported=True, word_animations_supported=True, video_history_supported=True, video_history_version=2, live_artwork_version=2, replacement_priority_supported=True, particle_effects=catalog_choices(), scene_effects=list(scene_catalog().values()), prompt_regeneration=True, generation_queue_version=2, prompt_audit_version=1, style_prompt=STYLE_PROMPT, model=MODEL, image_models=MODELS, model_presets=PRESETS, prompt_choices=PROMPT_MODELS, vision_choices=VISION_MODELS, asr_models=ASR_MODELS, vocal_languages=LANGUAGES, default_asr=DEFAULT_ASR,
+                return self.respond(dict(token=TOKEN, image_instructions_supported=True, auto_accept_supported=True, new_session_regeneration_supported=True, particle_materials_version=13, ai_typography_supported=True, typography_controls_supported=True, word_animations_supported=True, video_history_supported=True, video_history_version=2, live_artwork_version=2, replacement_priority_supported=True, particle_effects=catalog_choices(), scene_effects=list(scene_catalog().values()), prompt_regeneration=True, generation_queue_version=2, prompt_audit_version=1, style_prompt=STYLE_PROMPT, model=MODEL, image_models=MODELS, video_models=VIDEO_MODELS, model_presets=PRESETS, prompt_choices=PROMPT_MODELS, vision_choices=VISION_MODELS, asr_models=ASR_MODELS, vocal_languages=LANGUAGES, default_asr=DEFAULT_ASR,
                     jobs=[dict(id=j.folder.name, name=j.config['name']) for j in reversed(list(JOBS.values()))]))
             if url.path == '/api/gpu':
                 from models.gpu.telemetry import gpu_usage
