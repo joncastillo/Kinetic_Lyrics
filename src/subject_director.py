@@ -29,7 +29,7 @@ def _parse_subjects(response, count):
     return items
 
 
-def request_subjects(local_json, payload, batch_size=6, max_words=60, avoid_repeats=True):
+def request_subjects(local_json, payload, batch_size=6, max_words=60, avoid_repeats=True, progress=None):
     inputs = json.loads(payload['messages'][1]['content'])
     subjects = []
 
@@ -77,6 +77,8 @@ def request_subjects(local_json, payload, batch_size=6, max_words=60, avoid_repe
                              'for illustration prompting and retry. No model was switched automatically.') from exc
 
     for start in range(0, len(inputs), batch_size):
+        if progress:
+            progress(start, min(len(inputs), start+batch_size), len(inputs))
         subjects.extend(request(inputs[start:start+batch_size]))
     return subjects
 
@@ -124,7 +126,10 @@ def repair_duplicate_subjects(local_json, payload, subjects, max_rounds=2):
             'Keep these other scenes unchanged and avoid repeating any of them: '
             +json.dumps(list(dict.fromkeys(result))))))
         query['options'] = {**query.get('options', {}), 'temperature': 0.75}
-        replacements = request_subjects(local_json, query)
+        from kinetic_progress import counted
+        replacements = request_subjects(local_json, query, progress=counted(
+            'scenes', .6, .75, f'Round {attempt+1} of {max_rounds}: rewriting repeated scene',
+            names=[(inputs[index] or {}).get('lyrics', '') if isinstance(inputs[index], dict) else '' for index in repeated]))
         for index, replacement in zip(repeated, replacements):
             result[index] = replacement
     remaining = repeated_indices()
@@ -167,7 +172,11 @@ def lengthen_short_subjects(local_json, payload, subjects, minimum, max_words, m
             'people that the lyric does not support.')
         query['messages'][1]['content'] = json.dumps([
             dict(scene=inputs[index], previous_description=result[index]) for index in short])
-        expanded = request_subjects(local_json, query, batch_size=2, max_words=max_words, avoid_repeats=False)
+        from kinetic_progress import counted
+        expanded = request_subjects(local_json, query, batch_size=2, max_words=max_words, avoid_repeats=False,
+                                    progress=counted('scenes', .75, 1, f'Round {attempt+1} of {max_rounds}: expanding short scene',
+                                                     f' to at least {minimum} words',
+                                                     names=[(inputs[index] or {}).get('lyrics', '') if isinstance(inputs[index], dict) else '' for index in short]))
         for index, subject in zip(short, expanded):
             if len(subject.split()) > len(result[index].split()):
                 result[index] = subject

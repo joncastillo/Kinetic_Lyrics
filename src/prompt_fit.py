@@ -1,5 +1,6 @@
 """Rewrite each complete image prompt to the length the image model's text encoder can read."""
 import json
+import re
 
 # Prompt token limits per pipeline, and a word budget that leaves room for retry wording.
 TOKEN_LIMITS = dict(QwenImagePipeline=1024, ZImagePipeline=512)
@@ -37,6 +38,22 @@ def refit(prompts, image_model, config, style=''):
         unload_model(model)
 
 
+def style_prefix(style):
+    style = ' '.join(style.split()).rstrip('.')
+    return f'Art style, the top priority for how everything is rendered: {style}. ' if style else ''
+
+
+def trim(text, words):
+    """Drop whole sentences or phrases from the end until `text` fits; details are ordered most important first."""
+    kept = []
+    for sentence in re.split(r'(?<=[.!?;,])\s+', text.strip()):
+        if kept and len(' '.join(kept+[sentence]).split()) > words:
+            break
+        kept.append(sentence)
+    result = ' '.join(kept) if len(' '.join(kept).split()) <= words else ' '.join(' '.join(kept).split()[:words])
+    return result.rstrip(' ,;')
+
+
 def estimate(prompt):
     words = len(prompt.split())
     return words, round(words*TOKENS_PER_WORD)
@@ -52,13 +69,15 @@ def fit_prompts(request, model, image_model, prompts, style=''):
     if not limit or not prompts:
         return prompts
     words, tokens = limit
+    prefix = style_prefix(style)
     style = ' '.join(style.split()).rstrip('.')
-    prefix = f'Art style, the top priority for how everything is rendered: {style}. ' if style else ''
     scene_words = max(100, words-estimate(prefix)[0])
+    # FLUX.2 and Z-Image read about half of what Qwen-Image does. Caption-style phrases carry about twice the scene
+    # per token as full sentences; invented abbreviations would not, since the text encoders learned from captions.
+    terse = words < 400
     from subject_director import request_subjects
-    from kinetic_progress import emit
+    from kinetic_progress import counted
     from llm_trace import trace_stage
-    emit('subjects', .9, message=f'Fitting {len(prompts)} image prompt(s) to about {words} words (~{tokens} tokens)')
     system = (
         f'The image model reads at most {tokens} tokens, about {words} English words; anything beyond is ignored. '
         + (f'The art style below is placed before your text automatically, word for word, and takes priority over '
@@ -66,7 +85,10 @@ def fit_prompts(request, model, image_model, prompts, style=''):
            f'never describe a medium, style, palette or mood that conflicts with it. Art style: {style}. '
            if style else '')
         + f'Rewrite each supplied image-generation prompt as one complete standalone prompt of about {scene_words} words. '
-        'Each input states its current estimated length. If it is longer, condense it: remove repetition and general '
+        + ('Write it as dense, comma-separated visual phrases like an image caption, not full sentences: no articles, '
+           'filler, explanations, story or general quality advice, only what is visible in this scene, each detail '
+           'stated once. Short sentences are allowed only for prohibitions such as no lettering. ' if terse else '')
+        +         'Each input states its current estimated length. If it is longer, condense it: remove repetition and general '
         'advice before scene-specific details. If it is shorter, keep everything and spend the extra words on concrete, '
         'visible detail of the same scene: spatial layout, materials, textures, light direction, colour and atmosphere. '
         'Never add new subjects, people, objects, events or styles, and never contradict the prompt. '
@@ -82,7 +104,9 @@ def fit_prompts(request, model, image_model, prompts, style=''):
             messages=[dict(role='system', content=system+note), dict(role='user', content=json.dumps([
                 dict(image_prompt=current[i], estimated_words=estimate(current[i])[0],
                      estimated_tokens=estimate(current[i])[1], target_words=scene_words) for i in indices]))])
-        return [prefix+text for text in request_subjects(request, payload, batch_size=2, max_words=scene_words+30, avoid_repeats=False)]
+        verb = 'Condensing again' if note else 'Condensing'
+        return [prefix+text for text in request_subjects(request, payload, batch_size=2, max_words=scene_words+30, avoid_repeats=False,
+                progress=counted('fit', 0, 1, f'{verb} image prompt', f' to about {words} words for {image_model.split("/")[-1]}'))]
 
     fitted = list(prompts)
     with trace_stage('Fit image prompts to the image model limit'):
@@ -93,6 +117,12 @@ def fit_prompts(request, model, image_model, prompts, style=''):
             scenes = [prompt[len(prefix):] for prompt in fitted]
             for i, prompt in zip(over, rewrite(over, scenes, f' These prompts are still too long. Condense each to at most {scene_words} words.')):
                 fitted[i] = prompt
+        # The image model silently drops whatever is past its limit, so never hand it more than it reads.
+        for i, prompt in enumerate(fitted):
+            if estimate(prompt)[1] > tokens:
+                print(f'Image prompt {i+1} is still {estimate(prompt)[0]} words after condensing; '
+                      f'trimming its last sentences to fit.', flush=True)
+                fitted[i] = prefix+trim(prompt[len(prefix):] if prompt.startswith(prefix) else prompt, scene_words)
     for i, (before, after) in enumerate(zip(prompts, fitted)):
         print(f'Image prompt {i+1}: {estimate(before)[0]} -> {estimate(after)[0]} words '
               f'(~{estimate(after)[1]} of {tokens} tokens).', flush=True)

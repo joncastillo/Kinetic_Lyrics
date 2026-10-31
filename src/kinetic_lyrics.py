@@ -205,6 +205,23 @@ def align(audio, lines, args):
             timed.append(dict(text=word, start=matches[0][2], end=matches[-1][3]))
             offset += length
         output.append(dict(text=line, words=timed))
+    from timing_repair import collapsed_lines, transcript_timing
+    collapsed = collapsed_lines(output)
+    if collapsed:
+        print(f'Forced alignment compressed lyric lines {[i+1 for i in collapsed]}; '
+              'recovering word times from transcription.', flush=True)
+        options.model = 'large-v3'
+        model = whisper_model(options)
+        try:
+            result = model.transcribe(str(audio), language=None if args.language in ('auto', '', None) else args.language,
+                                      task='transcribe', word_timestamps=True, regroup=False, verbose=False)
+        finally:
+            model.cpu()
+            del model
+            release_whisper_memory()
+        heard = [word for segment in result.to_dict().get('segments', [])
+                 for word in segment.get('words', [])]
+        output = transcript_timing(lines, heard)
     return output
 
 
@@ -465,6 +482,8 @@ def main(argv=None):
     from kinetic_illustrations import STYLE_PROMPT
     parser.add_argument('--style-prompt', default=STYLE_PROMPT, help='Art style instruction accompanying reference images')
     parser.add_argument('--image-instructions', default='', help='Additional direction for the AI image prompt model and generated image prompts')
+    parser.add_argument('--reference-use', choices=['style', 'likeness'], default='style', help='Use style references for technique only, or cast the reference person as the main character')
+    parser.add_argument('--vision-model', default='', help='Ollama vision model that describes the reference person for likeness mode')
     parser.add_argument('--image-cache', type=Path, default=default_model_cache(), help='Model cache (default: KINETIC_LYRICS_MODEL_CACHE, else OLLAMA_MODELS or ~/.ollama/models)')
     parser.add_argument('--image-model', default='Qwen/Qwen-Image-2512', help='Local image repository (default: Qwen Image 2512)')
     parser.add_argument('--image-steps', type=int, default=None, help='Illustration inference steps (default: selected model recommendation)')

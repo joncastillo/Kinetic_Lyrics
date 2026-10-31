@@ -142,8 +142,11 @@ def request_direction(data, prompt, model, num_ctx, num_predict, chunk=None, see
     from ollama_gpu import gpu_chat
     size = chunk or len(data)
     concept, scenes = None, []
+    from kinetic_progress import counted
+    report = counted('direction', 0, 1, 'Planning typography and motion for lyric line')
     for first in range(0, len(data), size):
         part = data[first:first+size]
+        report(first, first+len(part), len(data))
         brief = direction_brief(prompt)
         if chunk:
             brief += f' This request covers lines {first} to {first+len(part)-1} of {len(data)}; keep the arc consistent with a full song.'
