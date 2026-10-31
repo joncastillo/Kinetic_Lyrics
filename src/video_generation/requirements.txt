@@ -1,0 +1,12 @@
+# Separate environment for the video models (.venv-video), created by setup.ps1 in this folder.
+# LTX-2.5 and MiniMax H3 ship as Modular Diffusers blocks, which are only on diffusers main;
+# the main environment keeps the diffusers release its image models are tested with.
+diffusers @ git+https://github.com/huggingface/diffusers
+transformers>=5.0,<6
+accelerate>=1.10
+torchao>=0.13
+sentencepiece>=0.2
+Pillow>=10.0
+numpy>=1.26,<3
+filelock>=3.15
+psutil>=5.9

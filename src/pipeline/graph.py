@@ -1,8 +1,8 @@
 """The video pipeline as a LangGraph state graph with a checkpoint in each project folder.
 
-    probe -> align -> analyse -+-> illustrate -> request_review -> review -> direct -> render -> finish
-                               |        (skipped when no review is needed)   ^          |
-                               |                                             '-(queued replacements)
+    probe -> align -> analyse -+-> illustrate -> request_review -> review -> animate -> direct -> render -> finish
+                               |        (skipped when no review is needed)                ^          |
+                               |                                                          '-(queued replacements)
                                '-> subtitles                              (legacy ASS renderer)
 
 Each node saves its result in the checkpoint (`<output>.graph.sqlite`), so a failed run started
@@ -12,6 +12,9 @@ review is a LangGraph interrupt: the run pauses there until Studio writes `artwo
 The parsed command line travels as the run context rather than in the state, so it is never
 saved; the state holds only what the steps produce, and `options` copies those results back onto
 the command-line options that the existing step functions read.
+
+`animate` is the optional video step (src/video_generation/): with --video-model it turns each
+approved illustration into a short clip that the compositor plays in place of the still.
 """
 from __future__ import annotations
 
@@ -32,7 +35,7 @@ from core.progress import emit
 
 APPROVAL = 'artwork-approved'
 # Step results that the step functions read back from the command-line options.
-CARRIED = ('melody', 'rhythm', 'illustrations', 'review_artwork', 'image_seed', 'illustration_lines', 'instruments_found')
+CARRIED = ('melody', 'rhythm', 'illustrations', 'review_artwork', 'image_seed', 'illustration_lines', 'instruments_found', 'video_clips')
 
 
 class PipelineState(TypedDict, total=False):
@@ -52,6 +55,7 @@ class PipelineState(TypedDict, total=False):
     instruments_found: Optional[list]
     plan: dict
     replacements_pending: bool
+    video_clips: Optional[dict]
 
 
 @dataclass
@@ -185,7 +189,7 @@ def illustrate(state, runtime: Runtime[Run]):
 
 
 def needs_review(state, runtime: Runtime[Run]):
-    return 'request_review' if state.get('illustrations') and state.get('review_artwork') else 'direct'
+    return 'request_review' if state.get('illustrations') and state.get('review_artwork') else 'animate'
 
 
 def request_review(state, runtime: Runtime[Run]):
@@ -198,6 +202,15 @@ def review(state, runtime: Runtime[Run]):
     """Pause the run until the artwork is approved; `run` resumes it."""
     interrupt(dict(waiting_for=str(paths(state)['output'].parent/APPROVAL)))
     return {}
+
+
+def animate(state, runtime: Runtime[Run]):
+    """Optional video step; passes straight through unless a video model was chosen."""
+    args = options(state, runtime)
+    if not getattr(args, 'video_model', None) or not state.get('illustrations'):
+        return dict(video_clips=None)
+    from video_generation.step import animate as animate_illustrations
+    return dict(video_clips=animate_illustrations(state['illustrations'], paths(state)['output'], args))
 
 
 def direct(state, runtime: Runtime[Run]):
@@ -262,15 +275,16 @@ def subtitles(state, runtime: Runtime[Run]):
 
 def build():
     graph = StateGraph(PipelineState, context_schema=Run)
-    for node in (probe, align, analyse, illustrate, request_review, review, direct, render, finish, subtitles):
+    for node in (probe, align, analyse, illustrate, request_review, review, animate, direct, render, finish, subtitles):
         graph.add_node(node.__name__, node)
     graph.add_edge(START, 'probe')
     graph.add_edge('probe', 'align')
     graph.add_edge('align', 'analyse')
     graph.add_conditional_edges('analyse', renderer, ['illustrate', 'subtitles'])
-    graph.add_conditional_edges('illustrate', needs_review, ['request_review', 'direct'])
+    graph.add_conditional_edges('illustrate', needs_review, ['request_review', 'animate'])
     graph.add_edge('request_review', 'review')
-    graph.add_edge('review', 'direct')
+    graph.add_edge('review', 'animate')
+    graph.add_edge('animate', 'direct')
     graph.add_edge('direct', 'render')
     graph.add_conditional_edges('render', rendered, ['render', 'finish'])
     graph.add_edge('finish', END)

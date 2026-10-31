@@ -83,7 +83,7 @@ class Compositor:
                  cinematic=False, preserve_art_slots=False, type_effect='none',
                  particle_intensity=1., artwork_mode='cutout', layout_seed=42,
                  particle_speed=1., entrance_effect=None, exit_effect=None, entrance_pool=None, exit_pool=None, text_animation='directed', font_family='auto', font_style='auto', font_scale=1.25, text_pool=None, lettering_styles=None, reading_flow='preview', melody=None, rhythm=None, kinetic=None, effect_speeds=None,
-                 effect_intensities=None, instruments=None, instructions='', art_times=None):
+                 effect_intensities=None, instruments=None, instructions='', art_times=None, video_clips=None):
         self.source_cues=[line['words'][0]['start'] for line in data]
         self.focused_words=False
         self.data, self.plan = data, validate_plan(plan, data)
@@ -222,7 +222,7 @@ class Compositor:
         if illustrations:
             initial = illustration_layout(0, width, height, cinematic, artwork_mode, layout_seed)
             self.art_box, self.text_box = initial['art_box'], initial['text_box']
-            seen = set()
+            seen, kept = set(), []
             for slot, path in enumerate(illustrations):
                 source_bytes = Path(path).read_bytes()
                 fingerprint = hashlib.sha256(source_bytes).digest()
@@ -230,6 +230,7 @@ class Compositor:
                 if fingerprint in seen and not preserve_art_slots:
                     continue
                 seen.add(fingerprint)
+                kept.append(fingerprint.hex())
                 if artwork_mode == 'matte':
                     from artwork.greenscreen import load as load_matte, open_box
                     image, matte = load_matte(BytesIO(source_bytes))
@@ -249,6 +250,8 @@ class Compositor:
                     box = illustration_layout(len(self.art), width, height, cinematic, artwork_mode, layout_seed)['art_box']
                     size = tuple(max(1, round(v*.94)) for v in box[2:]) if cinematic else box[2:]
                     self.art.append(ImageOps.contain(image, size, Image.Resampling.LANCZOS))
+        from video_generation.clips import clips_for
+        self.clips = clips_for(video_clips, kept) if illustrations and self.artwork_mode in ('fullscreen', 'verse') else []
         if self.open_boxes and self.open_boxes[0]:
             self.text_box = self.open_boxes[0]
         self.default_text_box = self.text_box
@@ -374,6 +377,11 @@ class Compositor:
             draw_art(current-1, (1-progress)*opacity)
         draw_art(current, progress*opacity)
 
+    def art_frame(self, number, t):
+        """Scene `number` at time t: its animated clip's frame when one was generated, else the still."""
+        clip = self.clips[number] if number < len(self.clips) else None
+        return clip.frame(t-self.art_starts[number]) if clip else self.art[number].convert('RGB')
+
     def art_crossing(self, current):
         if current <= 0:
             return 0.
@@ -385,11 +393,11 @@ class Compositor:
         scene = self.plan['scenes'][max(0, index)]
         if self.artwork_mode in FULL_FRAME and self.art_starts:
             current = max(0, bisect.bisect_right(self.art_starts,t)-1)
-            frame = self.art[current].convert('RGB')
+            frame = self.art_frame(current, t)
             if current > 0:
                 blend = min(1., max(0., (t-self.art_starts[current])/self.art_crossing(current)))
                 if blend < 1:
-                    previous = self.art[current-1].convert('RGB')
+                    previous = self.art_frame(current-1, t)
                     feather = max(2, round(self.width*.03))
                     edge = round(blend*(self.width+4*feather)-2*feather)
                     seam = Image.new('L', frame.size)
@@ -922,7 +930,7 @@ def render_compositor(data,plan,duration,args):
         entrance_pool=getattr(args, 'entrance_pool', None), exit_pool=getattr(args, 'exit_pool', None),
         text_animation=getattr(args, 'text_animation', 'directed'), melody=getattr(args, 'melody', None), rhythm=getattr(args, 'rhythm', None),
         instruments=getattr(args, 'instrument_pictures', None), art_times=getattr(args, 'art_times', None),
-        **typography_options(vars(args)))
+        video_clips=getattr(args, 'video_clips', None), **typography_options(vars(args)))
 
 
 def ffmpeg_failure(log, code):

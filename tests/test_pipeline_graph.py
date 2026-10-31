@@ -116,6 +116,17 @@ class PipelineGraphTest(unittest.TestCase):
         pipeline_graph.run(self.args(), self.audio, self.output, resume=True)
         self.assertEqual(self.visited[0], 'align')
 
+    def test_video_step_runs_after_illustrations_when_a_model_is_chosen(self):
+        def illustrate(state, runtime):
+            return dict(illustrations=['art.png'], review_artwork=False)
+        clips = {'abc': 'frames'}
+        with mock.patch.object(pipeline_graph, 'illustrate', self.recorder('illustrate', illustrate)), \
+             mock.patch('video_generation.step.animate', return_value=clips) as animate:
+            values = pipeline_graph.run(self.args(video_model='Lightricks/LTX-2.5-Diffusers'), self.audio, self.output)
+        animate.assert_called_once()
+        self.assertEqual(values['video_clips'], clips)
+        self.assertEqual(self.visited, ['align', 'analyse', 'illustrate', 'direct', 'render', 'finish'])
+
     def test_render_repeats_while_replacements_are_queued(self):
         outcomes = iter([True, False])
         def render(state, runtime):
