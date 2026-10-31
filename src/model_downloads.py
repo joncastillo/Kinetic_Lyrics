@@ -115,7 +115,13 @@ def _pull_image(task):
                 _update(task,completed=int(self._studio_n),total=int(self.total),unit=unit,
                         percent=min(99,round(self._studio_n/self.total*100,1)),message='Downloading image model: '+str(getattr(self,'desc','') or unit))
             return result
-    path=snapshot_download(task['model'],cache_dir=cache,max_workers=1,tqdm_class=DownloadProgress)
+    ignore_patterns=[]
+    if task['model'].startswith('black-forest-labs/FLUX.2-klein-'):
+        # Diffusers loads the split pipeline components. The standalone checkpoint duplicates
+        # their weights and is not used by Flux2KleinPipeline.
+        ignore_patterns=['flux-2-klein-*.safetensors','*.jpg']
+    path=snapshot_download(task['model'],cache_dir=cache,max_workers=1,
+                           ignore_patterns=ignore_patterns or None,tqdm_class=DownloadProgress)
     _check_cancel(task)
     marker=cache/('models--'+task['model'].replace('/','--'))/'lyric-studio-ready.json'
     marker.parent.mkdir(parents=True,exist_ok=True)

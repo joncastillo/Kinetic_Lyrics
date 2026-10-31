@@ -157,7 +157,7 @@ def vision_review(image, model, lyrics, prompt, subject="", threshold=DEFAULT_TH
 
 
 
-def generate_candidate(root, job, index, cache, prompt):
+def generate_candidate(root, job, index, cache, prompt, image_model=None):
     from kinetic_illustrations import run_job
     candidate_job=copy.deepcopy(job)
     folder=root/'candidates'/f'{index:03d}'/str(time.time_ns())
@@ -167,7 +167,8 @@ def generate_candidate(root, job, index, cache, prompt):
     candidate_job['seed']+=time.time_ns()%1000000
     from image_models import model_spec,selected_model
     config_path=root/'config.json'
-    model=selected_model(job,json.loads(config_path.read_text(encoding='utf-8')) if config_path.is_file() else {})
+    config=json.loads(config_path.read_text(encoding='utf-8')) if config_path.is_file() else {}
+    model=selected_model(job,dict(config,image_model=image_model) if image_model else config)
     if model!=job['model']:candidate_job.update(model=model,steps=model_spec(model)['steps'])
     if prompt.strip():candidate_job['prompts'][0]=prompt.strip()
     manifest=folder/'illustrations.json'

@@ -15,13 +15,14 @@ def _render_effect(effect, phase, intensity=1.0, speed=1.0,font_family="auto",fo
     with _RENDER_SLOTS:
         growing=effect.trajectory=='grow'
         detailed=growing or effect.family in ('cinematic','material')
-        canvas=(800,450) if detailed else (480,240)
+        garden=effect.id=='succulent-garden-lettering'
+        canvas=(1200,675) if garden else (800,450) if detailed else (480,240)
         from typography_settings import selected_font,typography_options
         typography_options(dict(font_family=font_family,font_style=font_style,font_scale=font_scale))
         font_path=str(selected_font(font_family,font_style) or 'C:/Windows/Fonts/seguisb.ttf')
-        font=ImageFont.truetype(font_path,round((96 if detailed else 62)*font_scale))
+        font=ImageFont.truetype(font_path,round((144 if garden else 96 if detailed else 62)*font_scale))
         small = ImageFont.truetype("C:/Windows/Fonts/segoeui.ttf", 14)
-        label = {'prismatic-helix':'PRISM','prismatic-singularity':'PRISM','liquid-chrome-assembly':'CHROME','liquid-chrome-collapse':'CHROME','ember-forge':'EMBER','ember-ash-drift':'EMBER','old-oak-lettering':'OAK','autumn-maple-lettering':'MAPLE','clockwork-lettering':'GEARS','folded-paper-lettering':'PAPER','obsidian-lattice-lettering':'VOID','gold-filigree-lettering':'GILDED','pearl-lace-lettering':'LACE','jeweled-brocade-lettering':'JEWEL','luminous-coral-lettering':'CORAL','frost-crystal-lettering':'FROST','ink-bloom-lettering':'INK','thread-stitch-lettering':'STITCH'}.get(effect.id,'BLOOM' if effect.family=='petals' else effect.name.split()[0].upper() if effect.family=='material' else effect.family.upper())
+        label = {'prismatic-helix':'PRISM','prismatic-singularity':'PRISM','liquid-chrome-assembly':'CHROME','liquid-chrome-collapse':'CHROME','ember-forge':'EMBER','ember-ash-drift':'EMBER','old-oak-lettering':'OAK','autumn-maple-lettering':'MAPLE','clockwork-lettering':'GEARS','folded-paper-lettering':'PAPER','succulent-garden-lettering':'SUCCULENT','obsidian-lattice-lettering':'VOID','gold-filigree-lettering':'GILDED','pearl-lace-lettering':'LACE','jeweled-brocade-lettering':'JEWEL','luminous-coral-lettering':'CORAL','frost-crystal-lettering':'FROST','ink-bloom-lettering':'INK','thread-stitch-lettering':'STITCH'}.get(effect.id,'BLOOM' if effect.family=='petals' else effect.name.split()[0].upper() if effect.family=='material' else effect.family.upper())
         while font.getlength(label) > canvas[0]-80:
             font = ImageFont.truetype(font_path, font.size - 2)
         bounds = font.getbbox(label)

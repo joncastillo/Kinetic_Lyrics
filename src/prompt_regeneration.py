@@ -15,9 +15,10 @@ def regenerate_prompts(worker,job,config,items):
     for item in items:
         model=item.get('model') or config.get('ai_model','auto')
         model=resolve_prompt_model(local_json,model)
-        batches[model].append(item)
+        image_model=item.get('image_model') or config.get('image_model') or job['model']
+        batches[(model,image_model)].append(item)
     replacements={}
-    for model,batch in batches.items():
+    for (model,image_model),batch in batches.items():
         worker.emit('subjects',0,message=f'Preparing {len(batch)} replacement prompt(s) with {model}')
         system=(DIRECTOR_PROMPT if job.get('artwork_mode')=='verse' else LANGUAGE_RULE+PEOPLE_RULE+
             'Interpret each lyric group into one fresh English visual scene for an illustrator. '
@@ -64,8 +65,7 @@ def regenerate_prompts(worker,job,config,items):
             from prompt_audit import audit_prompts
             prompts=audit_prompts(gpu_chat,model,audit_groups,subjects,prompts,[job['layouts'][i] for i in indices],job.get('artwork_mode','cutout'))
             from prompt_fit import fit_prompts
-            from image_models import selected_model
-            prompts=fit_prompts(gpu_chat,model,selected_model(job,config),prompts,technique)
+            prompts=fit_prompts(gpu_chat,model,image_model,prompts,technique)
         finally:unload_model(model)
         for item,subject,prompt in zip(batch,subjects,prompts):
             index=item['index'];updated=copy.deepcopy(job)
@@ -77,6 +77,6 @@ def regenerate_prompts(worker,job,config,items):
             updated['song_gist']=gist
             if 'reference_modes' in updated:
                 updated['reference_modes'][index]='technique_prompt_only' if job.get('artwork_mode')=='verse' or subject_kind(subject)=='object' else 'image_conditioning'
-            replacements[index]=updated
+            replacements[id(item)]=updated
         worker.emit('subjects',1,message=f'{len(batch)} replacement prompts ready; prompting model released')
-    return replacements
+    return [replacements[id(item)] for item in items]

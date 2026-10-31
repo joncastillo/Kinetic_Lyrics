@@ -44,11 +44,11 @@ def rgb(*value):
 class Field:
     """Glyph geometry and noise at working resolution; cached per sprite and seed."""
 
-    def __init__(self, sprite, seed, pad):
+    def __init__(self, sprite, seed, pad, work_height=WORK_HEIGHT):
         alpha = np.asarray(sprite.getchannel('A'), dtype=float)/255
         rows = np.nonzero(alpha.max(axis=1) > .3)[0]
         ink_h = (rows[-1]-rows[0]+1) if len(rows) else sprite.height
-        self.scale = min(1., WORK_HEIGHT/max(1, ink_h))
+        self.scale = min(1., work_height/max(1, ink_h))
         if self.scale < 1:
             size = (max(2, round(sprite.width*self.scale)), max(2, round(sprite.height*self.scale)))
             sprite = sprite.resize(size, Image.LANCZOS)
@@ -489,11 +489,12 @@ def _shapes(canvas, pos, size, color, alpha, angle, shape):
 
 # ---------------------------------------------------------------- entry points
 
-def field(sprite, seed, pad, cache):
-    key = ('material-field-v1', sprite_key(sprite), seed, pad)
+def field(sprite, seed, pad, cache, work_height=None):
+    work_height = work_height or WORK_HEIGHT
+    key = ('material-field-v2', sprite_key(sprite), seed, pad, work_height)
     if cache is not None and key in cache:
         return cache[key]
-    result = Field(sprite, seed, pad)
+    result = Field(sprite, seed, pad, work_height)
     if cache is not None:
         cache[key] = result
     return result
@@ -503,7 +504,7 @@ def paint(layer, sprite, x, y, phase, t, effect, seed, intensity=1., cache=None)
     """Paint `effect` at progress t (entrance: 0 nothing .. 1 formed; exit: 0 intact .. 1 gone)."""
     from material_recipes import RECIPES
     recipe = RECIPES[effect.id]
-    F = field(sprite, seed % 9973, recipe.get('pad', .6), cache)
+    F = field(sprite, seed % 9973, recipe.get('pad', .6), cache, recipe.get('work_height'))
     canvas = Canvas(F)
     t = max(0., min(1., t))
     recipe['paint'](F, canvas, t, intensity)
@@ -529,7 +530,8 @@ def held(sprite, effect, seed, intensity=1., cache=None):
     if cache is not None and key in cache:
         return cache[key]
     from material_recipes import RECIPES
-    F = field(sprite, seed % 9973, RECIPES[effect.id].get('pad', .6), cache)
+    recipe = RECIPES[effect.id]
+    F = field(sprite, seed % 9973, recipe.get('pad', .6), cache, recipe.get('work_height'))
     padding = max(round(sprite.height*.7), math.ceil(F.P/F.scale)+2)  # room for anything grown above the word
     image = Image.new('RGBA', (sprite.width+2*padding, sprite.height+2*padding))
     paint(image, sprite, padding, padding, 'entrance', 1., effect, seed, intensity, cache)

@@ -43,6 +43,7 @@ function applyGpuPreset(preset,catalog){
  const gpu=preset.gpu_name?`${preset.gpu_name} · ${preset.available_gib} GiB usable. `:'';
  showModelPlan(gpu+`${preset.ai_model} → ${image?.name||preset.image_model} → ${preset.vision_model}. `+(!$('autoVerify').checked?'Validation is off. Image generation can use the full GPU budget. ':preset.co_resident===true?'Image and validation weights can stay resident together. ':'Generation and validation switch only after each full batch. ')+(missing.length?'Missing models will download automatically. ':''));
  scheduleModelDownloads();
+ renderProductionStages(state);
  gallerySignature='';if(state)renderGallery(state);
 }
 function setupModelControls(cfg){
@@ -63,7 +64,7 @@ function setupModelControls(cfg){
  $('cache').addEventListener('change',scheduleModelDownloads);
  $('aiModel').addEventListener('change',()=>{$('gpuPreset').value='';scheduleModelDownloads()});
  $('visionModel').addEventListener('change',()=>{$('gpuPreset').value='';scheduleModelDownloads()});
- $('imageModel').addEventListener('change',()=>{$('gpuPreset').value='';scheduleModelDownloads()});
+ $('imageModel').addEventListener('change',()=>{$('gpuPreset').value='';scheduleModelDownloads();renderProductionStages(state)});
  if($('rollSeed')){
   $('rollSeed').onclick=()=>{
    $('imageSeed').value=Math.floor(Math.random()*2147483647);
@@ -223,10 +224,34 @@ function refreshProjectPipelineLive(s){
 
 function renderProductionStages(s=null){
  const host=$('stages');host.replaceChildren();
+ const saved=s?.production_models;
+ const image=saved?.image||$('imageModel').value;
+ const prompt=saved?.prompt||$('aiModel').value;
+ const asr=saved?.asr||$('asrModel').value;
+ const alignment=saved?.alignment||$('alignmentModel').value;
+ const vision=saved?saved.vision:($('autoVerify').checked?$('visionModel').value:'');
+ const encoder=saved?.encoder||$('encoder').value;
+ const imageName=saved?(imageModels.find(m=>m.id===image)?.name||image):($('imageModel').selectedOptions[0]?.textContent||image||'Choose image model');
+ const asrName=saved?(audioModels.find(m=>m.id===asr)?.name||asr):($('asrModel').selectedOptions[0]?.textContent||asr);
+ const promptName=!prompt||prompt==='auto'?'Auto text model':prompt;
+ const reviewName=saved?(vision||'Off'):($('autoVerify').checked?(vision||'Choose vision model'):'Off');
+ const labels={alignment:[asrName,alignment==='auto'?'Auto timing':alignment].filter(Boolean).join(' · '),subjects:promptName,model:saved?'Used · '+imageName:imageName,illustrations:saved?'Used · '+imageName:imageName,cutouts:'BiRefNet General',review:reviewName,direction:promptName,render:encoder||'H.264'};
+ const audio=saved?.audio||$('audio').files[0]?.name||'No audio selected';
+ const profile=saved?saved.profile||'Not recorded':localStorage.getItem('lyricStudioProfilesV1Active')||'No saved profile';
+ const selectedImage=$('imageModel').selectedOptions[0]?.textContent||'Choose image model';
+ $('headerAudio').textContent='Audio · '+audio;$('headerAudio').title=audio;
+ $('headerProfile').textContent='Profile · '+profile;$('headerProfile').title=profile;
+ $('headerSelectedImage').textContent='Selected image · '+selectedImage;$('headerSelectedImage').title='Selected image model: '+selectedImage;
  const current=s?.status==='complete'?stages.length:stages.indexOf(s?.stage);
  stages.forEach((name,index)=>{
   if(index){const arrow=node('span','stage-arrow','->');arrow.setAttribute('aria-hidden','true');host.append(arrow)}
-  const pill=node('span','stage',name[0].toUpperCase()+name.slice(1));
+  const pill=node('span','stage');
+  pill.append(node('span','stage-name',name[0].toUpperCase()+name.slice(1)));
+  if(saved&&$('imageModel').value&&$('imageModel').value!==image&&['model','illustrations'].includes(name)){
+   pill.append(node('span','stage-selected','Selected · '+selectedImage));
+  }
+  pill.append(node('span','stage-model',labels[name]));
+  pill.title=name[0].toUpperCase()+name.slice(1)+' · '+labels[name];
   pill.setAttribute('role','listitem');
   if(index<current)pill.classList.add('done');
   else if(name===s?.stage){pill.classList.add('active');pill.setAttribute('aria-current','step')}
