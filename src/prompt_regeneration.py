@@ -40,7 +40,6 @@ def regenerate_prompts(worker,job,config,items):
         meanings=[]
         indices=[i['index'] for i in batch]
         groups=[job['groups'][i] for i in indices]
-        audit_groups=groups
         try:
             from song_gist import song_gist,attach_gist
             gist=job.get('song_gist') or song_gist(gpu_chat,model,[line for group in job['groups'] for line in group.split(' / ')],
@@ -54,10 +53,7 @@ def regenerate_prompts(worker,job,config,items):
                 inputs=json.loads(payload['messages'][1]['content'])
                 for entry,meaning in zip(inputs,meanings):entry['lyric_meaning']=meaning
                 payload['messages'][1]['content']=json.dumps(inputs)
-                audit_groups=[f'Original lyric group: {group}\nEnglish meaning: {meaning}'
-                              for group,meaning in zip(groups,meanings)]
             attach_gist(payload,gist)
-            audit_groups=[f'Song message: {gist}\n{group}' for group in audit_groups]
             subjects=request_subjects(gpu_chat,payload,max_words=550 if job.get('artwork_mode')=='verse' else 180)
             subjects=lengthen_short_subjects(gpu_chat,payload,subjects,400 if job.get('artwork_mode')=='verse' else 120,
                                              max_words=550 if job.get('artwork_mode')=='verse' else 180)
@@ -67,8 +63,6 @@ def regenerate_prompts(worker,job,config,items):
                 extra=(casting_rule(job['main_character'])+extra).strip()
             prompts=[image_prompt(subject,job['layouts'][index],technique,bool(job.get('reference_paths')),job.get('reference_use')=='likeness')
                      + (' Additional image direction: '+extra if extra else '') for index,subject in zip(indices,subjects)]
-            from prompt_audit import audit_prompts
-            prompts=audit_prompts(gpu_chat,model,audit_groups,subjects,prompts,[job['layouts'][i] for i in indices],job.get('artwork_mode','cutout'))
             from prompt_fit import fit_prompts
             prompts=fit_prompts(gpu_chat,model,image_model,prompts,technique)
         finally:unload_model(model)
@@ -78,7 +72,7 @@ def regenerate_prompts(worker,job,config,items):
             updated['prompts'][index]=prompt
             if meanings:
                 updated.setdefault('lyric_meanings',['']*len(job['groups']))[index]=meanings[indices.index(index)]
-            updated['prompt_audit']=dict(version=1,model=model)
+            updated['prompt_model']=model
             updated['song_gist']=gist
             if 'reference_modes' in updated:
                 updated['reference_modes'][index]='technique_prompt_only' if job.get('artwork_mode')=='verse' or subject_kind(subject)=='object' else 'image_conditioning'

@@ -196,7 +196,6 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
     from ollama_gpu import gpu_chat, unload_model
     reference_images = bool(references) and model_spec(model)['references']
     meanings = []
-    audit_groups = groups
     gist = ''
     from prompt_checkpoint import Checkpoint
     checkpoint = Checkpoint(folder, [line['text'] for line in data], run_config)
@@ -229,13 +228,11 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
         if structured:
             contexts=group_contexts(data,indices,structure)
             signature.update(groups=groups,layouts=layouts,line_groups=indices,song_structure=structure)
-            audit_groups=groups
             payload['format']['properties']['subjects'].update(minItems=len(groups),maxItems=len(groups))
             payload['messages'][1]['content']=json.dumps([dict(lyrics=g,layout=l['prompt'],section_context=c,image_instructions=image_instructions) for g,l,c in zip(groups,layouts,contexts)])
         else:
             signature.update(groups=groups,layouts=layouts)
             payload['messages'][1]['content']=json.dumps([dict(lyrics=g,layout=l['prompt'],image_instructions=image_instructions) for g,l in zip(groups,layouts)])
-        audit_groups=groups
         if artwork_mode == 'verse':
             from verse_backgrounds import lyric_meanings
             meanings = checkpoint.get('meanings')
@@ -246,12 +243,9 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
             payload['messages'][1]['content'] = json.dumps([
                 dict(lyrics=group,lyric_meaning=meaning,layout=layout['prompt'],section_context=contexts[i] if contexts else None,image_instructions=image_instructions)
                 for i,(group,meaning,layout) in enumerate(zip(groups,meanings,layouts))])
-            audit_groups = [f'Original lyric group: {group}\nEnglish meaning: {meaning}'
-                            for group, meaning in zip(groups, meanings)]
         else:
             checkpoint.save('meanings', [])
         attach_gist(payload, gist)
-        audit_groups = [f'Song message: {gist}\n{group}' for group in audit_groups]
         from kinetic_progress import counted
         subjects = checkpoint.get('scenes')
         if not subjects or len(subjects) != len(groups):
@@ -262,14 +256,9 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
             subjects = lengthen_short_subjects(gpu_chat, payload, subjects, 400 if artwork_mode == 'verse' else 120,
                                                max_words=550 if artwork_mode == 'verse' else 180)
             checkpoint.save('scenes', subjects)
-        prompts = checkpoint.get('audit')
-        if not prompts or len(prompts) != len(groups):
-            prompts = [image_prompt(subject, layout, style_prompt, reference_images, likeness)
-                       + (' Additional image direction: '+image_instructions if image_instructions else '')
-                       for subject, layout in zip(subjects, layouts)]
-            from prompt_audit import audit_prompts
-            prompts = audit_prompts(gpu_chat,director_model,audit_groups,subjects,prompts,layouts,artwork_mode)
-            checkpoint.save('audit', prompts)
+        prompts = [image_prompt(subject, layout, style_prompt, reference_images, likeness)
+                   + (' Additional image direction: '+image_instructions if image_instructions else '')
+                   for subject, layout in zip(subjects, layouts)]
         fitted = checkpoint.get('fit')
         if fitted and len(fitted) == len(groups):
             prompts = fitted
@@ -283,13 +272,10 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
     if (not isinstance(subjects, list) or len(subjects) != len(groups)
             or any(not isinstance(s, str) or not s.strip() for s in subjects)):
         raise ValueError('Illustration director must return one subject per lyric group.')
-    for subject in subjects:
-        if any(len(line['text']) > 12 and line['text'].casefold() in subject.casefold() for line in data):
-            raise ValueError('Visual description contains a copied lyric line; rerun the illustration director.')
     folder.mkdir(parents=True, exist_ok=True)
     manifest.write_text(json.dumps(dict(signature, reference_paths=[str(p) for p in references],
         lyric_meanings=meanings, song_gist=gist, visual_descriptions=subjects,
-        reference_use='likeness' if likeness else 'style', main_character=character, prompt_audit=dict(version=1,model=director_model),
+        reference_use='likeness' if likeness else 'style', main_character=character, prompt_model=director_model,
         reference_modes=['image_conditioning' if reference_images and uses_reference(artwork_mode, s) else 'technique_prompt_only' for s in subjects],
         prompts=prompts), ensure_ascii=False, indent=2), encoding='utf-8')
     return manifest

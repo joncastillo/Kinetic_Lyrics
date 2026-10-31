@@ -1,15 +1,14 @@
 """Save each prompting sub-step as it finishes, so a crash resumes after the last finished one and a restart can
 begin at any sub-step.
 
-Sub-steps run in order: song (message and verse structure), meanings, scenes, audit (second pass) and fit (length
-for the image model). A restart at one of them reuses every earlier sub-step from the latest saved run, even when
+Sub-steps run in order: song (message and verse structure), meanings, scenes and fit (length for the image model). A restart at one of them reuses every earlier sub-step from the latest saved run, even when
 settings changed since, because the person asked for exactly that. Without a chosen sub-step, only work saved by
 the current run is reused, which is what an automatic recovery needs."""
 import json
 import time
 from pathlib import Path
 
-SUBSTEPS = ('song', 'meanings', 'scenes', 'audit', 'fit')
+SUBSTEPS = ('song', 'meanings', 'scenes', 'fit')
 FILE = 'prompting.json'
 
 
@@ -19,8 +18,7 @@ def _read(path):
 
 
 def from_manifest(manifest):
-    """Sub-steps recoverable from a finished run saved before checkpoints existed. The second-pass prompts were not
-    kept, so it can restart at Song, Meanings, Scenes or Check but not at Fit."""
+    """Sub-steps recoverable from a finished run saved before checkpoints existed: song, meanings and scenes."""
     job = _read(manifest)
     if not job.get('prompts'):
         return {}

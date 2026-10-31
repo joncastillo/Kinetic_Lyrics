@@ -35,11 +35,11 @@ from speech_models import ASR_MODELS, LANGUAGES, DEFAULT_ASR, validate_speech
 HERE = Path(__file__).resolve().parent
 ROOT = studio_output(PROJECT_ROOT,'lyric-studio')
 # Prompting is split into the steps it actually runs; together they take longer than image generation.
-STAGES = {'alignment': (0, 8), 'song': (8, 10), 'meanings': (10, 14), 'scenes': (14, 24), 'audit': (24, 30),
+STAGES = {'alignment': (0, 8), 'song': (8, 10), 'meanings': (10, 16), 'scenes': (16, 30),
           'fit': (30, 34), 'subjects': (8, 34), 'model': (34, 36),
           'illustrations': (36, 74), 'cutouts': (74, 80), 'review': (80, 80),
           'direction': (80, 82), 'pictures': (82, 85), 'render': (85, 99), 'complete': (100, 100)}
-PROMPT_STAGES = ('subjects', 'song', 'meanings', 'scenes', 'audit', 'fit')
+PROMPT_STAGES = ('subjects', 'song', 'meanings', 'scenes', 'fit')
 TOKEN = secrets.token_urlsafe(32)
 AUTO_RESUMES = 2
 AUTO_RESUME_DELAY = 20
@@ -335,11 +335,11 @@ class Job:
         result.update(logs=logs[cursor:], cursor=len(logs), images=self.images(), gallery_cleared=bool(self.gallery_since()), ornaments=self.ornaments(),
                       rejected_images=self.rejected_selections(),
                       elapsed=round(self.state.get('finished', time.time())-self.state['started']),
-                      render_settings=dict(**typography_options(self.config),text_animation=self.config.get('text_animation','directed'), audio_mode=self.config.get('audio_mode','original'), auto_accept=self.config.get('auto_accept',False), auto_verify=self.config.get('auto_verify',False), cast_reference=self.config.get('reference_use')=='likeness', type_effect=self.config.get('type_effect','none'), entrance_effect=self.config.get('entrance_effect','legacy'), exit_effect=self.config.get('exit_effect','legacy'), entrance_pool=self.config.get('entrance_pool'), exit_pool=self.config.get('exit_pool'), particle_speed=self.config.get('particle_speed',1.), particle_intensity=self.config.get('particle_intensity',1.), image_seed=self.config.get('image_seed'), randomize_seed=self.config.get('randomize_seed', True)))
+                      render_settings=dict(**typography_options(self.config),text_animation=self.config.get('text_animation','directed'), audio_mode=self.config.get('audio_mode','original'), auto_accept=self.config.get('auto_accept',False), auto_verify=self.config.get('auto_verify',False), image_instructions=self.config.get('image_instructions',''), cast_reference=self.config.get('reference_use')=='likeness', type_effect=self.config.get('type_effect','none'), entrance_effect=self.config.get('entrance_effect','legacy'), exit_effect=self.config.get('exit_effect','legacy'), entrance_pool=self.config.get('entrance_pool'), exit_pool=self.config.get('exit_pool'), particle_speed=self.config.get('particle_speed',1.), particle_intensity=self.config.get('particle_intensity',1.), image_seed=self.config.get('image_seed'), randomize_seed=self.config.get('randomize_seed', True)))
         prompt_model=self.config.get('ai_model','auto')
         try:
             manifest=json.loads(self.manifest().read_text(encoding='utf-8'))
-            prompt_model=manifest.get('prompt_audit',{}).get('model') or prompt_model
+            prompt_model=manifest.get('prompt_model') or manifest.get('prompt_audit',{}).get('model') or prompt_model
         except (OSError,ValueError,KeyError):pass
         result['production_models']=dict(
             audio=self.config.get('audio_name') or Path(self.config.get('audio','')).name or self.config.get('name',''),
@@ -819,7 +819,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond(dict(jobs=job_list()))
             if url.path == '/api/config':
                 from gpu_models import PRESETS, PROMPT_MODELS, VISION_MODELS
-                return self.respond(dict(token=TOKEN, image_instructions_supported=True, auto_accept_supported=True, new_session_regeneration_supported=True, particle_materials_version=13, ai_typography_supported=True, typography_controls_supported=True, word_animations_supported=True, video_history_supported=True, video_history_version=2, live_artwork_version=2, replacement_priority_supported=True, particle_effects=catalog_choices(), scene_effects=list(scene_catalog().values()), prompt_regeneration=True, generation_queue_version=2, prompt_audit_version=1, style_prompt=STYLE_PROMPT, model=MODEL, image_models=MODELS, model_presets=PRESETS, prompt_choices=PROMPT_MODELS, vision_choices=VISION_MODELS, asr_models=ASR_MODELS, vocal_languages=LANGUAGES, default_asr=DEFAULT_ASR,
+                return self.respond(dict(token=TOKEN, image_instructions_supported=True, auto_accept_supported=True, new_session_regeneration_supported=True, particle_materials_version=13, ai_typography_supported=True, typography_controls_supported=True, word_animations_supported=True, video_history_supported=True, video_history_version=2, live_artwork_version=2, replacement_priority_supported=True, particle_effects=catalog_choices(), scene_effects=list(scene_catalog().values()), prompt_regeneration=True, generation_queue_version=2, style_prompt=STYLE_PROMPT, model=MODEL, image_models=MODELS, model_presets=PRESETS, prompt_choices=PROMPT_MODELS, vision_choices=VISION_MODELS, asr_models=ASR_MODELS, vocal_languages=LANGUAGES, default_asr=DEFAULT_ASR,
                     jobs=job_list()))
             if url.path == '/api/gpu':
                 from gpu_telemetry import gpu_usage
@@ -947,7 +947,8 @@ class Handler(BaseHTTPRequestHandler):
             if route == '/api/import-youtube':
                 from youtube_import import import_youtube
                 args=json.loads(body)
-                return self.respond(import_youtube(args.get('url',''), PROJECT_ROOT/'profiles'/'audio'),201)
+                return self.respond(import_youtube(args.get('url',''), PROJECT_ROOT/'profiles'/'audio',
+                                                   prompt_model=str(args.get('ai_model') or 'auto')),201)
             if route == '/api/jobs':
                 fields, files = parse_form(body, self.headers['Content-Type'])
                 return self.respond(dict(id=start_job(fields, files).folder.name), 201)
