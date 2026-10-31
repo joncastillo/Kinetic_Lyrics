@@ -165,6 +165,8 @@ def main():
             type_effect=config.get('type_effect','none'), particle_intensity=config.get('particle_intensity',1.), particle_speed=config.get('particle_speed',1.),
             stage_pictures=config.get('stage_pictures','ai-painted'), ai_model=config.get('ai_model','auto'), image_model=config.get('image_model'),
             image_cache=config.get('image_cache'), style_prompt=config.get('style_prompt',''))
+        from video_generation.step import project_clips
+        options.video_clips = project_clips(args.folder, config, illustrations)
         if args.action == 'rerender':
             updated = args.folder/'rerendered.mp4'
             render(Path(config['audio']), updated, data, plan, duration, options)

@@ -84,6 +84,9 @@ def main(argv=None):
     parser.add_argument('--image-cache', type=Path, default=default_model_cache(), help='Model cache (default: KINETIC_LYRICS_MODEL_CACHE, else OLLAMA_MODELS or ~/.ollama/models)')
     parser.add_argument('--image-model', default='Qwen/Qwen-Image-2512', help='Local image repository (default: Qwen Image 2512)')
     parser.add_argument('--image-steps', type=int, default=None, help='Illustration inference steps (default: selected model recommendation)')
+    from video_generation.catalog import MODELS as VIDEO_MODELS, VIDEO_MODES
+    parser.add_argument('--video-model', choices=[m['id'] for m in VIDEO_MODELS], default=None,
+                        help='Animate each approved illustration with this local image-to-video model (full-screen and verse artwork only; off by default)')
     parser.add_argument('--image-seed', '--seed', dest='image_seed', type=int, default=None,
                         help='Model seed for image generation, prompts and layouts (default: random per run)')
     parser.add_argument('--validate-ocr', action='store_true', help='OCR one encoded frame per lyric line')
@@ -115,6 +118,8 @@ def main(argv=None):
     if args.renderer == 'editorial' and not args.no_illustrations and not args.illustrations and args.style_reference is None and not args.no_default_style_references:
         default_reference = PROJECT_ROOT / 'assets' / 'default-style-reference.jpg'
         args.style_reference = [default_reference] if default_reference.is_file() else []
+    if args.video_model and (args.renderer != 'editorial' or args.no_illustrations or args.artwork_mode not in VIDEO_MODES):
+        parser.error('--video-model needs editorial illustrations with --artwork-mode fullscreen or verse.')
     if args.illustrations and args.renderer != 'editorial':
         parser.error('--illustrations requires --renderer editorial.')
     if not shutil.which('ffmpeg') or not shutil.which('ffprobe'):
