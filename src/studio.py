@@ -38,7 +38,7 @@ ROOT = studio_output(PROJECT_ROOT,'lyric-studio')
 STAGES = {'alignment': (0, 8), 'song': (8, 10), 'meanings': (10, 14), 'scenes': (14, 24), 'audit': (24, 30),
           'fit': (30, 34), 'subjects': (8, 34), 'model': (34, 36),
           'illustrations': (36, 74), 'cutouts': (74, 80), 'review': (80, 80),
-          'direction': (80, 85), 'render': (85, 99), 'complete': (100, 100)}
+          'direction': (80, 82), 'pictures': (82, 85), 'render': (85, 99), 'complete': (100, 100)}
 PROMPT_STAGES = ('subjects', 'song', 'meanings', 'scenes', 'audit', 'fit')
 TOKEN = secrets.token_urlsafe(32)
 AUTO_RESUMES = 2
@@ -347,7 +347,8 @@ class Job:
             asr=self.config.get('asr_model',''), alignment=self.config.get('alignment_model','auto'),
             prompt=prompt_model, image=self.config.get('image_model',''),
             vision=self.config.get('vision_model','') if self.config.get('auto_verify') else '',
-            encoder=self.config.get('encoder',''))
+            encoder=self.config.get('encoder',''), artwork_mode=self.config.get('artwork_mode','cutout'),
+            stage_pictures=self.config.get('stage_pictures','ai-painted'))
         if (self.folder/'video.mp4').exists():
             result['video'] = self.url(self.folder/'video.mp4')
         if (self.folder/'poster.png').exists():
@@ -814,10 +815,12 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('Invalid preview intensity or speed')
                 settings=typography_options({key:query[key][0] for key in ('font_family','font_style','font_scale') if key in query})
                 return self.respond(render_preview(catalog[phase][effect],phase,intensity,speed,settings['font_family'],settings['font_style'],settings['font_scale']), content_type='image/gif')
+            if url.path == '/api/job-list':
+                return self.respond(dict(jobs=job_list()))
             if url.path == '/api/config':
                 from gpu_models import PRESETS, PROMPT_MODELS, VISION_MODELS
                 return self.respond(dict(token=TOKEN, image_instructions_supported=True, auto_accept_supported=True, new_session_regeneration_supported=True, particle_materials_version=13, ai_typography_supported=True, typography_controls_supported=True, word_animations_supported=True, video_history_supported=True, video_history_version=2, live_artwork_version=2, replacement_priority_supported=True, particle_effects=catalog_choices(), scene_effects=list(scene_catalog().values()), prompt_regeneration=True, generation_queue_version=2, prompt_audit_version=1, style_prompt=STYLE_PROMPT, model=MODEL, image_models=MODELS, model_presets=PRESETS, prompt_choices=PROMPT_MODELS, vision_choices=VISION_MODELS, asr_models=ASR_MODELS, vocal_languages=LANGUAGES, default_asr=DEFAULT_ASR,
-                    jobs=[dict(id=j.folder.name, name=j.config['name']) for j in reversed(list(JOBS.values()))]))
+                    jobs=job_list()))
             if url.path == '/api/gpu':
                 from gpu_telemetry import gpu_usage
                 return self.respond(gpu_usage())
@@ -1193,6 +1196,17 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond(dict(ok=True))
         except (ValueError, KeyError, OSError, IndexError) as exc:
             self.respond(dict(error=str(exc)), 400)
+        except ImportError as exc:
+            # Answer instead of dropping the connection, which the browser only reports as "Failed to fetch".
+            package = {'yt_dlp': 'yt-dlp', 'bs4': 'beautifulsoup4'}.get(exc.name, exc.name)
+            self.respond(dict(error=f'The studio Python environment is missing the "{package}" package. '
+                                    f'Install it with: python -m pip install -r requirements.txt, then restart the studio.'), 500)
+
+
+def job_list():
+    """Every song, newest first, with its run status so a fresh window can open the one that is running."""
+    return [dict(id=j.folder.name, name=j.config['name'], status=j.state.get('status', ''))
+            for j in reversed(list(JOBS.values()))]
 
 
 def restore():

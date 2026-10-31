@@ -9,7 +9,7 @@ import numpy as np
 
 
 @lru_cache(maxsize=24)
-def stem_envelope(name, modified, size, bins=1200):
+def stem_envelope(name, modified, size, bins=4800):
     import soundfile as sf
 
     with sf.SoundFile(name) as source:

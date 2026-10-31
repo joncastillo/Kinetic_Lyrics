@@ -106,3 +106,14 @@ main,body.has-job main{grid-template-columns:400px minmax(0,1fr)}main>*,.form-bo
 .busy-spinner{width:13px;height:13px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:busy-spin .8s linear infinite;flex:none}
 @keyframes busy-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.busy-spinner{animation-duration:2.4s}}
+.header-stages .stage-part.skipped{opacity:.45;border-style:dashed}
+/* Timing editor: m:ss.mmm fields, taller vocals lane for word labels, direct-manipulation cursors. */
+.timeline-word{grid-template-columns:minmax(60px,1fr) 92px 92px}.timeline-word input{font-variant-numeric:tabular-nums}
+.timeline-words{grid-template-columns:repeat(auto-fill,minmax(285px,1fr))}
+.timeline-track canvas{cursor:grab;touch-action:none;user-select:none}.timeline-track[data-stem=vocals] canvas{height:96px}
+.timeline-tools button{padding:6px 11px;min-width:34px}.timeline-tools #timelineRange{font-variant-numeric:tabular-nums;color:var(--muted);font-size:12px}
+/* The running sub-step pulses gently; nothing is highlighted once the run stops. */
+.header-stages .stage-part.active{border-color:rgb(var(--glass));background:rgba(var(--glass),.3);color:var(--ink);animation:stage-live 1.6s ease-in-out infinite}
+@keyframes stage-live{50%{box-shadow:0 0 0 2px rgba(var(--glass),.35),0 0 14px rgba(var(--glass),.35)}}
+@media (prefers-reduced-motion:reduce){.header-stages .stage-part.active{animation:none;box-shadow:0 0 0 2px rgba(var(--glass),.35)}}
+.timeline-unsaved{position:sticky;bottom:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;padding:12px 14px;border:1px solid var(--warn);border-radius:10px;background:#2a2416;color:var(--warn)}.timeline-unsaved[hidden]{display:none}.timeline-unsaved span{flex:1;min-width:180px}
