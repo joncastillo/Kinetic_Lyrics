@@ -380,15 +380,28 @@ function renderReplacementQueue(s){
   for(const index of waiting)entries.set(index,{label:['subjects','song','meanings','scenes','fit'].includes(s.action_stage)?'Revising prompt':'Repair in progress',kind:'active'});
  }
  for(const index of active)entries.set(index,{label:'Generating',kind:'active'});
+ // Animation requests (a replaced image, or a clip redone from a segment) queue separately from image work.
+ let animations=0;
+ for(const q of (s?.queued_actions||[]).filter(q=>q.action==='animate'))
+  for(const index of q.indices||[q.index]){
+   if(entries.has(index))continue;
+   const first=(q.segments||{})[String(index)];
+   entries.set(index,{label:'Animation queued'+(first?' from segment '+(first+1):''),kind:'queued'});animations++;
+  }
+ for(const index of s?.animating||[]){
+  const first=(s.animating_segments||{})[String(index)];
+  entries.set(index,{label:'Animating'+(first?' from segment '+(first+1):''),kind:'active'});animations++;
+ }
  host.replaceChildren();host.hidden=!entries.size;if(!entries.size)return;
- const heading=node('strong','replacement-queue-title','Image replacements');host.append(heading);
+ const heading=node('strong','replacement-queue-title',animations===entries.size?'Animation queue':animations?'Image and animation queue':'Image replacements');host.append(heading);
  const strip=node('div','replacement-queue-items');
  for(const [index,entry] of entries){
   const pill=node('button','replacement-queue-pill '+entry.kind,'Illustration '+(index+1)+' · '+entry.label);
   pill.type='button';pill.onclick=()=>document.querySelector('[data-image-index="'+index+'"]')?.scrollIntoView({behavior:'smooth',block:'center'});
   strip.append(pill);
  }
- host.append(strip,node('span','replacement-queue-hint',s?.status==='complete'?'Rebuild after selection':'Before video render'));
+ const hint=animations&&s?.status==='running'?'Animations start when the current run finishes':s?.status==='complete'?'Rebuild after selection':'Before video render';
+ host.append(strip,node('span','replacement-queue-hint',hint));
 }
 
 function appendStableArtwork(stage,active,item,previous){
@@ -405,7 +418,10 @@ function appendStableArtwork(stage,active,item,previous){
   const addBadge=video=>{
    const badge=document.createElement('span');badge.className='video-badge';badge.title='Video clip · hover to play';
    badge.innerHTML='<svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M3 1.8v8.4L10 6z" fill="currentColor"/></svg><span>Video</span>';
-   const label=()=>{if(Number.isFinite(video.duration))badge.lastChild.textContent='Video · '+video.duration.toFixed(1).replace(/\.0$/,'')+'s';};
+   // A clip still being made plays the parts made so far, and says so.
+   const progress=active.animation_parts?(' · '+active.animation_parts+(active.animation_total?' of '+active.animation_total:'')+' parts'):'';
+   if(progress)badge.title='Still animating · hover to play the parts made so far';
+   const label=()=>{badge.lastChild.textContent='Video'+(Number.isFinite(video.duration)?' · '+video.duration.toFixed(1).replace(/\.0$/,'')+'s':'')+progress;};
    label();video.addEventListener('loadedmetadata',label);
    stage.append(badge);
   };
@@ -413,7 +429,7 @@ function appendStableArtwork(stage,active,item,previous){
   const video=document.createElement('video');
   video.muted=true;video.loop=true;video.playsInline=true;video.preload='auto';
   video.poster=active.url;video.title=item.subject+' · hover to play';video.setAttribute('aria-label',item.subject);
-  video.onclick=()=>inspect(active.url,item.index);
+  video.onclick=()=>inspect(active.url,item.index,clip);
   video.onerror=()=>{const img=document.createElement('img');img.alt=item.subject;img.src=active.url;img.onclick=()=>inspect(active.url,item.index);video.replaceWith(img);};
   video.src=clip;stage.append(video);hover(video);addBadge(video);
   return;
@@ -428,6 +444,29 @@ function appendStableArtwork(stage,active,item,previous){
  img.src=active.url;
 }
 
+
+// Redo an illustration's animation without touching its image: all of it, or from one segment on (the segments
+// before it are kept and the rest are made again with a new seed). Returns the controls for the card.
+function animationControls(item,active,run){
+ const box=document.createElement('div');box.className='segment-controls';
+ const starts=active.animation_segments||[];
+ const fmt=v=>(Math.round(v*10)/10).toString().replace(/\.0$/,'');
+ if(starts.length>1){
+  const pick=document.createElement('select');pick.className='segment-pick';pick.title='Segment to make again, with everything after it';
+  starts.forEach((start,k)=>{const o=document.createElement('option');o.value=k;
+   o.textContent=`Segment ${k+1} · ${fmt(start)}`+(k+1<starts.length?`–${fmt(starts[k+1])} s`:' s on');pick.append(o)});
+  const go=document.createElement('button');go.type='button';go.textContent='Regenerate from segment';
+  go.title='Keeps the segments before the chosen one and animates the rest again; the image stays the same';
+  go.onclick=()=>run('reanimate',{index:item.index,from:+pick.value});
+  box.append(pick,go);
+ }else{
+  const go=document.createElement('button');go.type='button';go.textContent='Start animation over';
+  go.title='Animates this image again from the start; the image stays the same';
+  go.onclick=()=>run('reanimate',{index:item.index,from:0});
+  box.append(go);
+ }
+ return box;
+}
 
 const optimisticRegenerations=new Map();
 function showOptimisticQueue(snapshot){

@@ -187,6 +187,8 @@ class Job:
                 batch_path.write_text(json.dumps(batch),encoding='utf-8');command+=['--batch',str(batch_path)]
             if operation=='animate':
                 command=[*module_command('studio.worker'),'animate',str(self.folder),'--index',str(item['index'])]
+                self.state['animating']=list(item.get('indices') or [item['index']])
+                self.state['animating_segments']=dict(item.get('segments') or {})
             self.state.update(action=operation,action_percent=0,active_images=[i['index'] for i in batch] if generation else [],
                               action_stage='subjects' if operation=='reprompt' else 'model',message=f'{operation.capitalize()} batch starting')
             threading.Thread(target=self.run,args=(command,operation),daemon=True).start()
@@ -311,7 +313,8 @@ class Job:
                     elif action == 'patch':
                         index = int(command[command.index('--index')+1])
                         self.state['dirty'] = [i for i in self.state['dirty'] if i != index]
-                    self.state.update(action=None, active_images=[], action_stage=None, action_percent=100 if not code else 0)
+                    self.state.update(action=None, active_images=[], animating=[], animating_segments={}, action_stage=None,
+                                      action_percent=100 if not code else 0)
                     if not code and action!='repair':
                         self.state['message'] = f'{action.capitalize()} complete'
                 elif code and self.schedule_resume(command, code):
@@ -334,7 +337,7 @@ class Job:
                     from studio.video_versions import verified_changes
                     dirty, verified = verified_changes(self.folder, self.state['dirty'])
                     if verified:self.state['dirty'] = dirty
-                if not code and action and action != 'animate':  # never re-queue itself: a clip it could not make would loop
+                if not code and action != 'animate':  # never re-queue itself: a clip it could not make would loop
                     self.queue_missing_clips()
                 self.save()
                 self.start_next()
@@ -347,14 +350,52 @@ class Job:
                     self.state['finished'] = time.time()
                 self.save()
 
-    def queue_missing_clips(self):
-        """Queue the video step for every current illustration without a clip: one that was replaced, regenerated
-        or repaired after the video was animated has a new fingerprint and so no clip yet. Only once the video step
-        has run for this job; before that the pipeline animates everything itself. Called with LOCK held."""
+    def restart_clip(self, index, first=0):
+        """Redo illustration `index`'s clip, finished or half made: from the painting with fresh motion (first=0),
+        or from segment `first` on, keeping the segments before it and drawing a new seed. A clip the worker is making
+        right now does so before its next part (a 'restart' marker holding `first`); otherwise the illustration is
+        queued for the video step. Called with LOCK held."""
         model = self.config.get('video_model')
-        if (not model or self.config.get('artwork_mode') not in VIDEO_MODES or self.state['status'] not in ('review', 'complete')
-                or not (self.folder/'video-clips').is_dir() or self.state.get('action') == 'animate'
-                or any(a.get('action') == 'animate' for a in self.state['queued_actions'])):
+        if not model:
+            raise ValueError('Choose a video model for this job first')
+        manifest = self.manifest()
+        image = manifest.parent/f'{index:03d}.png'
+        if not image.is_file():
+            raise ValueError('Invalid illustration')
+        from video_generation.clips import clip_folder, image_digest
+        folder = clip_folder(self.folder, model, image_digest(image))
+        busy = (self.state.get('action') == 'animate' or
+                (self.state['status'] == 'running' and self.state.get('stage') == 'video'))
+        finished = (folder/'clip.json').is_file()    # a finished clip is not revisited by the running worker
+        if first > 0 and finished and not (folder/'parts'/'parts.json').is_file():
+            parts_from_clip(folder, first)             # made before parts were kept: cut them out of the clip
+        for name in ('clip.json', 'clip.mp4'):
+            (folder/name).unlink(missing_ok=True)
+        for stale in folder.glob('frames-*'):
+            shutil.rmtree(stale, ignore_errors=True)
+        what = f'from segment {first+1}' if first else 'from the start'
+        if busy and not finished and (folder/'parts').is_dir():
+            (folder/'restart').write_text(str(first), encoding='utf-8')   # the worker redoes it before its next part
+            message = f'Illustration {index+1} will be redone {what} at its next part.'
+        else:
+            (folder/'restart').unlink(missing_ok=True)
+            truncate_parts(folder, first)
+            self.queue_missing_clips({index: first})
+            message = f'Illustration {index+1} is queued to be animated again {what}.'
+        if (self.folder/'video.mp4').exists() and index not in self.state['dirty']:
+            self.state['dirty'].append(index)
+        self.log(message)
+        return message
+
+    def queue_missing_clips(self, segments=None):
+        """Queue the video step for every current illustration without a clip: one that was replaced, regenerated,
+        repaired or redone after the video was animated. Queued at once, whatever the job is doing (start_next runs it
+        when the job is idle), so the header shows it straight away; requests join the batch already waiting.
+        `segments` ({index: first segment}) labels a redo from a segment. Only once the video step has run for this
+        job; before that the pipeline animates everything itself. Called with LOCK held."""
+        model = self.config.get('video_model')
+        if (not model or self.config.get('artwork_mode') not in VIDEO_MODES or self.state['status'] == 'queued'
+                or not (self.folder/'video-clips').is_dir()):
             return
         try:
             manifest = self.manifest()
@@ -364,9 +405,19 @@ class Job:
         from video_generation.clips import clip_folder, image_digest
         missing = [i for i in range(count) if (manifest.parent/f'{i:03d}.png').is_file() and not
                    (clip_folder(self.folder, model, image_digest(manifest.parent/f'{i:03d}.png'))/'clip.json').is_file()]
-        if missing:
-            self.state['queued_actions'].append(dict(action='animate', index=missing[0], indices=missing))
-            self.log('Queued animation for illustration '+', '.join(str(i+1) for i in missing)+'.')
+        missing = [i for i in missing if i not in self.state.get('animating', [])]
+        if not missing:
+            return
+        waiting = next((a for a in self.state['queued_actions'] if a.get('action') == 'animate'), None)
+        if waiting is None:
+            waiting = dict(action='animate', index=missing[0], indices=[], segments={})
+            self.state['queued_actions'].append(waiting)
+        added = [i for i in missing if i not in waiting['indices']]
+        waiting['indices'] = sorted(set(waiting['indices'])|set(missing))
+        waiting['index'] = waiting['indices'][0]
+        waiting.setdefault('segments', {}).update({str(i): int(n) for i, n in (segments or {}).items() if i in missing})
+        if added:
+            self.log('Queued animation for illustration '+', '.join(str(i+1) for i in added)+'.')
 
     def resume_command(self, command):
         """The same run, resumed from saved work: the pipeline checkpoint, or else timings, artwork, approval and a plan made by this run."""
@@ -446,7 +497,9 @@ class Job:
         return '/files/'+self.folder.name+'/'+quote(path.relative_to(self.folder).as_posix())+'?v='+str(path.stat().st_mtime_ns)
 
     def animation(self, digest):
-        """URL of the video step's finished clip for the image with this SHA-256, made with the chosen video model.
+        """The video step's clip for the image with this SHA-256, made with the chosen video model:
+        {url, parts, total} where parts is None for a finished clip, or the parts made so far (of total) for one
+        still being made, played from a preview of those parts. None when nothing has been made yet.
 
         Uploaded clips (`003.mp4`) are a different thing: they replace the slot and come back as `video`."""
         model = self.config.get('video_model')
@@ -455,7 +508,14 @@ class Job:
         from video_generation.clips import clip_folder
         folder = clip_folder(self.folder, model, digest)
         clip = folder/'clip.mp4'
-        return self.url(clip) if (folder/'clip.json').is_file() and clip.is_file() else None
+        segments = segment_starts(folder, self.config.get('fps') or 24)
+        if (folder/'clip.json').is_file() and clip.is_file():
+            return dict(url=self.url(clip), parts=None, total=None, segments=segments)
+        preview = partial_preview(folder)
+        if not preview:
+            return None
+        path, done = preview
+        return dict(url=self.url(path), parts=done, total=planned_parts(self.folder, folder), segments=segments)
 
     def manifest(self):
         from artwork.active import select_manifest
@@ -550,11 +610,18 @@ class Job:
                 metadata=variant_metadata(path,job,i)
                 from artwork.video_art import sidecar
                 clip=sidecar(path)
-                animation=self.animation(fingerprint) if not clip else None
-                entries.append(dict(prompt=metadata.get('prompt',prompt),subject=metadata.get('subject',''),style=metadata.get('style',''),video=self.url(clip) if clip else None,animation=animation,path=path.relative_to(self.folder).as_posix(), url=self.url(path),
+                clip_info=self.animation(fingerprint) if not clip else None
+                animation=clip_info['url'] if clip_info else None
+                entries.append(dict(prompt=metadata.get('prompt',prompt),subject=metadata.get('subject',''),style=metadata.get('style',''),video=self.url(clip) if clip else None,animation=animation,animation_parts=clip_info['parts'] if clip_info else None,animation_total=clip_info['total'] if clip_info else None,animation_segments=clip_info.get('segments') if clip_info else None,path=path.relative_to(self.folder).as_posix(), url=self.url(path),
                     current=path == current, raw=path == raw, fresh=path.is_relative_to(self.folder/'candidates') and stat.st_mtime>=self.state['started'], review=review))
             queued=next((q for q in self.state.get('queued_actions',[]) if q.get('index')==i and q.get('action','regenerate') in ('regenerate','reprompt')),None)
             pending=('Prompt queued' if queued.get('action')=='reprompt' else 'Image queued') if queued else ''
+            animate=next((q for q in self.state.get('queued_actions',[]) if q.get('action')=='animate' and i in (q.get('indices') or [])),None)
+            if not pending and animate:
+                first=(animate.get('segments') or {}).get(str(i))
+                pending='Animation queued'+(f' from segment {first+1}' if first else '')
+            if not pending and i in self.state.get('animating',[]):
+                pending='Animating'
             if i in self.state.get('active_images',[]) :
                 pending='Preparing prompt' if self.state.get('action_stage') in PROMPT_STAGES else 'Generating replacement'
             result.append(dict(index=i, pending=pending, subject=job.get('visual_descriptions', job['prompts'])[i],
@@ -974,6 +1041,138 @@ def regenerate_new_session(source, image_model=None):
     return start_job(fields, files)
 
 
+PREVIEW_LOCK = threading.Lock()
+
+
+def partial_preview(folder):
+    """(path, parts) of a playable preview of the parts made so far of a clip still being made, joined without
+    re-encoding and rebuilt only when a new part arrives; None when no part exists yet."""
+    parts = Path(folder)/'parts'
+    try:
+        done = len(json.loads((parts/'parts.json').read_text(encoding='utf-8'))['parts'])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if not done:
+        return None
+    preview = parts/f'preview-{done:03d}.mp4'
+    with PREVIEW_LOCK:
+        if not preview.is_file():
+            listing = parts/'preview.txt'
+            listing.write_text(''.join(f"file 'part-{n:03d}.mp4'" + chr(10) for n in range(done)), encoding='utf-8')
+            temporary = preview.with_suffix('.tmp.mp4')
+            try:
+                subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-f', 'concat', '-safe', '0',
+                                '-i', str(listing), '-c', 'copy', str(temporary)], check=True, capture_output=True)
+                temporary.replace(preview)
+            except (OSError, subprocess.CalledProcessError):
+                temporary.unlink(missing_ok=True)
+                return None
+            for old in parts.glob('preview-*.mp4'):
+                if old != preview:
+                    old.unlink(missing_ok=True)
+    return preview, done
+
+
+def clip_segments(folder):
+    """Frame counts of the parts a clip was made of: from its saved parts, or, for a finished clip whose parts were
+    not kept, worked out from clip.json (the first part is one chunk, every later part a chunk less the frame it
+    repeats, so frames = parts*chunk - parts + 1)."""
+    try:
+        return [part['frames'] for part in json.loads((Path(folder)/'parts'/'parts.json').read_text(encoding='utf-8'))['parts']]
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    try:
+        meta = json.loads((Path(folder)/'clip.json').read_text(encoding='utf-8'))
+        frames, parts = int(meta['frames']), int(meta.get('parts') or 1)
+    except (OSError, ValueError, KeyError, TypeError):
+        return []
+    if isinstance(meta.get('segments'), list) and sum(meta['segments']) == frames:
+        return [int(count) for count in meta['segments']]       # recorded by the worker
+    if parts <= 1:
+        return [frames]
+    # Older clips: one chunk, then chunk-1 per part, and the last part only as long as was still needed.
+    from video_generation.catalog import video_spec
+    try:
+        chunk = int(video_spec(meta.get('model', '')).get('chunk_frames') or 0)
+    except ValueError:
+        chunk = 0
+    for size in [chunk] if chunk else []:
+        last = frames-size-(parts-2)*(size-1)
+        if 0 < last <= size-1:
+            return [size]+[size-1]*(parts-2)+[last]
+    size = (frames+parts-1)//parts                               # unknown chunk: an even split
+    return [frames-(parts-1)*(size-1)]+[size-1]*(parts-1)
+
+
+def segment_starts(folder, fps=24):
+    """Start time in seconds of every segment (part) of the clip in `folder`, finished or not."""
+    starts, frames = [], 0
+    for count in clip_segments(folder):
+        starts.append(round(frames/fps, 2))
+        frames += count
+    return starts
+
+
+def parts_from_clip(folder, keep):
+    """Cut the first `keep` segments of a finished clip back out as saved parts (video plus last frame), so it can be
+    redone from segment `keep` on. For clips made before parts were kept. The clip is decoded once and each part is
+    read frame-exact from the stream (filter-based trims can drop a frame at the start)."""
+    import numpy as np
+    from PIL import Image
+    from video_generation.generation import write_clip
+    folder = Path(folder)
+    meta = json.loads((folder/'clip.json').read_text(encoding='utf-8'))
+    counts = clip_segments(folder)[:keep]
+    size = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height',
+                           '-of', 'csv=p=0', str(folder/'clip.mp4')], capture_output=True, text=True, check=True).stdout
+    width, height = (int(v) for v in size.strip().split(','))
+    parts = folder/'parts'
+    shutil.rmtree(parts, ignore_errors=True)
+    parts.mkdir(parents=True)
+    frame_bytes = width*height*3
+    decoder = subprocess.Popen(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', str(folder/'clip.mp4'),
+                                '-frames:v', str(sum(counts)), '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'],
+                               stdout=subprocess.PIPE)
+    try:
+        for number, count in enumerate(counts):
+            data = decoder.stdout.read(count*frame_bytes)
+            if len(data) != count*frame_bytes:
+                raise ValueError('The clip is shorter than its recorded segments')
+            frames = np.frombuffer(data, np.uint8).reshape(count, height, width, 3)
+            write_clip(frames, meta.get('fps', 24), parts/f'part-{number:03d}.mp4')
+            Image.fromarray(frames[-1]).save(parts/f'part-{number:03d}.png')
+    finally:
+        decoder.stdout.close()
+        decoder.wait()
+    record = dict(key=f"{meta.get('source_sha256')}:{meta.get('seed')}", prompts=meta.get('prompts') or [],
+                  parts=[dict(frames=count) for count in counts], reroll=0)
+    (parts/'parts.json').write_text(json.dumps(record, indent=2), encoding='utf-8')
+
+
+def truncate_parts(folder, first):
+    """Keep the saved parts before `first` (0 keeps none) so the video step makes the rest again."""
+    from video_generation.generation import PartStore
+    record = Path(folder)/'parts'/'parts.json'
+    if first > 0 and not record.is_file() and (Path(folder)/'clip.json').is_file():
+        parts_from_clip(folder, first)
+    try:
+        saved = json.loads(record.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        shutil.rmtree(Path(folder)/'parts', ignore_errors=True)
+        return
+    store = PartStore(folder, 24, saved.get('key'), saved.get('prompts', []))
+    store.truncate(first)
+
+
+def planned_parts(project, folder):
+    """How many parts the video step planned for the clip in `folder` (from its job), or None."""
+    try:
+        job = json.loads((Path(project)/'video-clips'/'job.json').read_text(encoding='utf-8'))
+        return next((item.get('parts') for item in job['clips'] if Path(item['folder']) == Path(folder)), None)
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
 class Handler(BaseHTTPRequestHandler):
     def handle(self):
         try:
@@ -1210,6 +1409,16 @@ class Handler(BaseHTTPRequestHandler):
                 args, files = parse_form(body, self.headers['Content-Type'])
             else:
                 args, files = json.loads(body), {}
+            if operation == 'reanimate':  # redo an illustration's clip, all of it or from a segment; allowed any time
+                index = int(args.get('index', -1))
+                first = int(args.get('from', 0) or 0)
+                if first < 0:
+                    raise ValueError('Invalid segment')
+                with LOCK:
+                    message = job.restart_clip(index, first)
+                    job.save()
+                job.start_next()
+                return self.respond(dict(ok=True, message=message))
             if operation == 'keep-picture':  # a preference for the next render; allowed at any time
                 if not isinstance(args.get('key'), str) or len(args['key']) > 40:
                     raise ValueError('Invalid picture')

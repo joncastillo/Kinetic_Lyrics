@@ -24,7 +24,7 @@ class GalleryAnimationTest(unittest.TestCase):
             (clip/'clip.mp4').write_bytes(b'mp4')
             (clip/'clip.json').write_text(json.dumps({}), encoding='utf-8')
             self.assertEqual(Job.animation(self.job(folder), DIGEST),
-                             '/files/job/'+(clip/'clip.mp4').relative_to(folder).as_posix())
+                             dict(url='/files/job/'+(clip/'clip.mp4').relative_to(folder).as_posix(), parts=None, total=None, segments=[]))
 
     def test_unfinished_or_other_model_or_none_chosen_is_not(self):
         with tempfile.TemporaryDirectory() as root:

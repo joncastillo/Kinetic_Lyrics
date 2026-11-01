@@ -42,39 +42,100 @@ def write_clip(frames, fps, target):
     return count
 
 
-class ClipWriter:
-    """Encodes a clip as its parts arrive, so a minute-long clip never sits in RAM whole (a part's frames are
-    ~0.4 GB; keeping every part, joining them and copying for ffmpeg ran a 32 GB machine out of memory)."""
+class PartStore:
+    """Saves every part of a clip the moment it is made: its own video file plus its last frame as a lossless PNG,
+    listed in parts/parts.json. A run that stops (a crash, running out of memory, a cancel) resumes at the next part
+    from that frame, with the prompts the clip started with, so the motion carries on as if nothing happened. Only
+    one part is ever held in RAM. close() joins the parts into the clip without re-encoding and removes them.
 
-    def __init__(self, target, fps):
-        self.target, self.fps, self.process, self.count = Path(target), fps, None, 0
-        self.temporary = self.target.with_suffix('.tmp.mp4')
+    `key` identifies what the parts belong to (the painting's fingerprint and the seed); saved parts for anything
+    else are discarded."""
+
+    def __init__(self, folder, fps, key, prompts):
+        self.folder, self.fps, self.key = Path(folder)/'parts', fps, key
+        self.record = self.folder/'parts.json'
+        try:
+            saved = json.loads(self.record.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            saved = None
+        if (saved and saved.get('key') == key and saved.get('parts') and
+                all((self.folder/f'part-{n:03d}.mp4').is_file() and (self.folder/f'part-{n:03d}.png').is_file()
+                    for n in range(len(saved['parts'])))):
+            self.parts, self.prompts, self.reroll = saved['parts'], saved['prompts'], saved.get('reroll', 0)
+        else:
+            shutil.rmtree(self.folder, ignore_errors=True)
+            self.parts, self.prompts, self.reroll = [], list(prompts), 0
+
+    def restart_requested(self):
+        """True once when the studio asked to redo this clip (a 'restart' file beside it holding the first part to
+        redo): 0 drops every part and starts again from the painting; n keeps parts before n and carries on from
+        part n's starting frame with a new seed."""
+        marker = self.folder.parent/'restart'
+        if not marker.exists():
+            return False
+        try:
+            first = int(marker.read_text(encoding='utf-8').strip() or 0)
+        except (OSError, ValueError):
+            first = 0
+        marker.unlink(missing_ok=True)
+        self.truncate(first)
+        return True
+
+    def truncate(self, first):
+        """Keep the parts before `first` and forget the rest, so they are made again (with a new seed)."""
+        if first <= 0:
+            shutil.rmtree(self.folder, ignore_errors=True)
+            self.parts, self.reroll = [], 0
+            return
+        for number in range(first, len(self.parts)):
+            for suffix in ('.mp4', '.png'):
+                (self.folder/f'part-{number:03d}{suffix}').unlink(missing_ok=True)
+        self.parts = self.parts[:first]
+        self.reroll += 1
+        self.save()
+
+    def save(self):
+        temporary = self.record.with_suffix('.tmp')
+        temporary.write_text(json.dumps(dict(key=self.key, prompts=self.prompts, parts=self.parts,
+                                             reroll=self.reroll), indent=2), encoding='utf-8')
+        temporary.replace(self.record)
+
+    @property
+    def frames_done(self):
+        return sum(part['frames'] for part in self.parts)
+
+    @property
+    def last_frame(self):
+        """The image the next part starts from, or None before the first part."""
+        if not self.parts:
+            return None
+        from PIL import Image
+        with Image.open(self.folder/f'part-{len(self.parts)-1:03d}.png') as image:
+            return image.convert('RGB')
 
     def write(self, frames):
-        if self.process is None:
-            _, height, width, _ = frames.shape
-            self.process = subprocess.Popen(
-                ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-f', 'rawvideo', '-pixel_format', 'rgb24',
-                 '-video_size', f'{width}x{height}', '-framerate', str(self.fps), '-i', 'pipe:0',
-                 '-c:v', 'libx264', '-preset', 'medium', '-crf', '12', '-pix_fmt', 'yuv420p', str(self.temporary)],
-                stdin=subprocess.PIPE)
-        for start in range(0, len(frames), 24):   # a second at a time: no copy of the whole part
-            self.process.stdin.write(frames[start:start+24].tobytes())
-        self.count += len(frames)
+        from PIL import Image
+        self.folder.mkdir(parents=True, exist_ok=True)
+        number = len(self.parts)
+        write_clip(frames, self.fps, self.folder/f'part-{number:03d}.mp4')
+        Image.fromarray(frames[-1]).save(self.folder/f'part-{number:03d}.png')
+        self.parts.append(dict(frames=len(frames)))
+        self.save()
 
-    def close(self):
-        """Finish encoding and put the clip in place; returns its frame count."""
-        self.process.stdin.close()
-        if self.process.wait():
-            raise ValueError(f'FFmpeg could not encode {self.target}')
-        self.temporary.replace(self.target)
-        return self.count
-
-    def abort(self):
-        if self.process is not None:
-            self.process.kill()
-            self.process.wait()
-        self.temporary.unlink(missing_ok=True)
+    def close(self, target):
+        """Join the parts into `target` (stream copy: no quality loss, no re-encode); returns the frame count."""
+        target = Path(target)
+        listing = self.folder/'concat.txt'
+        listing.write_text(''.join(f"file 'part-{n:03d}.mp4'\n" for n in range(len(self.parts))), encoding='utf-8')
+        temporary = target.with_suffix('.tmp.mp4')
+        subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-f', 'concat', '-safe', '0',
+                        '-i', str(listing), '-c', 'copy', str(temporary)], check=True)
+        temporary.replace(target)
+        listing.unlink(missing_ok=True)
+        for preview in self.folder.glob('preview*'):
+            preview.unlink(missing_ok=True)
+        # The parts stay: any segment of the finished clip can be made again from the studio.
+        return self.frames_done
 
 
 def animate_length(pipe, spec, image, prompts, seed, frames, torch, on_part=None, sink=None):
@@ -82,19 +143,30 @@ def animate_length(pipe, spec, image, prompts, seed, frames, torch, on_part=None
     as several clips, each starting from the last frame of the one before, so the motion carries on. `prompts`
     is one prompt per part (the last repeats if there are fewer) or a single prompt for every part.
     `on_part(part, frames_done)` is called before each part (1-based) and once more when the clip is complete.
-    With `sink` (a ClipWriter) each part is handed over as soon as it is made and not kept; frames is then None."""
+    With `sink` (a PartStore) each part is saved as soon as it is made and not kept, and a clip it already holds
+    parts of carries on after them with their prompts; frames is then None."""
     import numpy as np
     from PIL import Image
     from video_generation.models import animate
     chunk = spec.get('chunk_frames', spec['frames'])
     pieces, total, part, start = [], 0, 0, image
+    if sink is not None and sink.parts:
+        total, part, start, prompts = sink.frames_done, len(sink.parts), sink.last_frame, sink.prompts
     while total < frames:
+        if sink is not None and sink.restart_requested():
+            if sink.parts:
+                total, part, start = sink.frames_done, len(sink.parts), sink.last_frame
+                print(f'  Redoing this clip from part {part+1}, as asked in the studio.', flush=True)
+            else:
+                total, part, start, pieces = 0, 0, image, []
+                print('  Restarting this clip from the painting, as asked in the studio.', flush=True)
         if on_part:
             on_part(part+1, total)
         remaining = frames-total+(1 if part else 0)   # the next part repeats the previous part's last frame
         length = chunk if spec.get('fixed_length') else min(chunk, max(25, 8*((remaining-1+7)//8)+1))
         prompt = prompts if isinstance(prompts, str) else prompts[min(part, len(prompts)-1)]
-        result = animate(pipe, spec, start, prompt, (seed+part*7919) % 2**31, torch, num_frames=length)
+        reroll = getattr(sink, 'reroll', 0)            # each redo of a segment draws a new seed
+        result = animate(pipe, spec, start, prompt, (seed+part*7919+reroll*104729) % 2**31, torch, num_frames=length)
         if part:
             result = result[1:]
         if sink is not None:
@@ -116,7 +188,7 @@ def clip_prompts(item):
     from direction.motion import part_prompt
     scene = item.get('scene') or item.get('prompt') or ''
     beats = item.get('beats') or []
-    return [part_prompt(scene, beats[n] if n < len(beats) else (beats[-1] if beats else None))
+    return [part_prompt(scene, beats[n] if n < len(beats) else (beats[-1] if beats else None), first=(n == 0))
             for n in range(max(1, item.get('parts', 1)))]
 
 
@@ -150,22 +222,38 @@ def _run_job(job_path, cache):
     from PIL import Image, ImageOps
     from video_generation.models import load, release
     free_ollama()
+    # Parts saved by an earlier, stopped run are picked up again; their clip keeps the prompts it started with,
+    # so those are among the prompts to encode.
+    stores = {}
+    for item in pending:
+        Path(item['folder']).mkdir(parents=True, exist_ok=True)
+        stores[item['folder']] = PartStore(item['folder'], spec['fps'], f"{item['sha256']}:{item['seed']}", clip_prompts(item))
+        if stores[item['folder']].parts:
+            print(f"Illustration {item['index']+1}: resuming after {len(stores[item['folder']].parts)} saved part(s) "
+                  f"({stores[item['folder']].frames_done/spec['fps']:.0f} s).", flush=True)
     emit('video', 0, message=f"Loading {spec['name']}; first use may download weights")
-    pipe = load(spec, cache, torch, [prompt for item in pending for prompt in clip_prompts(item)])
+    pipe = load(spec, cache, torch, [prompt for store in stores.values() for prompt in store.prompts])
     from video_generation.step import parts_for
     durations, made = [], 0
     total_frames = sum(item.get('frames', spec['frames']) for item in pending)
+    resumed_total = sum(store.frames_done for store in stores.values())
+    generated = 0   # frames made in this run, for the time estimate (saved parts took no time now)
     finished = len(job['clips'])-len(pending)
     generating = time.monotonic()
     try:
         for number, item in enumerate(pending):
             frames_needed = item.get('frames', spec['frames'])
             parts_needed = item.get('parts') or parts_for(frames_needed, spec)
-            def report(part, frames_done, item=item, number=number, frames_needed=frames_needed, parts_needed=parts_needed):
+            store = stores[item['folder']]
+            resumed_here = store.frames_done
+            def report(part, frames_done, item=item, number=number, frames_needed=frames_needed, parts_needed=parts_needed,
+                       resumed_here=resumed_here):
                 """Progress after every part: which clip and part, seconds made, and a time estimate by frames."""
                 overall = made+frames_done
-                # Clips differ in length (a 3 s section and a 60 s one), so the estimate goes by frames still to make.
-                estimate = (time.monotonic()-generating)/overall*(total_frames-overall) if overall else None
+                made_now = generated+frames_done-resumed_here
+                # Clips differ in length (a 3 s section and a 60 s one), so the estimate goes by frames still to make,
+                # at the rate of frames made in this run.
+                estimate = (time.monotonic()-generating)/made_now*(total_frames-overall) if made_now > 0 else None
                 step = (f'part {part} of {parts_needed} · ' if parts_needed > 1 and part <= parts_needed else '')
                 message = (f"Animating illustration {item['index']+1} (clip {number+1} of {len(pending)}) · {step}"
                            f"{frames_done/spec['fps']:.0f} of {frames_needed/spec['fps']:.0f} s"
@@ -177,24 +265,20 @@ def _run_job(job_path, cache):
             started = time.monotonic()
             with Image.open(item['image']) as source:
                 image = ImageOps.fit(source.convert('RGB'), tuple(item['size']), Image.Resampling.LANCZOS)
-            prompts = clip_prompts(item)
             folder = Path(item['folder'])
-            folder.mkdir(parents=True, exist_ok=True)
-            writer = ClipWriter(folder/'clip.mp4', spec['fps'])
-            try:
-                _, parts = animate_length(pipe, spec, image, prompts, item['seed'], frames_needed, torch,
-                                          on_part=report, sink=writer)
-            except BaseException:
-                writer.abort()
-                raise
+            # A failure leaves the saved parts in place: the next run carries on from them.
+            _, parts = animate_length(pipe, spec, image, store.prompts, item['seed'], frames_needed, torch,
+                                      on_part=report, sink=store)
             (folder/'clip.json').unlink(missing_ok=True)
             for stale in folder.glob('frames-*'):
                 shutil.rmtree(stale, ignore_errors=True)  # stills cut from an older, shorter clip
-            count = writer.close()
+            count = store.close(folder/'clip.mp4')
             (folder/'clip.json').write_text(json.dumps(dict(model=spec['id'], source_sha256=item['sha256'], fps=spec['fps'],
-                                                            frames=count, parts=parts, prompts=prompts, seed=item['seed']),
-                                                       indent=2), encoding='utf-8')
+                                                            frames=count, parts=parts, prompts=store.prompts,
+                                                            segments=[part['frames'] for part in store.parts],
+                                                            seed=item['seed']), indent=2), encoding='utf-8')
             made += frames_needed
+            generated += frames_needed-resumed_here
             durations.append(time.monotonic()-started)
             print(f'Clip {number+1}/{len(pending)} took {eta_text(durations[-1])}.', flush=True)
     finally:

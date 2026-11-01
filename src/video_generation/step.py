@@ -156,8 +156,10 @@ def animate(illustrations, output, args, data=None, duration=None):
                                  direction=getattr(args, 'image_instructions', '') or '')
             for item in missing:
                 item['beats'] = beats.get(item['index'], [])
+                from direction.motion import beat_text
                 for number, beat in enumerate(item['beats'], 1):
-                    print(f"Motion {item['index']+1}.{number}: {beat}", flush=True)
+                    when = beat.get('time', '') if isinstance(beat, dict) else ''
+                    print(f"Motion {item['index']+1}.{number} {when}: {beat_text(beat)}", flush=True)
         cache = Path(getattr(args, 'image_cache', None) or default_model_cache()).resolve()
         existing = cache
         while not existing.exists():

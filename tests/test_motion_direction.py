@@ -10,7 +10,7 @@ from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
-from direction.motion import FALLBACK, GUARDRAILS, motion_beats, part_prompt
+from direction.motion import CONTINUE, FALLBACK, GUARDRAILS, motion_beats, part_prompt
 from video_generation import generation, step
 from video_generation.catalog import video_spec
 
@@ -46,6 +46,40 @@ class MotionBeatsTest(unittest.TestCase):
         self.assertEqual(motion_beats('model', CLIPS, request=broken), {})
         self.assertEqual(motion_beats(None, CLIPS, request=broken), {})
         self.assertEqual(motion_beats('model', CLIPS, request=lambda p: dict(message=dict(content='not json'))), {})
+
+    def test_later_parts_continue_the_shot_instead_of_restating_the_painting(self):
+        beat = dict(time='5-10 s', camera='tilts up to the sky', in_frame='no one', action='Clouds drift over.')
+        first = part_prompt('A woman and her dog on a track.', beat, first=True)
+        later = part_prompt('A woman and her dog on a track.', beat, first=False)
+        self.assertIn('A woman and her dog', first)
+        self.assertNotIn('A woman and her dog', later, 'restating them puts them back in wherever the camera looks')
+        self.assertIn(CONTINUE, later)
+        self.assertIn('Camera: tilts up to the sky. In frame: no one.', later)
+        self.assertIn('nobody new appears', later)
+
+    def test_request_gives_each_clip_a_timeline(self):
+        seen = {}
+        def request(payload):
+            seen.update(payload)
+            return reply([])
+        motion_beats('qwen', CLIPS, request=request)
+        sent = json.loads(seen['messages'][1]['content'])
+        self.assertEqual(sent[0]['timeline'], ['0-8 s', '8-17 s', '17-25 s'])
+        self.assertIn('cast', json.dumps(seen['format']))
+
+    def test_the_storyboard_reaches_every_part_and_reversals_are_ruled_out(self):
+        answer = reply([dict(index=0, cast='one woman; one bulldog', shot='a slow push-in, then a tilt up to the sky',
+                             beats=[dict(time='0-8 s', camera='pushes in', in_frame='both', action='They walk.')]*3)])
+        seen = {}
+        def request(payload):
+            seen.update(payload)
+            return answer
+        beats = motion_beats('model', CLIPS[:1], request=request)
+        self.assertTrue(all(b['shot'] == 'a slow push-in, then a tilt up to the sky' for b in beats[0]))
+        self.assertIn('Shot plan: a slow push-in', part_prompt('scene', beats[0][1], first=False))
+        rules = seen['messages'][0]['content']
+        self.assertIn('never reverse a move', rules)
+        self.assertIn('storyboard', rules)
 
     def test_part_prompt_has_scene_beat_and_guardrails(self):
         self.assertEqual(part_prompt('A shore.', 'Waves break.'), 'A shore. Waves break. '+GUARDRAILS)

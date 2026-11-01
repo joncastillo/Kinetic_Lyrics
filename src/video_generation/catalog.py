@@ -6,7 +6,7 @@ from __future__ import annotations
 VIDEO_MODES = ('fullscreen', 'verse')
 MODELS = [
     dict(id='Lightricks/LTX-2.5-Diffusers', name='LTX-2.5 (Lightricks)', loader='ltx', workflow=None,
-         short_edge=544, long_edge=960, frames=121, chunk_frames=241, fps=24, vram_gib=24, disk_gb=72,
+         short_edge=544, long_edge=960, frames=121, chunk_frames=121, fps=24, vram_gib=24, disk_gb=72,
          license='LTX-2.x Community License (free under $10M yearly revenue) / gated',
          description='22B distilled audio-video model. Fast, 5-second clips at 960×544; motion only, the generated audio is discarded.'),
     dict(id='MiniMaxAI/MiniMax-H3', name='MiniMax H3', loader='minimax', workflow='fl2va',
