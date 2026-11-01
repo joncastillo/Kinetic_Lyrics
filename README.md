@@ -9,7 +9,7 @@ transitions. Currently, all models were selected to run locally, on a consumer g
 GPU. The aim is to reach the kind of rich, hand-crafted motion type that designers usually
 build by hand in tools such as Adobe After Effects.
 
-[![This is a video made with Kinetic Lyrics on YouTube](https://img.youtube.com/vi/KnIPPDcqwNk/hqdefault.jpg)](https://youtu.be/KnIPPDcqwNk)]
+[![This is a video made with Kinetic Lyrics on YouTube](https://img.youtube.com/vi/KnIPPDcqwNk/hqdefault.jpg)](https://youtu.be/KnIPPDcqwNk)
 
 ## AI Pipeline
 
