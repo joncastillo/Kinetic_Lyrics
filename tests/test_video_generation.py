@@ -65,14 +65,14 @@ class ClipsTest(unittest.TestCase):
         self.digest = image_digest(self.image)
         self.model = 'Lightricks/LTX-2.5-Diffusers'
 
-    def test_saved_clip_is_cut_to_the_video_size_and_plays_back_and_forth(self):
+    def test_saved_clip_is_cut_to_the_video_size_and_plays_once_then_holds(self):
         write_clip(clip_folder(self.project, self.model, self.digest), [(0, 0, 0), (120, 120, 120), (240, 240, 240)])
         clips = saved_clips(self.project, self.model, [self.digest, 'f'*64], 128, 64)
         self.assertEqual(list(clips), [self.digest], 'images without a clip stay still')
         clip = ClipFrames(clips[self.digest])
         self.assertEqual(clip.frame(0).size, (128, 64))
-        # Three frames at 24 fps: 0 1 2 1 0 1 2 ...
-        self.assertEqual([clip.index(n/24) for n in range(7)], [0, 1, 2, 1, 0, 1, 2])
+        # Three frames at 24 fps: 0 1 2, then the last frame holds; never played backwards.
+        self.assertEqual([clip.index(n/24) for n in range(7)], [0, 1, 2, 2, 2, 2, 2])
         self.assertLess(clip.frame(0).getpixel((5, 5))[0], 20)
         self.assertGreater(clip.frame(2/24).getpixel((5, 5))[0], 220)
 
@@ -123,9 +123,55 @@ class ClipsTest(unittest.TestCase):
         self.assertEqual(c.art_frame(1, c.art_starts[1]).getpixel((5, 5)), (0, 0, 200), 'no clip: the still')
         self.assertEqual(c.background(0, start+1., veil=False).size, (320, 180))
 
+    def test_clip_too_short_for_its_section_is_made_again_at_full_length(self):
+        write_clip(clip_folder(self.project, self.model, self.digest), [(0, 0, 0)]*3)   # 3 frames: far too short
+        args = argparse.Namespace(video_model=self.model, artwork_mode='verse', width=64, height=32, image_seed=7,
+                                  image_cache=str(self.project), illustration_lines=1, lead_in=1.)
+        data = [dict(text='la', words=[dict(text='la', start=4., end=4.5)])]
+        with mock.patch.object(step.subprocess, 'run') as run, mock.patch.object(step.shutil, 'disk_usage') as usage:
+            usage.return_value.free = 10**15
+            step.animate([self.image], self.project/'video.mp4', args, data=data, duration=12.)
+        # Compare only the module name: a failing assert on the call itself would print its env (secrets included).
+        workers = [call for call in run.call_args_list if 'video_generation.generation' in call.args[0]]
+        self.assertEqual(len(workers), 1, 'the short clip is sent to the video worker again')
+        job = json.loads((self.project/'video-clips'/'job.json').read_text(encoding='utf-8'))
+        self.assertEqual(job['clips'][0]['frames'], 289, 'the whole 12 s on screen at 24 fps, as an 8k+1 count')
+
     def test_step_ignores_cutout_artwork(self):
         args = argparse.Namespace(video_model=self.model, artwork_mode='cutout', width=64, height=32, image_seed=7)
         self.assertIsNone(step.animate([self.image], self.project/'video.mp4', args))
+
+
+class LengthTest(unittest.TestCase):
+    def test_each_painting_covers_its_time_on_screen_including_the_crossfade(self):
+        spec = video_spec('Lightricks/LTX-2.5-Diffusers')
+        # Two lines, one painting each: the first from 0 s (through the intro) until the second has crossfaded in.
+        data = [dict(text=t, words=[dict(text=t, start=s, end=s+.5)]) for t, s in (('one', 30.), ('two', 40.))]
+        args = argparse.Namespace(illustration_lines=1, lead_in=1., art_times=None)
+        seconds = step.on_screen_seconds(['000.png', '001.png'], data, 60., args)
+        # Starts 29 s and 39 s (1 s lead-in); the second's crossing is min(20, 0.9 x (39-29)) = 9 s, plus the 1 s
+        # margin. The last painting runs to the end of the song.
+        self.assertEqual(seconds, [49., 21.])
+        self.assertEqual(step.frames_for(49., spec), 1177)
+        self.assertEqual(step.frames_for(None, spec), spec['frames'], 'unknown timing: the standard clip')
+        self.assertEqual((step.frames_for(.1, spec)-1) % 8, 0)
+
+    def test_long_section_is_made_as_parts_continuing_from_the_last_frame(self):
+        from video_generation import generation
+        spec = dict(video_spec('Lightricks/LTX-2.5-Diffusers'), chunk_frames=33)
+        starts, lengths = [], []
+        def fake(pipe, spec, image, prompt, seed, torch, num_frames=None):
+            starts.append(np.asarray(image)[0, 0, 0]); lengths.append(num_frames)
+            base = len(lengths)*10
+            return np.stack([np.full((4, 4, 3), base+i, np.uint8) for i in range(num_frames)])
+        with mock.patch('video_generation.models.animate', fake):
+            frames, parts = generation.animate_length(None, spec, Image.new('RGB', (4, 4), (7, 7, 7)), 'p', 1, 81, None)
+        self.assertGreaterEqual(len(frames), 81)
+        self.assertEqual(parts, 3)
+        self.assertTrue(all((n-1) % 8 == 0 and n <= 33 for n in lengths), lengths)
+        self.assertEqual(starts[0], 7, 'the first part starts from the painting')
+        self.assertEqual(starts[1], 10+32, 'each later part starts from the previous part\'s last frame')
+        self.assertEqual(int(frames[33, 0, 0, 0]), 21, 'the repeated first frame of a later part is dropped')
 
 
 if __name__ == '__main__':

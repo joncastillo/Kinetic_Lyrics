@@ -35,6 +35,18 @@ def clip_length(folder):
         return None
 
 
+MARGIN = 1.          # seconds each clip runs past the end of its crossfade
+TOLERANCE = .5       # a clip this much shorter than needed is kept: a nudged section is covered by MARGIN
+
+
+def needs_clip(item):
+    """No finished clip yet, or (when the song's timing is known) one clearly shorter than the painting's time on
+    screen; small shortfalls from re-timing a section are absorbed by MARGIN instead of a regeneration."""
+    length = clip_length(item['folder'])
+    fps = item.get('fps', 24)
+    return length is None or (item.get('timed', False) and length < item['frames']-TOLERANCE*fps)
+
+
 def prompts_for(illustrations):
     """The image prompt behind each illustration, so the motion matches what was painted."""
     record = Path(illustrations[0]).parent/'illustrations.json'
@@ -52,7 +64,8 @@ def on_screen_seconds(illustrations, data, duration, args):
 
     A painting appears at its start (the first one at 0 s, through the instrumental intro) and stays visible
     until the next one has finished crossfading in, `min(20, max(1, 0.9 x the next section))` seconds after the
-    next start. None when the timings are unknown."""
+    next start, plus MARGIN so it is still moving at the very end of the fade even if a start shifts slightly.
+    The last one lasts to the end of the song. None when the timings are unknown."""
     if not data or not duration:
         return None
     from render.timeline import checked_art_times, illustration_starts
@@ -74,7 +87,7 @@ def on_screen_seconds(illustrations, data, duration, args):
         return min(20., max(1., gap*.9))
     seconds = []
     for i, start in enumerate(starts):
-        end = starts[i+1]+crossing(i+1) if i+1 < len(starts) else duration
+        end = starts[i+1]+crossing(i+1)+MARGIN if i+1 < len(starts) else duration
         seconds.append(max(1., min(duration, end)-(0. if i == 0 else start)))
     return seconds
 
@@ -109,11 +122,13 @@ def animate(illustrations, output, args, data=None, duration=None):
     for index, path in enumerate(illustrations):
         digest = image_digest(path)
         items.append(dict(index=index, image=str(path), sha256=digest, prompt=prompts[index], size=size,
-                          frames=frames_for(seconds[index], spec), seed=(args.image_seed+index) % 2**31,
+                          frames=frames_for(seconds[index], spec), fps=spec['fps'], seed=(args.image_seed+index) % 2**31,
                           folder=str(clip_folder(project, model, digest))))
     # A clip shorter than its painting's time on screen (made before clips followed the timing, or before the
-    # sections were re-timed) is made again; frames=None means an older clip of unknown length.
-    missing = [item for item in items if (clip_length(item['folder']) or 0) < item['frames']]
+    # sections were re-timed) is made again. Without the song's timing any finished clip will do.
+    for item, timed in zip(items, seconds):
+        item['timed'] = timed is not None
+    missing = [item for item in items if needs_clip(item)]
     if missing:
         cache = Path(getattr(args, 'image_cache', None) or default_model_cache()).resolve()
         existing = cache

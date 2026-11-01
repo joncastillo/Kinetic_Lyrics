@@ -174,20 +174,22 @@ def _int8(pipe, torch):
             gc.collect()
 
 
-def animate(pipe, spec, image, prompt, seed, torch):
-    """Frames (uint8, frames × height × width × 3) that start from `image` and move as `prompt` describes."""
+def animate(pipe, spec, image, prompt, seed, torch, num_frames=None):
+    """Frames (uint8, frames × height × width × 3) that start from `image` and move as `prompt` describes;
+    `num_frames` (an 8k+1 count) defaults to the model's standard clip length."""
     generator = torch.Generator('cpu').manual_seed(seed)
+    num_frames = num_frames or spec['frames']
     if spec['loader'] == 'ltx':
         from diffusers.pipelines.ltx2.utils import DISTILLED_SIGMA_VALUES
         if prompt not in pipe.encoded:
             raise ValueError('This prompt was not encoded when the model loaded; pass every prompt to load().')
         conditioning = {k: v.to('cuda') if hasattr(v, 'to') else v for k, v in pipe.encoded[prompt].items()}
         # The generated soundtrack is requested only because the pipeline returns both; the song is the audio.
-        result = pipe.pipe(image=image, width=image.width, height=image.height, num_frames=spec['frames'],
+        result = pipe.pipe(image=image, width=image.width, height=image.height, num_frames=num_frames,
                            frame_rate=float(spec['fps']), sigmas=DISTILLED_SIGMA_VALUES, generator=generator,
                            output_type='np', output=['videos', 'audio'], **conditioning)
     else:
-        result = pipe(prompt=prompt, image=image, num_frames=spec['frames'], generator=generator,
+        result = pipe(prompt=prompt, image=image, num_frames=num_frames, generator=generator,
                       output=['videos', 'audio', 'sampling_rate'])
     return frames_array(result['videos'][0])
 

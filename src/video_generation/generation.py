@@ -10,6 +10,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import time
 
@@ -41,6 +42,29 @@ def write_clip(frames, fps, target):
     return count
 
 
+def animate_length(pipe, spec, image, prompt, seed, frames, torch):
+    """(frames, parts): a clip of at least `frames` frames. Longer than the model makes in one go, it is made
+    as several clips, each starting from the last frame of the one before, so the motion carries on."""
+    import numpy as np
+    from PIL import Image
+    from video_generation.models import animate
+    chunk = spec.get('chunk_frames', spec['frames'])
+    pieces, total, part, start = [], 0, 0, image
+    while total < frames:
+        remaining = frames-total+(1 if pieces else 0)   # the next part repeats the previous part's last frame
+        length = chunk if spec.get('fixed_length') else min(chunk, max(25, 8*((remaining-1+7)//8)+1))
+        result = animate(pipe, spec, start, prompt, (seed+part*7919) % 2**31, torch, num_frames=length)
+        if pieces:
+            result = result[1:]
+        pieces.append(result)
+        total += len(result)
+        start = Image.fromarray(result[-1])
+        part += 1
+        if part > 1:
+            print(f'  continued with part {part} ({total}/{frames} frames)', flush=True)
+    return np.concatenate(pieces), part
+
+
 def clip_prompt(item):
     """The motion prompt for one clip: what was painted, then how it should move."""
     from video_generation.models import MOTION
@@ -61,8 +85,9 @@ def run_job(job_path, cache):
 
 
 def _run_job(job_path, cache):
+    from video_generation.step import needs_clip
     job = json.loads(job_path.read_text(encoding='utf-8'))
-    pending = [item for item in job['clips'] if not (Path(item['folder'])/'clip.json').is_file()]
+    pending = [item for item in job['clips'] if needs_clip(item)]
     if not pending:
         return
     spec = video_spec(job['model'])
@@ -79,13 +104,16 @@ def _run_job(job_path, cache):
     emit('video', 0, message=f"Loading {spec['name']}; first use may download weights")
     prompts = [clip_prompt(item) for item in pending]
     pipe = load(spec, cache, torch, prompts)
-    durations = []
+    durations, made = [], 0
+    total_frames = sum(item.get('frames', spec['frames']) for item in pending)
     try:
         for number, item in enumerate(pending):
             done = len(job['clips'])-len(pending)+number
-            remaining = len(pending)-number
-            estimate = sum(durations)/len(durations)*remaining if durations else None
-            message = f"Animating illustration {item['index']+1} ({number+1}/{len(pending)})"
+            # Clips differ in length (a 3 s section and a 50 s one), so the estimate goes by frames still to make.
+            remaining = total_frames-made
+            estimate = sum(durations)/made*remaining if made else None
+            seconds = item.get('frames', spec['frames'])/spec['fps']
+            message = f"Animating illustration {item['index']+1} ({number+1}/{len(pending)}, {seconds:.0f} s)"
             if estimate is not None:
                 message += f' · about {eta_text(estimate)} left'
             emit('video', done/len(job['clips']), image=item['index']+1, images=len(job['clips']),
@@ -95,12 +123,17 @@ def _run_job(job_path, cache):
             with Image.open(item['image']) as source:
                 image = ImageOps.fit(source.convert('RGB'), tuple(item['size']), Image.Resampling.LANCZOS)
             prompt = clip_prompt(item)
-            frames = animate(pipe, spec, image, prompt, item['seed'], torch)
+            frames, parts = animate_length(pipe, spec, image, prompt, item['seed'], item.get('frames', spec['frames']), torch)
             folder = Path(item['folder'])
             folder.mkdir(parents=True, exist_ok=True)
+            (folder/'clip.json').unlink(missing_ok=True)
+            for stale in folder.glob('frames-*'):
+                shutil.rmtree(stale, ignore_errors=True)  # stills cut from an older, shorter clip
             count = write_clip(frames, spec['fps'], folder/'clip.mp4')
             (folder/'clip.json').write_text(json.dumps(dict(model=spec['id'], source_sha256=item['sha256'], fps=spec['fps'],
-                                                            frames=count, prompt=prompt, seed=item['seed']), indent=2), encoding='utf-8')
+                                                            frames=count, parts=parts, prompt=prompt, seed=item['seed']),
+                                                       indent=2), encoding='utf-8')
+            made += item.get('frames', spec['frames'])
             durations.append(time.monotonic()-started)
             print(f'Clip {number+1}/{len(pending)} took {eta_text(durations[-1])}.', flush=True)
     finally:
