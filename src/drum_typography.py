@@ -31,30 +31,41 @@ def _paste(layer, sprite, x, y):
         layer.alpha_composite(sprite.crop((left-x, top-y, right-x, bottom-y)), (left, top))
 
 
-def shake_background(screen, hit, reactivity):
-    """Jolt the painted background on steady kick runs, filling edges from their own pixels."""
-    if hit is None or reactivity <= 0:
+def shake_background(screen, hit, shake, dim=0.):
+    """Jolt the painted background on each four-on-the-floor kick the words react to.
+
+    The frame is punched in (a quick zoom) and thrown sideways, so the shift never exposes an edge; `dim` darkens
+    the background on the beat and lets it recover before the next kick."""
+    if hit is None or (shake <= 0 and dim <= 0):
         return screen
     ordinal, age, strength = hit
-    energy = min(1., reactivity)*(.4+.6*strength)*math.exp(-age*11)
-    reach = min(9., min(screen.size)*.012)*energy
-    dx = round(reach*math.cos(age*69+ordinal*1.7))
-    dy = round(reach*.65*math.sin(age*83+ordinal*2.3))
-    if dx == 0 and dy == 0:
-        return screen
+    weight = .55+.45*strength
     width, height = screen.size
-    pad = max(abs(dx), abs(dy))
-    extended = Image.new(screen.mode, (width+2*pad, height+2*pad))
-    extended.paste(screen, (pad, pad))
-    extended.paste(screen.crop((0, 0, 1, height)).resize((pad, height)), (0, pad))
-    extended.paste(screen.crop((width-1, 0, width, height)).resize((pad, height)), (pad+width, pad))
-    extended.paste(screen.crop((0, 0, width, 1)).resize((width, pad)), (pad, 0))
-    extended.paste(screen.crop((0, height-1, width, height)).resize((width, pad)), (pad, pad+height))
-    for x, y, source in ((0, 0, (0, 0)), (pad+width, 0, (width-1, 0)),
-                         (0, pad+height, (0, height-1)),
-                         (pad+width, pad+height, (width-1, height-1))):
-        extended.paste(screen.getpixel(source), (x, y, x+pad, y+pad))
-    return extended.crop((pad-dx, pad-dy, pad-dx+width, pad-dy+height))
+    side = min(width, height)
+    energy = min(1., shake)*weight*math.exp(-age*7)
+    reach = side*.045*energy
+    dx = reach*math.cos(age*62+ordinal*1.7)
+    dy = reach*.7*math.sin(age*79+ordinal*2.3)
+    punch = .045*min(1., shake)*weight*math.exp(-age*9)
+    darken = min(1., dim)*.6*weight*math.exp(-age*6)
+    if abs(dx) < .5 and abs(dy) < .5 and punch < .002 and darken < .01:
+        return screen
+    if reach >= .5 or punch >= .002:
+        # Zoom just enough to cover the throw, plus the punch, then crop back to the frame.
+        scale = 1+2*(abs(dx)+abs(dy))/side+punch
+        zoomed = screen.resize((math.ceil(width*scale), math.ceil(height*scale)), Image.Resampling.BILINEAR)
+        left = (zoomed.width-width)/2-dx
+        top = (zoomed.height-height)/2-dy
+        left = round(min(max(0, left), zoomed.width-width))
+        top = round(min(max(0, top), zoomed.height-height))
+        screen = zoomed.crop((left, top, left+width, top+height))
+    if darken >= .01:
+        black = Image.new(screen.mode, screen.size, (0, 0, 0, 255) if screen.mode == 'RGBA' else (0, 0, 0))
+        dimmed = Image.blend(screen, black, darken)
+        if screen.mode == 'RGBA':
+            dimmed.putalpha(screen.getchannel('A'))
+        screen = dimmed
+    return screen
 
 
 def paint_impact(layer, sprite, x, y, spans, hit, reactivity, opacity=1.):

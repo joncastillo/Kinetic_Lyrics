@@ -205,7 +205,7 @@ def align(audio, lines, args):
             timed.append(dict(text=word, start=matches[0][2], end=matches[-1][3]))
             offset += length
         output.append(dict(text=line, words=timed))
-    from timing_repair import collapsed_lines, transcript_timing
+    from timing_repair import collapsed_lines, spread_collapsed, transcript_timing
     collapsed = collapsed_lines(output)
     if collapsed:
         print(f'Forced alignment compressed lyric lines {[i+1 for i in collapsed]}; '
@@ -222,6 +222,11 @@ def align(audio, lines, args):
         heard = [word for segment in result.to_dict().get('segments', [])
                  for word in segment.get('words', [])]
         output = transcript_timing(lines, heard)
+        spread = spread_collapsed(output)
+        if spread:
+            print(f'Warning: lyric lines {[i+1 for i in spread]} could not be heard clearly (often backing vocals); '
+                  'their words were spread over the gap around them. Check them in Edit timings.',
+                  file=sys.stderr, flush=True)
     return output
 
 
@@ -254,6 +259,12 @@ def repair_zero_durations(data, duration):
         print(f'Warning: repaired {repaired} timing issue(s) (zero duration or non-chronological). '
               'Review the generated timings JSON for synchronization.', file=sys.stderr)
     return repaired
+
+
+def timing_text_matches(data, lines):
+    return (isinstance(data, list) and len(data) == len(lines)
+            and all(isinstance(item, dict) and item.get('text') == line
+                    for item, line in zip(data, lines)))
 
 
 def validate(data, lines, duration):
@@ -577,6 +588,12 @@ def main(argv=None):
         emit('alignment', 0, message='Aligning supplied lyrics' if lines is not None else 'Transcribing lyrics from audio')
         if args.timings:
             data = json.loads(args.timings.read_text(encoding='utf-8-sig'))
+            if (lines is not None and args.timings.resolve() == timing_path
+                    and not timing_text_matches(data, lines)):
+                print('Saved timings do not match the edited lyrics; aligning the new lyrics.', flush=True)
+                args.timings = None
+                args.plan = None
+                data = align((args.alignment_audio or audio).resolve(), lines, args)
         elif lines is not None:
             data = align((args.alignment_audio or audio).resolve(), lines, args)
         else:

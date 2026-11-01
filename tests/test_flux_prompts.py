@@ -93,7 +93,7 @@ class BudgetTest(unittest.TestCase):
                 mock.patch.object(generation_queue, 'refit_prompts'):
             generation_queue.generate_pending(worker, Path('job'), job, config,
                                               [dict(index=0, image_model=FLUX, prompt='')])
-        self.assertEqual(worker.generate_candidate.call_args.args[-1], FLUX)
+        self.assertEqual(worker.generate_candidate.call_args.args[5], FLUX)
 
 
 class ReferenceTest(unittest.TestCase):

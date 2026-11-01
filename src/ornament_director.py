@@ -66,7 +66,7 @@ SYSTEM = (LANGUAGE_RULE+'You art-direct the word blocks of a 3D kinetic typograp
           'reads better than a diffuse cloud at small size; for example, a green poison bottle with a skull-and-crossbones '
           'pictogram can represent poison. '
           'The object must read at a small size, '
-          'never text, never a person\'s face. Name the picture subject explicitly even when choosing a library image. '
+          'never text, writing, signs, labels or anything whose point is its words, never a person\'s face. Name the picture subject explicitly even when choosing a library image. '
           'Use "library" only when one of the library pictures shows that subject; '
           'otherwise use "generate" and set "library" to "none". Pick "none" for the '
           'word when no picture fits; roughly one block in three should have no picture. Never repeat a picture subject in '
@@ -298,11 +298,17 @@ def icon_prompt(subject, colors='', style_prompt='', verse_meaning='', image_ins
     """Ask the image model for a recognizable subject whose staging background can be cut away."""
     from kinetic_illustrations import subject_kind
     subject = re.sub(r'^(?:(?:an?|the)\s+)?(?:small\b,?\s*)?', '', subject.strip(), flags=re.I)
+    # Quoted words, and anything "reading" or "saying" something, make image models paint lettering.
+    subject, verse_meaning, image_instructions = (wordless(t) for t in (subject, verse_meaning, image_instructions))
     people = subject_kind(subject) != 'object'
+    blank = ('Every surface that could carry writing, such as pages, signs, labels, screens or covers, is blank and unmarked. '
+             if TEXT_BEARING.search(subject) else '')
     return (f'Create one detailed illustration of {subject}, alone at the center of a square canvas. '
-            f'The visible subject is exactly {subject}. Preserve its distinctive natural form, material texture, '
-            'and fine details, with crisp contours and subtle shading so it reads beside a lyric word. '
-            'Keep any colour named in the subject as its dominant colour. '
+            f'The visible subject is exactly {subject}. This is a wordless picture: no text of any kind. '
+            'Preserve its distinctive natural form, material texture, '
+            'and fine details, with crisp contours and subtle shading so it stays clear at a small size. '
+            + blank
+            + 'Keep any colour named in the subject as its dominant colour. '
             + (f'Use {colors} only as a secondary accent when it does not change the subject. ' if colors else '')
             + (f'Render people in this style: {style_prompt[:200]}. ' if people and style_prompt else '')
             + (f'The verse means: {verse_meaning[:240]}. Use this only to clarify the named subject. ' if verse_meaning else '')
@@ -310,7 +316,22 @@ def icon_prompt(subject, colors='', style_prompt='', verse_meaning='', image_ins
             + ('' if people else 'No people, faces, figures or characters. ')
             + 'Show the entire subject with empty space on every side. Use a plain uniform light grey staging '
               'background for clean transparency removal. No floor, scenery, shadow, halo, white outline, frame, '
-              'border, letters, numbers, logos or watermark. No loose marks outside the subject.')
+              'border, logos or watermark. No loose marks outside the subject. Absolutely no letters, words, numbers, '
+              'captions, labels, signatures or writing in any language, on the subject or anywhere else.')
+
+
+TEXT_BEARING = re.compile(r'\b(?:signs?|signpost|poster|banner|billboard|book|pages?|letters?|notes?|cards?|newspaper|'
+                          r'labels?|tags?|envelope|screens?|phone|calendar|map|scroll|menu|ticket|placard|plaque|'
+                          r'jersey|t-shirt|shirt|bottle|can|box|package)\b', re.I)
+
+
+def wordless(text):
+    """Drop quoted words and 'reading/saying ...' clauses, which image models render as lettering."""
+    text = re.sub(r'["“”«»]([^"“”«»]*)["“”«»]', '', str(text or ''))
+    text = re.sub(r"(?<!\w)'[^']{1,60}'(?!\w)", '', text)
+    text = re.sub(r'\b(?:that\s+)?(?:reads?|reading|says?|saying|spelling|spells|inscribed|lettered|written|labelled|labeled)\b'
+                  r'(?:\s+(?:with|as|in|on))?[^,.;]*', '', text, flags=re.I)
+    return re.sub(r'\s+([,.;])', r'\1', ' '.join(text.split())).strip(' ,;')
 
 
 def paint_icons(prompts, subjects, folder, options, kind='video.ornaments'):

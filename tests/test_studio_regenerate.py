@@ -21,6 +21,7 @@ class RegenerateSessionTest(unittest.TestCase):
             (root/'lyrics.txt').write_text('Sing this line', encoding='utf-8')
             (root/'references').mkdir()
             (root/'references'/'style.png').write_bytes(b'reference')
+            (root/'references'/'character.cached.json').write_text('{"description": "cached"}', encoding='utf-8')
             source = SimpleNamespace(folder=root, config=dict(
                 audio=str(root/'audio.wav'), width=1280, height=720,
                 image_cache='cache', theme='Warm', style_prompt='Painted', illustration_lines=2,

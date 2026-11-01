@@ -24,6 +24,23 @@ def lyrics(*lines):
 
 
 class BlockTest(unittest.TestCase):
+    def test_overlapping_camera_moves_keep_zoom_continuous(self):
+        import numpy as np
+        from stage_3d import Stage3D
+
+        stage = Stage3D.__new__(Stage3D)
+        def block(move, focus, distance):
+            return dict(move=move, start=move+1.1, end=move+3.,
+                        focus=np.array([focus, 0., 0.]), cruise=np.zeros(3),
+                        view=np.array([0., 0., 1.]), camera_distance=distance, shot_roll=0.)
+        stage.plan = lambda: [block(-10., 0., 10.), block(1., 10., 6.), block(1.8, 20., 3.)]
+        before = stage.camera(1.8-1e-5)
+        at = stage.camera(1.8)
+        self.assertLess(np.linalg.norm(before[0]-at[0]), .01)
+        self.assertLess(abs(np.linalg.norm(before[0]-before[1])-np.linalg.norm(at[0]-at[1])), .01)
+        positions = [stage.camera(1.7+i/30)[0] for i in range(10)]
+        self.assertLess(max(np.linalg.norm(b-a) for a, b in zip(positions, positions[1:])), 1.)
+
     def test_background_crossing_starts_with_valid_seam(self):
         from PIL import Image
         from kinetic_director import Compositor, rules_plan

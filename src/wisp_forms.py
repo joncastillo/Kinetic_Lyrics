@@ -65,7 +65,20 @@ def paint_head(draw, x, y, angle, kind, alpha, size, phase=0.):
         draw.polygon([point(*p) for p in points], fill=(*color, alpha))
     white = (255, 255, 250)
     if kind == 'orb':
-        draw.ellipse((x-size*.45, y-size*.45, x+size*.45, y+size*.45), fill=(*white, alpha))
+        # A will-o'-the-wisp, not a solid disc: a flickering flame that trails away from its direction of travel,
+        # a pale blue-green halo around a small bright core. The trace layer's blur turns it into soft light.
+        flicker = .82+.18*math.sin(phase*11.3)+.08*math.sin(phase*23.7)
+        sway = .1*math.sin(phase*7.1)
+        def flame(scale, color, opacity):
+            tail = 1.55*flicker*scale
+            points = [(math.cos(theta)*.5*scale, math.sin(theta)*.5*scale)
+                      for theta in (math.tau*k/16 for k in range(-4, 5))]  # the rounded front half
+            points += [(-.35*scale, .42*scale), (-tail*.7, (.2+sway)*scale), (-tail, sway*scale),
+                       (-tail*.7, (-.2+sway)*scale), (-.35*scale, -.42*scale)]
+            draw.polygon([point(*p) for p in points], fill=(*color, max(0, min(255, round(alpha*opacity)))))
+        flame(1.25, (150, 236, 222), .38)
+        flame(.85, (214, 252, 240), .7)
+        draw.ellipse((x-size*.2, y-size*.2, x+size*.2, y+size*.2), fill=(*white, alpha))
     elif kind == 'ball':
         draw.ellipse((x-size*.65, y-size*.65, x+size*.65, y+size*.65), fill=(*white, alpha))
         spin = phase*3

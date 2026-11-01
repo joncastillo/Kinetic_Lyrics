@@ -54,6 +54,12 @@ class Job:
         self.folder, self.config = folder, config
         self.process = self.action_process = None
         self.cancelled = False
+        self.command = None  # the main pipeline command, so a stopped run can be resumed from saved work
+        self.runs = 0  # run() calls still in progress, including their post-exit bookkeeping
+        self.generation = 0  # bumped on every stop, so a pending automatic resume is dropped
+        self.generation_batch = None  # the image requests the running worker owns, retried if it crashes
+        self.retry_at = 0
+        self.repaired_now = set()  # images a running Verify replaced; their video sections are rebuilt afterwards
         self._image_fingerprints = {}
         self.state = dict(id=folder.name, name=config['name'], status='queued', stage='queued',
             percent=0, message='Waiting to start', started=time.time(), history=[], logs=[], action=None,
@@ -81,6 +87,7 @@ class Job:
             if event['stage']=='queue-claimed':
                 requests=event.get('requests',[]);claimed={i.get('request_id') for i in requests}
                 self.state['queued_actions']=[i for i in self.state['queued_actions'] if i.get('request_id') not in claimed]
+                if self.generation_batch is not None:self.generation_batch['items']+=requests
                 self.state['active_images']=sorted(set(self.state.get('active_images',[]))|{i['index'] for i in requests})
                 self.state['message']=event.get('message','Queued images added to the batch')
                 return
@@ -116,6 +123,7 @@ class Job:
             if action and event['stage']=='repair-complete' and event.get('repaired') and (self.folder/'video.mp4').exists():
                 index=int(event['index'])
                 if index not in self.state['dirty']:self.state['dirty'].append(index)
+                self.repaired_now.add(index)
             self.state['detail'] = event
             if not action and event['stage'] == 'review':
                 if self.config.get('auto_verify') and self.config.get('vision_model') and not self.state.get('auto_review_queued'):
@@ -130,13 +138,16 @@ class Job:
                 self.state['queued_actions'].append(dict(action='verify',index=item['index'],model=model))
         self.log(f'Queued anatomy review for {len(items)} illustrations with {model}.')
 
-    def queue_generation(self,index,operation,prompt,model,image_model=None):
+    def queue_generation(self,index,operation,prompt,model,image_model=None,style=None,steps=None):
         from generation_queue import update_queue
         item=dict(request_id=secrets.token_hex(12),action=operation,index=index,prompt=prompt,model=model)
+        # An art style typed in the regenerate panel applies to this one image; the session style stays as it was.
+        if isinstance(style,str) and ' '.join(style.split()):item['style']=' '.join(style.split())
         if image_model is not None:
             if image_model not in {spec['id'] for spec in MODELS}:
                 raise ValueError('Choose a supported image model')
             item['image_model']=image_model
+        if type(steps) is int and 1 <= steps <= 150:item['steps']=steps
         position=next((i for i,a in enumerate(self.state['queued_actions']) if a.get('action')=='verify'),len(self.state['queued_actions']))
         self.state['queued_actions'].insert(position,item)
         update_queue(self.folder,append=item)
@@ -146,6 +157,7 @@ class Job:
         with LOCK:
             if self.cancelled or self.state['action'] or self.state['status'] not in ('review','complete') or not self.state['queued_actions']:
                 return
+            if time.time() < self.retry_at:return  # a crashed image worker is waiting before its retry
             item=self.state['queued_actions'].pop(0)
             operation=item.get('action','regenerate')
             generation=operation in ('regenerate','reprompt')
@@ -159,9 +171,13 @@ class Job:
                 from generation_queue import update_queue
                 update_queue(self.folder,remove=[i.get('request_id') for i in batch])
             if generation and any(i.get('action')=='reprompt' for i in batch):operation='reprompt'
+            self.generation_batch=dict(items=list(batch),started=time.time()) if generation else None
+            self.repaired_now=set()
             command=[sys.executable,'-u',str(HERE/'studio_worker.py'),operation,str(self.folder),'--index',str(item['index'])]
             if operation in ('verify','repair'):
                 command+=['--model',item['model']]
+                if operation=='verify' and len(batch)==1 and item.get('user_prompt'):
+                    command+=['--prompt',item['user_prompt'],'--style',item.get('style','')]
                 if operation=='repair':command+=['--expected-sha',item['expected_sha']]
             elif operation=='regenerate':command+=['--prompt',item.get('prompt','')]
             if generation or len(batch)>1:
@@ -170,6 +186,32 @@ class Job:
             self.state.update(action=operation,action_percent=0,active_images=[i['index'] for i in batch] if generation else [],
                               action_stage='subjects' if operation=='reprompt' else 'model',message=f'{operation.capitalize()} batch starting')
             threading.Thread(target=self.run,args=(command,operation),daemon=True).start()
+
+    def retry_crashed_generation(self, code):
+        """Put a crashed image worker's unfinished requests back in the queue and retry them after a pause.
+
+        A native crash (on Windows usually 0xC0000005 while the image model loads) is most often system RAM running
+        out, which a moment later or after other programs release memory may not recur. Called with LOCK held."""
+        batch, self.generation_batch = self.generation_batch, None
+        if not batch or not native_crash(code):return False
+        attempt = max(item.get('crash_retries', 0) for item in batch['items'])+1
+        memory = memory_report()
+        if attempt > CRASH_RETRIES:
+            self.log(f'The image model crashed again (exit {code}) and the regeneration was stopped. {memory} '
+                     'This usually means system memory ran out: close memory-heavy programs such as a virtual machine, '
+                     'or choose a smaller image model, then regenerate again.', 'error')
+            self.state['message'] = 'Image model crashed: not enough free memory?'
+            return True
+        done = fresh_candidates(self.folder, batch['started'])
+        retry = [dict(item, crash_retries=attempt) for item in batch['items'] if item['index'] not in done]
+        self.state['queued_actions'] = retry+self.state['queued_actions']
+        delay = CRASH_RETRY_DELAY*attempt
+        self.retry_at = time.time()+delay
+        threading.Timer(delay+.5, self.start_next).start()
+        self.log(f'The image model crashed while working (exit {code}), usually because system memory ran out. {memory} '
+                 f'Retrying {len(retry)} image request(s) in {delay}s (attempt {attempt}/{CRASH_RETRIES}).', 'warning')
+        self.state['message'] = f'Image model crashed; retrying in {delay}s'
+        return True
 
     def rejected_selections(self):
         failures=[]
@@ -198,6 +240,14 @@ class Job:
         self.log(f'Illustration {index+1} scored {review["score"]}%; automatic regeneration queued.')
 
     def run(self, command, action=None):
+        with LOCK:
+            self.runs += 1
+            if not action:self.command = command
+        try:self._run(command, action)
+        finally:
+            with LOCK:self.runs -= 1
+
+    def _run(self, command, action=None):
         try:
             env = dict(os.environ, PYTHONUNBUFFERED='1', PYTHONIOENCODING='utf-8', KINETIC_PROGRESS='1',
                        OPENBLAS_NUM_THREADS='1', OMP_NUM_THREADS='1', MKL_NUM_THREADS='1', NUMEXPR_NUM_THREADS='1')
@@ -239,10 +289,18 @@ class Job:
                 if self.cancelled:
                     self.state.update(status='cancelled', message='Cancelled; saved files retained', action=None)
                 elif action:
-                    if code:
+                    if code and action in ('regenerate','reprompt') and self.retry_crashed_generation(code):
+                        pass
+                    elif code:
                         if action == 'patch':
                             self.state['queued_actions'] = [a for a in self.state['queued_actions'] if a.get('action') != 'patch']
                         self.log(f'{action} failed (exit {code}). See errors above.', 'error')
+                    elif action in ('verify', 'repair'):
+                        # Verify & rebuild: a repaired image goes straight into the finished video.
+                        queued = {a.get('index') for a in self.state['queued_actions'] if a.get('action') == 'patch'}
+                        if self.state['status'] == 'complete' and (self.folder/'video.mp4').exists():
+                            self.state['queued_actions'].extend(dict(action='patch', index=i)
+                                                                for i in sorted(self.repaired_now-queued))
                     elif action == 'rerender':
                         self.state['dirty'] = []
                         self.state['timing_dirty'] = False
@@ -302,12 +360,13 @@ class Job:
         if self.cancelled or attempt>AUTO_RESUMES:return False
         self.state.update(auto_resumes=attempt,message=f'Recovering automatically after exit {code} (attempt {attempt}/{AUTO_RESUMES})')
         self.log(self.state['message']+f'; resuming from saved work in {AUTO_RESUME_DELAY}s.','warning')
-        threading.Thread(target=self.resume_later,args=(self.resume_command(command),),daemon=True).start()
+        threading.Thread(target=self.resume_later,args=(self.resume_command(command),self.generation),daemon=True).start()
         return True
 
-    def resume_later(self, command):
+    def resume_later(self, command, generation=None):
         time.sleep(AUTO_RESUME_DELAY)
         with LOCK:
+            if generation is not None and generation != self.generation:return
             if self.cancelled:
                 self.state.update(status='cancelled',message='Cancelled; saved files retained',finished=time.time());self.save()
                 return
@@ -447,14 +506,16 @@ class Job:
                         pass
                 from artwork_metadata import variant_metadata
                 metadata=variant_metadata(path,job,i)
-                entries.append(dict(prompt=metadata.get('prompt',prompt),subject=metadata.get('subject',''),path=path.relative_to(self.folder).as_posix(), url=self.url(path),
+                from video_art import sidecar
+                clip=sidecar(path)
+                entries.append(dict(prompt=metadata.get('prompt',prompt),subject=metadata.get('subject',''),style=metadata.get('style',''),video=self.url(clip) if clip else None,path=path.relative_to(self.folder).as_posix(), url=self.url(path),
                     current=path == current, raw=path == raw, fresh=path.is_relative_to(self.folder/'candidates') and stat.st_mtime>=self.state['started'], review=review))
             queued=next((q for q in self.state.get('queued_actions',[]) if q.get('index')==i and q.get('action','regenerate') in ('regenerate','reprompt')),None)
             pending=('Prompt queued' if queued.get('action')=='reprompt' else 'Image queued') if queued else ''
             if i in self.state.get('active_images',[]) :
                 pending='Preparing prompt' if self.state.get('action_stage') in PROMPT_STAGES else 'Generating replacement'
             result.append(dict(index=i, pending=pending, subject=job.get('visual_descriptions', job['prompts'])[i],
-                lyrics=job['groups'][i], prompt=prompt, variants=entries))
+                lyrics=job['groups'][i], prompt=prompt, style=job.get('style_prompt',self.config.get('style_prompt','')), variants=entries))
         return result
 
 
@@ -470,6 +531,7 @@ def stop_job(job):
         if job.state['status'] == 'complete' and not job.state.get('action'):
             return
         job.cancelled = True
+        job.generation += 1
         from generation_queue import queue_path
         queue_path(job.folder).unlink(missing_ok=True)
         for process in (job.action_process, job.process):
@@ -480,6 +542,84 @@ def stop_job(job):
                     os.killpg(process.pid, signal.SIGTERM)
         job.state.update(status='cancelled', action=None, queued_actions=[], message='Cancelled; saved files retained', finished=time.time())
         job.save()
+
+
+CRASH_RETRIES = 2
+CRASH_RETRY_DELAY = 20
+
+
+def native_crash(code):
+    """A process killed by the OS or a native fault, not a Python error (exit 1) the same inputs would repeat."""
+    return code < 0 or code >= 0xC0000000
+
+
+def memory_report():
+    try:
+        import psutil
+        ram, swap = psutil.virtual_memory(), psutil.swap_memory()
+        return (f'Free memory now: {ram.available/2**30:.1f} of {ram.total/2**30:.1f} GiB RAM, '
+                f'{swap.free/2**30:.1f} GiB page file.')
+    except Exception:
+        return ''
+
+
+def fresh_candidates(folder, since):
+    """Illustration indices that received a finished candidate after `since`."""
+    done = set()
+    for image in (folder/'candidates').glob('*/*/000.png'):
+        try:
+            if int(image.parent.name) >= since*1e9:done.add(int(image.parent.parent.name))
+        except ValueError:pass
+    return done
+
+
+def video_busy(job):
+    alive = job.process is not None and job.process.poll() is None
+    return bool(job.state.get('action')) or job.state['status'] in ('running', 'queued') or (job.state['status'] == 'review' and alive)
+
+
+def stop_video_work(job):
+    """Stop the video being made so edited timings can be saved. Returns what restart_video_work starts again."""
+    from generation_queue import queue_path
+    with LOCK:
+        action = job.state.get('action')
+        if action and action not in ('rerender', 'patch'):
+            raise ValueError('Wait for the current image operation to finish before saving timings')
+        kind = 'rerender' if action else 'run'
+        if kind == 'run' and not job.command:
+            raise ValueError('This run started before the studio restarted. Cancel it, then save the timings.')
+        status, queued = job.state['status'], list(job.state['queued_actions'])
+        pending = queue_path(job.folder).read_text(encoding='utf-8') if queue_path(job.folder).exists() else None
+    stop_job(job)
+    deadline = time.time()+60
+    while True:
+        with LOCK:
+            if not job.runs:break
+        if time.time() > deadline:
+            raise ValueError('The current video operation did not stop. Try saving again.')
+        time.sleep(.2)
+    with LOCK:  # queued image requests are not part of the video; keep them
+        job.state['queued_actions'] = queued
+        if pending is not None:queue_path(job.folder).write_text(pending, encoding='utf-8')
+    return kind, status
+
+
+def restart_video_work(job, kind, status):
+    with LOCK:
+        job.cancelled = False
+        if kind == 'rerender':
+            command = [sys.executable, '-u', str(HERE/'studio_worker.py'), 'rerender', str(job.folder)]
+            job.state.update(status='complete' if status == 'cancelled' else status, action='rerender', action_percent=0,
+                             message='Rebuilding the video with the edited word timings')
+            args = (command, 'rerender')
+        else:
+            command = job.resume_command(job.command)
+            job.state.update(status='running', action=None, auto_resumes=0, timing_dirty=False,
+                             message='Restarting video generation with the edited word timings')
+            args = (command,)
+        job.log('Word timings edited in the timeline; the running video was stopped and restarted with them.', 'warning')
+        job.save()
+    threading.Thread(target=job.run, args=args, daemon=True).start()
 
 
 def parse_form(body, content_type):
@@ -543,6 +683,13 @@ def start_job(fields, files):
             raise ValueError('Unsupported or empty audio file')
         from kinetic_lyrics import sanitize_lyrics
         lyrics = sanitize_lyrics(fields.get('lyrics', '')).strip()
+        if is_restart and start_step in ('prompts', 'images', 'review', 'render'):
+            try:
+                previous_lyrics = sanitize_lyrics((ROOT / project_id / 'lyrics.txt').read_text(encoding='utf-8')).strip()
+            except OSError:
+                previous_lyrics = None
+            if previous_lyrics is not None and lyrics != previous_lyrics:
+                start_step = 'timing'
         width, height = {'720p': (1280, 720), '1080p': (1920, 1080), 'portrait': (720, 1280)}[fields.get('resolution', '720p')]
         asr_model=fields.get('asr_model',DEFAULT_ASR)
         alignment_model=fields.get('alignment_model','auto')
@@ -582,11 +729,12 @@ def start_job(fields, files):
         if is_restart and not files.get('audio'):
             try:filename=json.loads((folder/'config.json').read_text(encoding='utf-8')).get('audio_name',filename)
             except (OSError,ValueError):pass
+        from image_instruction_cleanup import clean_legacy_imported_meaning
         config = dict(name=Path(filename).stem, audio=str(audio), audio_name=filename,
             profile_name=str(fields.get('profile_name','')).strip()[:80], width=width, height=height, fps=30,
             image_cache=str(Path(fields.get('cache', '').strip() or str(default_model_cache())).expanduser().resolve()),
             style_prompt=fields.get('reference_prompt', '').strip() or STYLE_PROMPT,
-            image_instructions=fields.get('image_instructions', '').strip()[:2000],
+            image_instructions=clean_legacy_imported_meaning(fields.get('image_instructions', ''))[:2000],
             reference_use='likeness' if fields.get('cast_reference') == 'on' else 'style',
             theme=fields.get('style', '').strip() or 'Bright, uplifting mood; flowing fabric and long flowing hair; graceful movement and luminous color.',
             artwork_mode=fields.get('artwork_mode','cutout'), image_seed=image_seed, randomize_seed=randomize,
@@ -739,7 +887,8 @@ def regenerate_new_session(source, image_model=None):
     audio = Path(config['audio'])
     references = source.folder/'references'
     files = dict(audio=[(config.get('audio_name') or audio.name, audio.read_bytes())],
-                 references=[(path.name, path.read_bytes()) for path in sorted(references.iterdir()) if path.is_file()]
+                 references=[(path.name, path.read_bytes()) for path in sorted(references.iterdir())
+                             if path.is_file() and path.suffix.lower() in IMAGE_SUFFIXES]
                  if references.is_dir() else [])
     fields['lyrics'] = (source.folder/'lyrics.txt').read_text(encoding='utf-8')
     return start_job(fields, files)
@@ -874,11 +1023,23 @@ class Handler(BaseHTTPRequestHandler):
                 if job is None:
                     return self.respond(dict(error='This song is no longer loaded in the studio. Reload the page and choose it again.'), 404)
                 from timeline_data import song_duration, timeline_stems, word_timings
-                timings = word_timings(job.folder)
-                stems = timeline_stems(job.folder)
                 duration = song_duration(job.folder, job.config['audio'])
-                return self.respond(dict(timings=timings, stems=stems, duration=duration,
-                                         audio=job.url(Path(job.config['audio'])),
+                # Timing failed or never finished: open on a draft the user can place by hand and save.
+                draft = not (job.folder/'video.timings.json').is_file()
+                timings = word_timings(job.folder, duration)
+                stems = timeline_stems(job.folder)
+                from video_art import artwork_lane
+                try:
+                    lanes = [dict(index=lane['index'], start=lane['start'], end=lane['end'], image=job.url(lane['image']),
+                                  video=job.url(lane['video']) if lane['video'] else None, offset=lane['offset'],
+                                  framing=lane['framing'],
+                                  length=lane['length']) for lane in artwork_lane(job.folder, job.config, timings, duration)
+                             if lane['image'].is_file()]
+                except (OSError, ValueError, KeyError, IndexError):
+                    lanes = []
+                return self.respond(dict(timings=timings, stems=stems, duration=duration, artwork=lanes,
+                                         frame=dict(width=job.config.get('width', 1920), height=job.config.get('height', 1080)),
+                                         audio=job.url(Path(job.config['audio'])), draft=draft,
                                          needs_render=job.state.get('timing_dirty', False)))
             if url.path.startswith('/api/jobs/'):
                 job = JOBS[url.path.split('/')[3]]
@@ -947,14 +1108,15 @@ class Handler(BaseHTTPRequestHandler):
             if route == '/api/import-youtube':
                 from youtube_import import import_youtube
                 args=json.loads(body)
-                return self.respond(import_youtube(args.get('url',''), PROJECT_ROOT/'profiles'/'audio',
-                                                   prompt_model=str(args.get('ai_model') or 'auto')),201)
+                return self.respond(import_youtube(args.get('url',''), PROJECT_ROOT/'profiles'/'audio'),201)
             if route == '/api/jobs':
                 fields, files = parse_form(body, self.headers['Content-Type'])
                 return self.respond(dict(id=start_job(fields, files).folder.name), 201)
             _, _, _, job_id, operation = route.split('/')
             job = JOBS[job_id]
-            saved_video = (job.state['status'] == 'cancelled' and job.state['stage'] == 'complete'
+            # A stopped job (cancelled or failed at any step) that still has a finished video from an earlier render
+            # can be edited and rebuilt like a completed one.
+            saved_video = (job.state['status'] in ('cancelled', 'failed') and not job.state.get('action')
                            and (job.folder/'video.mp4').is_file())
             if operation == 'regenerate-new':
                 args=json.loads(body)
@@ -974,32 +1136,72 @@ class Handler(BaseHTTPRequestHandler):
                 from ornament_director import set_picture_kept
                 set_picture_kept(job.folder, args['key'], bool(args.get('keep', True)))
                 return self.respond(dict(ok=True))
+            if operation == 'clip-start':
+                from video_art import sidecar, offset_path, clip_duration, clip_settings, checked_framing
+                index = int(args.get('index', -1))
+                manifest = job.manifest()
+                if not 0 <= index < len(json.loads(manifest.read_text(encoding='utf-8'))['prompts']):
+                    raise ValueError('Invalid illustration index')
+                image = manifest.parent/f'{index:03d}.png'
+                clip = sidecar(image)
+                if clip is None:
+                    raise ValueError('This illustration is not a video clip')
+                settings = clip_settings(image)
+                if 'offset' in args:
+                    offset = float(args['offset'])
+                    length = clip_duration(clip)
+                    if not 0 <= offset or (length and offset >= length):
+                        raise ValueError('The clip start must fall inside the clip')
+                    settings['offset'] = round(offset, 3)
+                if 'framing' in args:
+                    settings['framing'] = {k: round(v, 4) for k, v in checked_framing(args['framing']).items()}
+                offset = float(settings.get('offset', 0.))
+                offset_path(image).write_text(json.dumps(settings), encoding='utf-8')
+                with LOCK:
+                    if (job.folder/'video.mp4').exists() and index not in job.state['dirty']:
+                        job.state['dirty'].append(index)
+                    job.log(f'Illustration {index+1} video '+('framing saved' if 'framing' in args else f'now starts {offset:.2f}s into the clip')
+                            +'; rebuild changed images to apply.')
+                    job.save()
+                return self.respond(dict(ok=True))
             if operation == 'timings':
-                if job.state['status'] in ('running', 'queued') or job.state.get('action'):
-                    raise ValueError('Wait for the current video operation before editing timings')
                 from kinetic_lyrics import validate
                 from timeline_data import song_duration, timeline_stems, word_timings
                 current_path = job.folder/'video.timings.json'
-                current = word_timings(job.folder)
                 updated = args.get('timings')
                 if not isinstance(updated, list):
                     raise ValueError('Supply lyric word timings')
                 duration = song_duration(job.folder, job.config['audio'])
+                draft = not current_path.is_file()
+                if draft and (job.state['status'] == 'running' or job.state.get('action')):
+                    raise ValueError('Step 1: Timing is still running for this song; wait for it to finish or stop it first.')
+                current = word_timings(job.folder, duration)
                 validate(updated, [line['text'] for line in current], duration)
                 if [[word['text'] for word in line['words']] for line in updated] != [[word['text'] for word in line['words']] for line in current]:
                     raise ValueError('The timeline editor can change timing, not lyric text')
+                # A video still being made would finish with the old timings: stop it, save, and start it again.
+                restart = stop_video_work(job) if video_busy(job) else None
                 backup = job.folder/'video.timings.before-editor.json'
-                if not backup.exists():
+                if not backup.exists() and not draft:
                     shutil.copy2(current_path, backup)
                 temporary = job.folder/'video.timings.editing.json'
                 temporary.write_text(json.dumps(updated, ensure_ascii=False, indent=2), encoding='utf-8')
                 temporary.replace(current_path)
+                if draft:
+                    job.log('Word timings placed by hand in the timeline; restart from Step 2: Prompts to continue with them.')
+                    job.save()
+                    return self.respond(dict(ok=True, draft=True))
                 job.state['timing_dirty'] = True
+                if restart:
+                    restart_video_work(job, *restart)
+                    return self.respond(dict(ok=True, restarted=restart[0]))
                 job.log('Word timings edited in the timeline; rebuild the video to apply them.')
                 job.save()
                 return self.respond(dict(ok=True))
             if operation in ('regenerate','reprompt') and (not isinstance(args.get('prompt',''),str) or len(args.get('prompt',''))>32768):
                 raise ValueError('The generation prompt must be text no longer than 32,768 characters')
+            if operation in ('regenerate','reprompt') and (not isinstance(args.get('style',''),str) or len(args.get('style',''))>4000):
+                raise ValueError('The art style must be text no longer than 4,000 characters')
             with LOCK:
                 if saved_video:
                     job.cancelled = False
@@ -1011,8 +1213,28 @@ class Handler(BaseHTTPRequestHandler):
                     count = len(json.loads(job.manifest().read_text(encoding='utf-8'))['prompts'])
                     if not 0 <= index < count:
                         raise ValueError('Invalid illustration index')
-                    job.queue_generation(index,operation,str(args.get('prompt','')),str(args.get('model') or job.config.get('ai_model','auto')),args.get('image_model'))
+                    job.queue_generation(index,operation,str(args.get('prompt','')),str(args.get('model') or job.config.get('ai_model','auto')),args.get('image_model'),args.get('style'),args.get('steps'))
                     job.log(f'Illustration {index+1} regeneration queued for the next GPU review pause.')
+                    job.save()
+                    return self.respond(dict(ok=True, queued=True))
+                if operation == 'verify' and job.state['action'] and job.state['status'] in ('review', 'complete'):
+                    # Like regeneration, a Verify of the selected image waits in the queue behind the running operation.
+                    if not args.get('model'):
+                        raise ValueError('Choose an installed Ollama vision model')
+                    index = int(args.get('index', -1))
+                    if not 0 <= index < len(json.loads(job.manifest().read_text(encoding='utf-8'))['prompts']):
+                        raise ValueError('Invalid illustration index')
+                    threshold = args.get('review_threshold', job.config.get('review_threshold', DEFAULT_THRESHOLD))
+                    if type(threshold) is not int or not 0 <= threshold <= 100:
+                        raise ValueError('Review threshold must be an integer from 0 to 100')
+                    job.config.update(review_threshold=threshold, auto_repair=bool(args.get('auto_repair', job.config.get('auto_repair', True))))
+                    (job.folder/'config.json').write_text(json.dumps(job.config, indent=2), encoding='utf-8')
+                    if not any(a.get('action') == 'verify' and a.get('index') == index for a in job.state['queued_actions']):
+                        edited = {k: ' '.join(str(args[k]).split()) if k == 'style' else str(args[k]).strip()
+                                  for k in ('prompt', 'style') if isinstance(args.get(k), str) and args[k].strip()}
+                        if 'prompt' in edited:edited['user_prompt'] = edited.pop('prompt')
+                        job.state['queued_actions'].append(dict(action='verify', index=index, model=args['model'], **edited))
+                        job.log(f'Illustration {index+1} review queued after the current image operation.')
                     job.save()
                     return self.respond(dict(ok=True, queued=True))
                 if job.state['action'] and not (operation in ('select','replace') and job.state['action'] in ('verify','regenerate')):
@@ -1137,7 +1359,16 @@ class Handler(BaseHTTPRequestHandler):
                 if operation in ('select', 'replace'):
                     if operation == 'replace':
                         name, content = files['replacement'][0]
-                        selected = store_image(job.folder/'candidates'/f'{index:03d}'/str(time.time_ns()), name, content)
+                        from video_art import VIDEO_SUFFIXES, import_clip
+                        candidate = job.folder/'candidates'/f'{index:03d}'/str(time.time_ns())
+                        if Path(name).suffix.lower() in VIDEO_SUFFIXES:
+                            candidate.mkdir(parents=True, exist_ok=True)
+                            upload = candidate/('upload'+Path(name).suffix.lower())
+                            upload.write_bytes(content)
+                            try:selected = import_clip(upload, candidate)
+                            finally:upload.unlink(missing_ok=True)
+                        else:
+                            selected = store_image(candidate, name, content)
                     else:
                         selected = checked_file(job, args['path'])
                         report=selected.with_suffix('.review.json')
@@ -1151,6 +1382,8 @@ class Handler(BaseHTTPRequestHandler):
                         if target.exists():
                             from artwork_metadata import variant_metadata
                             archived=versions/f'{time.time_ns()}.png';shutil.copy2(target,archived)
+                            from video_art import copy_slot_clip
+                            copy_slot_clip(target,archived)
                             archive_job=json.loads(manifest.read_text(encoding='utf-8'))
                             archived.with_suffix('.artwork.json').write_text(json.dumps(variant_metadata(target,archive_job,index)),encoding='utf-8')
                         from filelock import FileLock
@@ -1158,6 +1391,8 @@ class Handler(BaseHTTPRequestHandler):
                             temporary=target.with_suffix('.selected.tmp.png')
                             shutil.copy2(selected,temporary)
                             temporary.replace(target)
+                            from video_art import copy_slot_clip
+                            copy_slot_clip(selected,target)
                             target.with_suffix('.selection.json').write_text(json.dumps(dict(selected=str(selected),time=time.time())),encoding='utf-8')
                             candidate_review=selected.with_suffix('.review.json')
                             try:chosen_report=json.loads(candidate_review.read_text(encoding='utf-8'))
@@ -1177,7 +1412,7 @@ class Handler(BaseHTTPRequestHandler):
                 if operation in ('regenerate','reprompt'):
                     if not args.get('image_model'):
                         raise ValueError('Reload the studio page to apply the selected image model')
-                    job.queue_generation(index,operation,str(args.get('prompt','')),str(args.get('model') or job.config.get('ai_model','auto')),args.get('image_model'))
+                    job.queue_generation(index,operation,str(args.get('prompt','')),str(args.get('model') or job.config.get('ai_model','auto')),args.get('image_model'),args.get('style'),args.get('steps'))
                     job.start_next();job.save()
                     return self.respond(dict(ok=True,queued=True))
                 if operation not in ('regenerate', 'verify', 'patch'):
@@ -1190,8 +1425,11 @@ class Handler(BaseHTTPRequestHandler):
                         raise ValueError('Choose an installed Ollama vision model')
                     selected = checked_file(job, args['path'])
                     command += ['--model', args['model'], '--candidate', str(selected)]
+                    if isinstance(args.get('prompt'), str) and args['prompt'].strip():
+                        command += ['--prompt', args['prompt'][:32768], '--style', str(args.get('style', ''))[:4000]]
                 if operation == 'regenerate':
                     command += ['--prompt', str(args.get('prompt', ''))[:5000]]
+                job.repaired_now = set()
                 job.state.update(action=operation, action_percent=0, message=f'Starting {operation}')
                 threading.Thread(target=job.run, args=(command, operation), daemon=True).start()
                 return self.respond(dict(ok=True))

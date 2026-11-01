@@ -26,6 +26,34 @@ class TimingRepairTest(unittest.TestCase):
         self.assertGreaterEqual(repaired[1]['words'][0]['start'], 96.)
         self.assertEqual(collapsed_lines(repaired), [])
 
+    def test_unheard_backing_lines_are_spread_over_the_gap(self):
+        from timing_repair import spread_collapsed
+        line = lambda text, start, end: dict(text=text, words=[dict(text=w, start=start, end=end) for w in text.split()])
+        data = [line('You and I will fall in love', 10., 10.),
+                line('(You and I will fall in love)', 10., 10.05),
+                line('People say that love is a game', 10.05, 10.1)]
+        data[0]['words'] = [dict(text=w, start=8. + i * .4, end=8.3 + i * .4) for i, w in enumerate(data[0]['text'].split())]
+        data[2]['words'] = [dict(text=w, start=16. + i * .4, end=16.3 + i * .4) for i, w in enumerate(data[2]['text'].split())]
+        self.assertEqual(spread_collapsed(data), [1])
+        self.assertEqual(collapsed_lines(data), [])
+        backing = data[1]['words']
+        self.assertGreaterEqual(backing[0]['start'], round(data[0]['words'][-1]['end'], 3))
+        self.assertLessEqual(backing[-1]['end'], 16.)
+        self.assertEqual([w['start'] for w in backing], sorted(w['start'] for w in backing))
+
+    def test_failed_timing_opens_on_valid_draft_timings(self):
+        import tempfile
+        from kinetic_lyrics import lyrics_lines, validate
+        from timeline_data import word_timings
+        folder = Path(tempfile.mkdtemp())
+        (folder/'lyrics.txt').write_text('[Verse 1]\nPut your head on my shoulder\nHold me in your arms, baby\n'
+                                         '\n[Outro]\n(Tell me that you love me, too)\n', encoding='utf-8')
+        draft = word_timings(folder, 120.)
+        validate(draft, lyrics_lines(folder/'lyrics.txt'), 120.)  # the pipeline would accept it as saved timings
+        self.assertEqual(collapsed_lines(draft), [])
+        with self.assertRaisesRegex(ValueError, 'not ready'):
+            word_timings(folder)
+
     def test_unrelated_transcription_is_rejected(self):
         with self.assertRaisesRegex(ValueError, 'did not match enough'):
             transcript_timing(['People writing songs that voices never share'],

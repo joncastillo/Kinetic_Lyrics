@@ -1,4 +1,5 @@
 """Phase-ordered reviews and repairs, with selection fingerprints preserved."""
+import copy
 import hashlib
 import json
 from pathlib import Path
@@ -12,16 +13,32 @@ def review_one(worker, root, manifest, job, config, item):
     index = item['index']
     target = manifest.parent/f'{index:03d}.png'
     image = Path(item.get('candidate') or target)
-    worker.emit('verification', 0, message=f'Inspecting illustration {index+1} with {item["model"]}')
+    if not item.get('user_prompt'):
+        worker.emit('verification', 0, message=f'Inspecting illustration {index+1} with {item["model"]}')
     from artwork_metadata import variant_metadata
-    intended=variant_metadata(image,job,index).get('prompt',job['prompts'][index])
+    intended=item.get('user_prompt') or variant_metadata(image,job,index).get('prompt',job['prompts'][index])
+    # A prompt edited in the Verify panel asks for a new image from it, even when the current one would pass.
+    edited={key:item[key] for key in ('user_prompt','style') if item.get(key)} if item.get('user_prompt') else {}
+    if edited:
+        # Verify 5x from the panel replaces first: no review of the current image, straight to new images from the
+        # prompt, each reviewed until one passes.
+        fingerprint=hashlib.sha256(image.read_bytes()).hexdigest()
+        worker.emit('verification',1,message=f'Illustration {index+1}: making a replacement from the prompt, then verifying it')
+        repair=dict(index=index,model=item['model'],expected_sha=fingerprint,**edited,
+                    review=dict(image_sha256=fingerprint,summary='Replacement requested before verification',issues=[]))
+        if image.resolve()!=target.resolve():
+            repair['candidate']=str(image)
+            try:repair['image_model']=json.loads((image.parent/'illustrations.json').read_text(encoding='utf-8'))['model']
+            except (OSError,ValueError,KeyError):pass
+        return repair
     result=None
     if item.get('reuse_review'):
         try:
             with FileLock(str(image)+'.write.lock',timeout=30):
                 report=json.loads(image.with_suffix('.review.json').read_text(encoding='utf-8'))
                 fingerprint=hashlib.sha256(image.read_bytes()).hexdigest()
-            if not report.get('validation_pending') and report.get('model')==item['model'] and type(report.get('score')) is int and report.get('image_sha256')==fingerprint:
+            # Reviews from before the figure checks (limbs, facial hair on women) are made again.
+            if not report.get('validation_pending') and report.get('review_policy_version',0)>=3 and report.get('model')==item['model'] and type(report.get('score')) is int and report.get('image_sha256')==fingerprint:
                 result=report
                 worker.emit('verification',1,message=f'Illustration {index+1}: reusing saved quality {result["score"]}%')
         except (OSError,ValueError):pass
@@ -45,8 +62,8 @@ def review_one(worker, root, manifest, job, config, item):
             worker.emit('verification',1,message=f'Illustration {index+1}: validation pending; saved artwork retained. Continue reviewing the remaining images.')
             return
     else:
-        if image.resolve()==target.resolve() and rejected(result,config.get('review_threshold',DEFAULT_THRESHOLD)):
-            return dict(index=index,model=item['model'],expected_sha=result['image_sha256'],review=result)
+        if image.resolve()==target.resolve() and (edited or rejected(result,config.get('review_threshold',DEFAULT_THRESHOLD))):
+            return dict(index=index,model=item['model'],expected_sha=result['image_sha256'],review=result,**edited)
         return
     with FileLock(str(image)+'.write.lock',timeout=30):
         unchanged = hashlib.sha256(image.read_bytes()).hexdigest() == result['image_sha256']
@@ -60,8 +77,8 @@ def review_one(worker, root, manifest, job, config, item):
                 chosen=dict(result,image=str(target))
                 target.with_suffix('.review.json').write_text(json.dumps(chosen,indent=2),encoding='utf-8')
     worker.emit('verification', 1, message=f'Illustration {index+1}: quality {result["score"]}%')
-    if unchanged and rejected(result,config.get('review_threshold',DEFAULT_THRESHOLD)):
-        repair=dict(index=index,model=item['model'],expected_sha=result['image_sha256'],review=result)
+    if unchanged and (edited or rejected(result,config.get('review_threshold',DEFAULT_THRESHOLD))):
+        repair=dict(index=index,model=item['model'],expected_sha=result['image_sha256'],review=result,**edited)
         if image.resolve()!=target.resolve():
             repair['candidate']=str(image)
             try:repair['image_model']=json.loads((image.parent/'illustrations.json').read_text(encoding='utf-8'))['model']
@@ -83,10 +100,10 @@ def repair_batch(worker, root, manifest, items, threshold=None):
         if report.get('validation_pending'):
             worker.emit('repair-complete',1,message=f'Illustration {item["index"]+1}: retry validation before requesting an image repair.',repaired=False,index=item['index'])
             continue
-        if report.get('image_sha256')==item['expected_sha'] and rejected(report,threshold):
+        if report.get('image_sha256')==item['expected_sha'] and (item.get('user_prompt') or rejected(report,threshold)):
             from artwork_metadata import variant_metadata
             metadata=variant_metadata(target,job,item['index'])
-            item.update(prompt=metadata['prompt'],subject=metadata['subject'])
+            item.update(prompt=item.get('user_prompt') or metadata['prompt'],subject=metadata['subject'])
             item['review']=report;pending.append(item)
     for attempt in range(MAX_AUTO_REPAIRS):
         if not pending:break
@@ -95,13 +112,22 @@ def repair_batch(worker, root, manifest, items, threshold=None):
         if not pending:break
         if attempt==0:
             # Write every round's prompts in one prompting session, so later rounds only alternate image and review.
-            from model_lifecycle import current_session
-            from prompt_repair import revise_repair_prompts
-            session=current_session()
-            if session:
-                session.release()
-                session.unload_vision()
-            planned=revise_repair_prompts(worker,job,config,pending,variants=MAX_AUTO_REPAIRS)
+            fresh=[item for item in pending if not item.get('user_prompt')]
+            planned={}
+            if fresh:
+                from model_lifecycle import current_session
+                from prompt_repair import revise_repair_prompts
+                session=current_session()
+                if session:
+                    session.release()
+                    session.unload_vision()
+                planned=revise_repair_prompts(worker,job,config,fresh,variants=MAX_AUTO_REPAIRS)
+            for item in pending:
+                if not item.get('user_prompt'):continue
+                # Every round uses the person's prompt as written; each candidate still gets a new seed.
+                own=copy.deepcopy(job);own['prompts'][item['index']]=item['user_prompt']
+                if item.get('style'):own['style_prompt']=item['style']
+                planned[item['index']]=[own]*MAX_AUTO_REPAIRS
         candidates=[]
         for item in pending:
             index=item['index'];target=Path(item.get('candidate') or manifest.parent/f'{index:03d}.png')

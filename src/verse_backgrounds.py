@@ -34,7 +34,7 @@ DIRECTOR_PROMPT = LANGUAGE_RULE+PEOPLE_RULE+(
     'Do not invent extra people or supernatural events that the supplied meaning does not support. '
     'Use painterly simplification to unify the scene, without losing the lyric-specific anchors. '
     'Keep a coherent rendering style across the song while allowing each lyric to determine its imagery. '
-    'Write a richly detailed 400 to 500 word scene description. Specify the focal subject and action, foreground and '
+    'Write a detailed, concise 160 to 220 word scene description. Specify the focal subject and action, foreground and '
     'background relationships, viewpoint, physical setting, surface details, weather or atmosphere where the '
     'lyric supports them, and the light that makes the action readable. Every detail must serve the supplied meaning. '
     'Describe only what the illustrator should draw. Do not explain the interpretation or quote the lyrics. '

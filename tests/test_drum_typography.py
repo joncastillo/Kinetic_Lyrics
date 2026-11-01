@@ -40,6 +40,37 @@ class DrumTypographyTest(unittest.TestCase):
         self.assertEqual(shaken.getchannel('A').getextrema(), (255, 255))
         self.assertEqual(shake_background(background, None, .9).tobytes(), background.tobytes())
 
+    def test_dim_darkens_on_the_beat_and_recovers(self):
+        from PIL import Image
+        from drum_typography import shake_background
+
+        background = Image.new('RGBA', (320, 180), (200, 180, 160, 255))
+        hit = lambda age: (0, age, 1.)
+        dimmed = shake_background(background, hit(0.), 0., .8).getpixel((160, 90))
+        self.assertLess(dimmed[0], 120)
+        self.assertEqual(dimmed[3], 255)
+        self.assertEqual(shake_background(background, hit(.9), 0., .8).tobytes(), background.tobytes())
+
+    def test_screen_fixed_painting_does_not_creep_on_slow_pans(self):
+        from PIL import Image, ImageDraw
+        from kinetic_director import Compositor, rules_plan
+        from kinetic_lyrics import theme_for
+
+        words = [dict(text='Later', start=8., end=9.)]
+        data = [dict(text='Later', words=words, section_id=0, section_label='Verse')]
+        c = Compositor(data, rules_plan(data, theme_for('bright')), 320, 180, 10., artwork_mode='verse',
+                       reading_flow='realtime', entrance_effect='none', exit_effect='none',
+                       kinetic=dict(fade=False, traces=False, geometry=0.))
+        art = Image.new('RGBA', (320, 180), 'white')
+        draw = ImageDraw.Draw(art)
+        for x in range(0, 320, 8):
+            draw.line((x, 0, x, 180), fill='black', width=3)
+        c.art, c.art_starts = [art], [0.]
+        # Before the first word only the painting is on screen: it must hold still while the camera drifts.
+        frames = [np.asarray(c.frame(1+i/30)) for i in range(12)]
+        for frame in frames[1:]:
+            self.assertTrue(np.array_equal(frame, frames[0]))
+
     def test_rendered_impact_is_repeatable_and_recovers(self):
         from kinetic_director import Compositor, rules_plan
         from kinetic_lyrics import theme_for
@@ -74,6 +105,28 @@ class DrumTypographyTest(unittest.TestCase):
                            drum_reactivity=amount, glows=[], glow_words=0.))
             return c.frame(1.6)
         self.assertTrue(np.array_equal(np.asarray(frame(.8)), np.asarray(frame(0.))))
+
+    def test_shake_all_song_moves_the_background_outside_choruses(self):
+        from PIL import Image, ImageDraw
+        from kinetic_director import Compositor, rules_plan
+        from kinetic_lyrics import theme_for
+
+        words = [dict(text='Later', start=8., end=9.)]
+        data = [dict(text='Later', words=words, section_id=0, section_label='Verse')]
+        art = Image.new('RGBA', (320, 180), 'white')
+        draw = ImageDraw.Draw(art)
+        for x in range(0, 320, 8):
+            draw.line((x, 0, x, 180), fill='black', width=3)
+        def frame(**kinetic):
+            c = Compositor(data, rules_plan(data, theme_for('bright')), 320, 180, 10., artwork_mode='verse',
+                           reading_flow='realtime', entrance_effect='none', exit_effect='none',
+                           rhythm=dict(drums=[[1.5, 1.]]),
+                           kinetic=dict(fade=False, traces=False, geometry=0., glows=[], **kinetic))
+            c.art, c.art_starts = [art], [0.]
+            return np.asarray(c.frame(1.55))
+        still = frame(background_shake=0.)
+        self.assertTrue(np.array_equal(frame(), still))  # verses stay still by default
+        self.assertFalse(np.array_equal(frame(shake_all=True), still))
 
 
 if __name__ == '__main__':

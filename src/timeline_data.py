@@ -23,10 +23,37 @@ def stem_envelope(name, modified, size, bins=4800):
     return dict(duration=frames / rate, peaks=values)
 
 
-def word_timings(folder):
-    """The job's timed lyrics, or a plain explanation of why the editor has nothing to show yet."""
+def draft_timings(folder, duration):
+    """Timings to start from when Step 1 never finished: the lyric lines spread evenly over the song, so they
+    can be dragged onto the vocals by hand and saved. Each line gets an equal share of the song (between a
+    short intro and outro) and its words about .3 s each from the start of that share."""
+    from kinetic_lyrics import lyrics_lines
+    path = Path(folder) / 'lyrics.txt'
+    if not path.is_file():
+        raise ValueError('Word timings are not ready yet, and this song has no lyrics to place by hand. '
+                         'Add lyrics and restart at Step 1: Timing.')
+    lines = lyrics_lines(path)
+    begin, end = min(5., duration * .05), duration * .97
+    share = (end - begin) / len(lines)
+    result = []
+    for index, line in enumerate(lines):
+        words = line.split()
+        step = min(.3, share * .9 / len(words))
+        start = begin + share * index
+        result.append(dict(text=line, words=[dict(text=word, start=round(start + step * offset, 3),
+                                                  end=round(start + step * (offset + .9), 3))
+                                             for offset, word in enumerate(words)]))
+    return result
+
+
+def word_timings(folder, duration=None):
+    """The job's timed lyrics, or a plain explanation of why the editor has nothing to show yet.
+
+    With `duration`, a song whose timing step failed gets draft timings (see draft_timings) instead of an error."""
     path = Path(folder) / 'video.timings.json'
     if not path.is_file():
+        if duration:
+            return draft_timings(folder, duration)
         raise ValueError('Word timings are not ready yet. The timeline opens after Step 1 (Timing) '
                          'finishes for this song.')
     try:

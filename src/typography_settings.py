@@ -12,7 +12,7 @@ BACKDROP_KINDS = ('outline','filled','vertical','echo','giant')
 GLOW_INSTRUMENTS = ('drums','other','bass')
 CAMERA_MODES = ('pan','still')
 KINETIC_DEFAULTS = dict(camera='pan',pan_speed=.05,backdrop_rate=.6,backdrops=list(BACKDROP_KINDS),traces=True,
-                        geometry=.8,frames=.1,glows=list(GLOW_INSTRUMENTS),glow_words=.15,glow_strength=.55,glitch=True,text_pulse=0.,word_shapes=0.,drum_reactivity=.8,chorus_fx=.75,scenes=None,fade=True)
+                        geometry=.8,frames=.1,glows=list(GLOW_INSTRUMENTS),glow_words=.15,glow_strength=.55,glitch=True,text_pulse=0.,word_shapes=0.,drum_reactivity=.8,background_shake=.8,shake_all=False,beat_dim=0.,chorus_fx=.75,scenes=None,fade=True)
 
 
 def effect_speeds(value):
@@ -58,7 +58,7 @@ def kinetic_options(value):
     if not isinstance(value,dict) or set(value)-set(KINETIC_DEFAULTS):
         raise ValueError('Invalid kinetic effect settings')
     result=dict(KINETIC_DEFAULTS,**value)
-    for key,low,high in (('pan_speed',0.,.15),('backdrop_rate',0.,1.),('geometry',0.,1.),('frames',0.,1.),('glow_strength',0.,1.),('text_pulse',0.,1.),('glow_words',0.,1.),('word_shapes',0.,1.),('drum_reactivity',0.,1.),('chorus_fx',0.,1.)):
+    for key,low,high in (('pan_speed',0.,.15),('backdrop_rate',0.,1.),('geometry',0.,1.),('frames',0.,1.),('glow_strength',0.,1.),('text_pulse',0.,1.),('glow_words',0.,1.),('word_shapes',0.,1.),('drum_reactivity',0.,1.),('background_shake',0.,1.),('beat_dim',0.,1.),('chorus_fx',0.,1.)):
         number=float(result[key])
         if not math.isfinite(number) or not low<=number<=high:raise ValueError(f'Kinetic setting {key} is out of range')
         result[key]=number
@@ -75,7 +75,7 @@ def kinetic_options(value):
         from scene_catalog import scene_catalog
         known=scene_catalog()
         result['scenes']=[s for s in dict.fromkeys(result['scenes']) if s in known] or list(known)
-    for key in ('traces','glitch','fade'):
+    for key in ('traces','glitch','fade','shake_all'):
         if type(result[key]) is not bool:raise ValueError(f'Kinetic setting {key} must be on or off')
     return result
 LETTERING_STYLES = ('swiss','poster','outline','cutout','neon','extrude','split')

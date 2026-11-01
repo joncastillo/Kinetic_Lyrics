@@ -1,8 +1,7 @@
-"""Cast the person in a reference image as the song's main character.
+"""Keep a recurring visible character consistent with the reference image.
 
-The scene writer is a text model and never sees the reference, so without a description it guesses who the
-narrator is, and the image model then blends that guess with the reference face. The vision model describes
-the reference person once; the description is cached next to the reference."""
+The scene writer is a text model and never sees the reference. The vision model describes the reference person
+once; the description is cached next to the reference."""
 
 import base64
 import hashlib
@@ -65,7 +64,8 @@ def phrase(value, limit=90):
 
 def casting_rule(description):
     """Scene-writer instruction that keeps the main character consistent with the reference person."""
-    return ('MAIN CHARACTER FROM THE REFERENCE IMAGE: ' + description + '. Whenever a scene shows the singer, the '
-            'narrator (I, me) or the song\'s main person, draw exactly this person and state their gender and age as '
-            'given; never change their gender. Choose clothing that suits the scene instead of describing the '
-            'reference clothing. Other people appear only when the lyrics describe them. ')
+    return ('MAIN CHARACTER FROM THE REFERENCE IMAGE: ' + description + '. When a lyric explicitly depicts the '
+            'recurring main person in a visible action or presence, use this appearance and state their gender and '
+            'age as given. Do not add a person solely because the lyric says I, me or you. Choose clothing that '
+            'suits the scene instead of describing the reference clothing. Other people appear only when the '
+            'lyrics describe them. ')

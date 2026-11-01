@@ -15,7 +15,7 @@ from pathlib import Path
 
 import numpy as np
 
-VERSION = 1
+VERSION = 2
 STEMS = ('drums', 'bass', 'other')
 SAMPLE_RATE = 22050
 
@@ -70,10 +70,13 @@ def audio_for_mode(audio, folder, mode='original'):
     return target
 
 
-def onsets(path):
+def onsets(path, kick_only=False):
     """[time, strength 0..1] for each onset in a stem; strength is the song-relative rank."""
     import librosa
     samples, _ = librosa.load(str(path), sr=SAMPLE_RATE, mono=True)
+    if kick_only:
+        from scipy.signal import butter, sosfilt
+        samples = sosfilt(butter(4, 150, fs=SAMPLE_RATE, btype='lowpass', output='sos'), samples)
     envelope = librosa.onset.onset_strength(y=samples, sr=SAMPLE_RATE)
     frames = librosa.onset.onset_detect(onset_envelope=envelope, sr=SAMPLE_RATE, backtrack=False)
     if not len(frames):
@@ -101,15 +104,21 @@ def ensure_rhythm(audio, folder):
     stems = separate(audio, folder)
     if stems is None:
         return None
-    result = dict(version=VERSION, **{name: onsets(stems/f'{name}.wav') for name in STEMS})
+    result = dict(version=VERSION, drums=floor_drum_events(onsets(stems/'drums.wav', kick_only=True)),
+                  bass=onsets(stems/'bass.wav'), other=onsets(stems/'other.wav'))
     target.write_text(json.dumps(result), encoding='utf-8')
     return result
 
 
 def rhythm_for(folder):
+    folder = Path(folder)
     try:
-        return json.loads((Path(folder)/'video.rhythm.json').read_text(encoding='utf-8'))
-    except (OSError, ValueError):
+        cached = json.loads((folder/'video.rhythm.json').read_text(encoding='utf-8'))
+        if cached.get('version') == VERSION:
+            return cached
+        config = json.loads((folder/'config.json').read_text(encoding='utf-8'))
+        return ensure_rhythm(config['audio'], folder)
+    except (OSError, ValueError, KeyError, AttributeError):
         return None
 
 
@@ -144,18 +153,18 @@ def envelope(events, t, decay, window=1.):
     return pulse(events, t, decay, window).level
 
 
-def four_floor_hits(events):
+def four_floor_hits(events, minimum=.55):
     """Indices of strong drum onsets in runs of four near-equally spaced quarter notes."""
-    strong = [i for i, (_, strength) in enumerate(events or ()) if strength >= .55]
+    strong = [i for i, (_, strength) in enumerate(events or ()) if strength >= minimum]
     found = set()
     for position, i in enumerate(strong):
         when = events[i][0]
         earlier = strong[max(0, position-18):position]
         for j in reversed(earlier):
             period = when-events[j][0]
-            if period > .78:
+            if period > .95:
                 break
-            if period < .36:
+            if period < .28:
                 continue
             sequence = [i, j]
             for beat in (2, 3):
@@ -168,3 +177,17 @@ def four_floor_hits(events):
                 found.update(sequence)
                 break
     return frozenset(found)
+
+
+def floor_drum_events(events):
+    """One low-frequency pulse per beat in steady four-on-the-floor runs."""
+    candidates = [events[i] for i in sorted(four_floor_hits(events, minimum=0.))]
+    one_track = []
+    for event in candidates:
+        if one_track and event[0]-one_track[-1][0] < .3:
+            if event[1] > one_track[-1][1]:
+                one_track[-1] = event
+        else:
+            one_track.append(event)
+    return [[one_track[i][0], round(.6+.4*one_track[i][1], 3)]
+            for i in sorted(four_floor_hits(one_track, minimum=0.))]

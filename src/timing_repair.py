@@ -57,6 +57,39 @@ def transcript_timing(lines, heard, min_coverage=.75):
         end = max(start + .08, end)
         output[line_index]['words'].append(dict(text=word, start=round(start, 3), end=round(end, 3)))
         previous = start
-    if collapsed_lines(output):
-        raise ValueError('Transcription still contains collapsed lyric lines; review the timings.')
     return output
+
+
+WORD_SECONDS = .3  # an unhurried sung word, used when the audio gave no usable time
+
+
+def spread_collapsed(data):
+    """Re-time lines neither aligner could place (often backing vocals transcription never heard).
+
+    Each run of consecutive collapsed lines has its words spread evenly over the free time between
+    the line before the run and the line after it, about WORD_SECONDS per word where there is room.
+    Returns the line numbers that changed, so the caller can ask for them to be reviewed.
+    """
+    collapsed = collapsed_lines(data)
+    runs = []
+    for index in collapsed:
+        if runs and runs[-1][-1] == index - 1:
+            runs[-1].append(index)
+        else:
+            runs.append([index])
+    timed = [i for i, line in enumerate(data) if line.get('words')]
+    for run in runs:
+        words = [word for index in run for word in data[index]['words']]
+        before = [i for i in timed if i < run[0]]
+        after = [i for i in timed if i > run[-1]]
+        low = float(data[before[-1]]['words'][-1]['end']) if before else 0.
+        start = max(low, float(words[0]['start']))
+        high = float(data[after[0]]['words'][0]['start']) if after else start + WORD_SECONDS * len(words)
+        # use the time the squeezed words already claim, widened to the free gap around them
+        start = max(low, min(start, high - WORD_SECONDS * len(words)))
+        step = max(.08, (high - start) / len(words)) if high > start else .08
+        step = min(step, WORD_SECONDS * 2)
+        for offset, word in enumerate(words):
+            word['start'] = round(start + step * offset, 3)
+            word['end'] = round(start + step * (offset + .9), 3)
+    return [index for run in runs for index in run]

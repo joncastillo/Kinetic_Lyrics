@@ -5,10 +5,13 @@ from collections import defaultdict
 
 
 def regenerate_prompts(worker,job,config,items):
+    from image_instruction_cleanup import clean_legacy_imported_meaning
+    job=dict(job,image_instructions=clean_legacy_imported_meaning(
+        job.get('image_instructions',config.get('image_instructions',''))))
     from ollama_gpu import gpu_chat,unload_model
     from gpu_models import resolve_prompt_model
     from ollama_service import local_json
-    from subject_director import request_subjects,lengthen_short_subjects
+    from subject_director import request_subjects
     from verse_backgrounds import DIRECTOR_PROMPT, LANGUAGE_RULE, PEOPLE_RULE
     from kinetic_illustrations import image_prompt,subject_kind
     batches=defaultdict(list)
@@ -16,9 +19,9 @@ def regenerate_prompts(worker,job,config,items):
         model=item.get('model') or config.get('ai_model','auto')
         model=resolve_prompt_model(local_json,model)
         image_model=item.get('image_model') or config.get('image_model') or job['model']
-        batches[(model,image_model)].append(item)
+        batches[(model,image_model,item.get('style') or '')].append(item)
     replacements={}
-    for (model,image_model),batch in batches.items():
+    for (model,image_model,style),batch in batches.items():
         worker.emit('subjects',0,message=f'Preparing {len(batch)} replacement prompt(s) with {model}')
         system=(DIRECTOR_PROMPT if job.get('artwork_mode')=='verse' else LANGUAGE_RULE+PEOPLE_RULE+
             'Interpret each lyric group into one fresh English visual scene for an illustrator. '
@@ -54,10 +57,8 @@ def regenerate_prompts(worker,job,config,items):
                 for entry,meaning in zip(inputs,meanings):entry['lyric_meaning']=meaning
                 payload['messages'][1]['content']=json.dumps(inputs)
             attach_gist(payload,gist)
-            subjects=request_subjects(gpu_chat,payload,max_words=550 if job.get('artwork_mode')=='verse' else 180)
-            subjects=lengthen_short_subjects(gpu_chat,payload,subjects,400 if job.get('artwork_mode')=='verse' else 120,
-                                             max_words=550 if job.get('artwork_mode')=='verse' else 180)
-            technique=job.get('style_prompt',config.get('style_prompt',''))
+            subjects=request_subjects(gpu_chat,payload,max_words=240 if job.get('artwork_mode')=='verse' else 180)
+            technique=style or job.get('style_prompt',config.get('style_prompt',''))
             extra=job.get('image_instructions',config.get('image_instructions',''))
             if job.get('main_character'):
                 extra=(casting_rule(job['main_character'])+extra).strip()
@@ -70,6 +71,7 @@ def regenerate_prompts(worker,job,config,items):
             index=item['index'];updated=copy.deepcopy(job)
             updated.setdefault('visual_descriptions',list(job['prompts']))[index]=subject
             updated['prompts'][index]=prompt
+            if style:updated['style_prompt']=style
             if meanings:
                 updated.setdefault('lyric_meanings',['']*len(job['groups']))[index]=meanings[indices.index(index)]
             updated['prompt_model']=model

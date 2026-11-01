@@ -311,9 +311,15 @@ class SceneMix:
             if handover is None or not handover['glide'][0] <= t < handover['glide'][1]:
                 continue
             u = (t-handover['glide'][0])/TRAVEL
-            span = self.c.width*(1-OVERLAP)
-            image = stitch(self.engine(handover['number']).frame(t), self.engine(handover['number']+1).frame(t),
-                           span*ease(u), span)
+            outgoing = self.engine(handover['number']).frame(t)
+            incoming = self.engine(handover['number']+1).frame(t)
+            if self.c.artwork_mode in ('fullscreen', 'verse'):
+                # Both scenes paint the same artwork at this moment: sliding would carry the painting into
+                # itself. The painting holds still and only the lyrics cross over.
+                image = Image.blend(outgoing.convert('RGB'), incoming.convert('RGB'), ease(u))
+            else:
+                span = self.c.width*(1-OVERLAP)
+                image = stitch(outgoing, incoming, span*ease(u), span)
             break
         if image is None:
             image = self.engine(number).frame(t)

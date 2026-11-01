@@ -23,13 +23,26 @@ def completed_artwork(data,folder,args):
     if job.get('line_groups') is not None:
         from song_structure import valid_line_groups
         indices=job['line_groups']
-        if not valid_line_groups(indices,len(data)) or [' / '.join(data[i]['text'] for i in group) for group in indices]!=groups:
-            raise ValueError('Saved section-aware artwork does not match the lyric lines')
+        if not valid_line_groups(indices,len(data)) or len(indices)!=len(groups):
+            raise ValueError('Saved section-aware artwork does not match the lyric lines. Lines were added or removed; resume from Prompts.')
         line_count=max(map(len,indices))
     else:
-        line_count=next((n for n in range(1,len(data)+1)
-            if [' / '.join(line['text'] for line in data[i:i+n]) for i in range(0,len(data),n)]==groups),None)
-    if line_count is None:raise ValueError('Saved artwork does not match these lyric lines. Resume from Prompts for changed lyrics.')
+        indices=None
+        for n in range(1,len(data)+1):
+            if [' / '.join(line['text'] for line in data[i:i+n]) for i in range(0,len(data),n)]==groups:
+                indices=[list(range(i,min(i+n,len(data)))) for i in range(0,len(data),n)];break
+        if indices is None:
+            # Wording edits keep the line layout: match on group shape instead of text.
+            indices=next(([list(range(i,min(i+n,len(data)))) for i in range(0,len(data),n)] for n in range(1,len(data)+1)
+                if len(range(0,len(data),n))==len(groups)
+                and all(len(g.split(' / '))==min(n,len(data)-i) for g,i in zip(groups,range(0,len(data),n)))),None)
+        line_count=max(map(len,indices)) if indices else None
+    if line_count is None:raise ValueError('Saved artwork does not match these lyric lines. Lines were added or removed; resume from Prompts.')
+    current=[' / '.join(data[i]['text'] for i in group) for group in indices]
+    if current!=groups:
+        changed=sum(a!=b for a,b in zip(current,groups))
+        job['groups']=current;manifest.write_text(json.dumps(job,ensure_ascii=False,indent=2),encoding='utf-8')
+        print(f'Lyric wording changed in {changed} artwork group{"s" if changed!=1 else ""}; keeping the saved images and updating their lyric text.',flush=True)
     args.image_seed=job['seed'];args.illustration_lines=line_count
     print(f'Resuming {config["start_step"]}: reusing all {len(paths)} saved images; image generation is skipped.',flush=True)
     return paths

@@ -12,6 +12,11 @@ from song_structure import sections_for
 
 COLORS = ((255, 210, 84), (69, 208, 255), (255, 87, 159), (173, 135, 255), (244, 246, 255))
 PARTICLE_LIFE = 2.15
+# Pairs of corners the spotlights shine from, in turn: top, bottom, and the two diagonals.
+LAYOUTS = (('tl', 'tr'), ('bl', 'br'), ('tl', 'br'), ('bl', 'tr'))
+BAR = 4  # kicks per change of corners
+LAYOUT_SECONDS = 3.  # change of corners when a chorus has no drums
+LAYOUT_FADE = .35  # seconds the lights cross-fade between pairs
 
 
 def motif_for(text):
@@ -70,10 +75,14 @@ class ChorusFX:
         width, height = frame.size
         drum = pulse(self.drums, t, .23).level
         entrance = math.exp(-(t-window[0])*2.8)
-        energy = self.strength*(.25+.75*max(drum, entrance))
+        energy = self.strength*(.35+.65*max(drum, entrance))
         result = frame.convert('RGBA')
         if energy > .03:
-            result.alpha_composite(self.lights((width, height), t, energy))
+            # The lights move to another pair of corners every bar, cross-fading from the pair before.
+            layout, previous, mix = self.layout_at(window, t)
+            if mix < 1 and previous != layout:
+                result.alpha_composite(self.lights((width, height), t, energy*(1-mix), previous))
+            result.alpha_composite(self.lights((width, height), t, energy*(mix if previous != layout else 1.), layout))
         confetti = Image.new('RGBA', (width, height))
         draw = ImageDraw.Draw(confetti)
         end = bisect.bisect_right(self.times, t)
@@ -92,21 +101,48 @@ class ChorusFX:
         result.alpha_composite(confetti)
         return result
 
+    def layout_at(self, window, t):
+        """(pair of corners now, pair before, cross-fade 0..1) for the chorus that opened at window[0]. The pair
+        changes every BAR drum hits (a bar of four kicks), or every LAYOUT_SECONDS when the chorus has no drums."""
+        start, end = window
+        kicks = [when for when, _ in self.drums if start <= when < end]
+        if kicks:
+            changes = [kicks[k] for k in range(BAR, len(kicks), BAR)]
+        else:
+            changes = [start+k*LAYOUT_SECONDS for k in range(1, int((end-start)/LAYOUT_SECONDS)+1)]
+        number = bisect.bisect_right(changes, t)
+        offset = int(start*7) % len(LAYOUTS)  # each chorus opens on a different pair
+        layout = LAYOUTS[(number+offset) % len(LAYOUTS)]
+        if number == 0:
+            return layout, layout, 1.
+        previous = LAYOUTS[(number-1+offset) % len(LAYOUTS)]
+        mix = min(1., (t-changes[number-1])/LAYOUT_FADE)
+        return layout, previous, mix*mix*(3-2*mix)
+
     @staticmethod
-    def lights(size, t, energy):
+    def lights(size, t, energy, layout=('tl', 'tr')):
+        """Two coloured spotlight beams with soft glows, from the corners in `layout`, angled across the frame."""
         width, height = size
         small = (max(1, width//4), max(1, height//4))
-        light = Image.new('RGBA', small)
-        draw = ImageDraw.Draw(light)
         w, h = small
+        result = Image.new('RGBA', small)
         sway = math.sin(t*1.7)*w*.11
-        alpha = round(58*energy)
-        draw.polygon(((0, 0), (w*.24, 0), (w*.68+sway, h)), fill=(73, 202, 255, alpha))
-        draw.polygon(((w, 0), (w*.76, 0), (w*.32-sway, h)), fill=(255, 83, 158, alpha))
-        r = w*.19
-        for cx, color in ((w*.09, (76, 205, 255)), (w*.91, (255, 201, 89))):
-            draw.ellipse((cx-r, -r*.7, cx+r, r*1.3), fill=(*color, round(96*energy)))
-        return light.filter(ImageFilter.GaussianBlur(max(2, round(w*.025)))).resize(size, Image.Resampling.BILINEAR)
+        alpha = round(min(255, 92*energy))
+        glow = round(min(255, 145*energy))
+        r = w*.22
+        for corner, (beam, halo) in zip(layout, ((((73, 202, 255), (76, 205, 255))), ((255, 83, 158), (255, 201, 89)))):
+            # Drawn from the top-left corner, then flipped into place.
+            light = Image.new('RGBA', small)
+            draw = ImageDraw.Draw(light)
+            lean = sway if corner in ('tl', 'br') else -sway
+            draw.polygon(((0, 0), (w*.29, 0), (w*.72+lean, h), (w*.6+lean, h)), fill=(*beam, alpha))
+            draw.ellipse((w*.09-r, -r*.7, w*.09+r, r*1.3), fill=(*halo, glow))
+            if corner[0] == 'b':
+                light = light.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+            if corner[1] == 'r':
+                light = light.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+            result.alpha_composite(light)
+        return result.filter(ImageFilter.GaussianBlur(max(2, round(w*.025)))).resize(size, Image.Resampling.BILINEAR)
 
     @staticmethod
     def paint_burst(draw, width, height, age, seed, count, strength, motif):

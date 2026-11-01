@@ -78,6 +78,14 @@ def vision_review(image, model, lyrics, prompt, subject="", threshold=DEFAULT_TH
         'Inspect each visible hand separately for six or more digits, fused fingers, impossible '
         'joint directions, twisted wrists, disconnected fingers, duplicated limbs and malformed appendages; '
         'anatomical continuity, faces, accidental lettering, cropping and relevance to the lyric meaning. '
+        'FIGURE CHECKS: for every visible person add one figure_checks entry. Count the arms and legs you can see. '
+        'Check that each limb starts at a plausible shoulder or hip, has a believable length, bends only at real joints '
+        'and in natural directions (no backward knees or elbows), ends in one hand or foot, and does not merge into '
+        'another limb, body or object, split, twist impossibly or vanish where nothing covers it. A limb hidden behind '
+        'something, or cropped by the frame, is fine. Set limbs_correct false only for a visible limb defect. '
+        'Record the apparent gender and whether the face shows any moustache, beard, stubble or other facial hair. '
+        'A woman or female-presenting figure with any facial hair is a severe defect. Use empty figure_checks when no '
+        'people are visible, and mark a figure uncertain when it is too small or obscured to judge. '
         'Check believable object construction and physical relationships, not anatomy alone. '
         'Inspect lamp posts and fixtures: light heads should have plausible mounts and recognizable construction; '
         'flag an unexplained light embedded halfway through a pole or disconnected from its fixture. '
@@ -134,8 +142,15 @@ def vision_review(image, model, lyrics, prompt, subject="", threshold=DEFAULT_TH
         hand_checks=dict(type='array',items=dict(type='object',properties=dict(
             hand=dict(type='string'),visible_fingers=dict(type=['integer','null']),
             assessment=dict(type='string'),uncertain=dict(type='boolean')),
-            required=['hand','visible_fingers','assessment','uncertain']))),
-        required=['summary','score','issues','uncertain','hand_checks'])
+            required=['hand','visible_fingers','assessment','uncertain'])),
+        figure_checks=dict(type='array',items=dict(type='object',properties=dict(
+            figure=dict(type='string'),apparent_gender=dict(type='string',enum=['female','male','unclear']),
+            facial_hair=dict(type='boolean'),visible_arms=dict(type=['integer','null']),
+            visible_legs=dict(type=['integer','null']),limbs_correct=dict(type='boolean'),
+            assessment=dict(type='string'),uncertain=dict(type='boolean')),
+            required=['figure','apparent_gender','facial_hair','visible_arms','visible_legs','limbs_correct',
+                      'assessment','uncertain']))),
+        required=['summary','score','issues','uncertain','hand_checks','figure_checks'])
     payload = dict(model=model, stream=False, keep_alive="30m", think=False, format=schema,
                    options=dict(temperature=.1,num_ctx=8192,num_predict=2200),
                    messages=[dict(role='user', content=instruction,
@@ -153,11 +168,11 @@ def vision_review(image, model, lyrics, prompt, subject="", threshold=DEFAULT_TH
     result['threshold']=threshold
     result['rejected']=rejected(result,threshold)
     result['verdict']='rejected' if result['rejected'] else 'accepted'
-    return dict(**result, model=model, review_policy_version=2, advisory=True, image=str(image), image_sha256=fingerprint, reviewed_at=time.time())
+    return dict(**result, model=model, review_policy_version=3, advisory=True, image=str(image), image_sha256=fingerprint, reviewed_at=time.time())
 
 
 
-def generate_candidate(root, job, index, cache, prompt, image_model=None):
+def generate_candidate(root, job, index, cache, prompt, image_model=None, steps=None):
     from kinetic_illustrations import run_job
     candidate_job=copy.deepcopy(job)
     folder=root/'candidates'/f'{index:03d}'/str(time.time_ns())
@@ -170,6 +185,9 @@ def generate_candidate(root, job, index, cache, prompt, image_model=None):
     config=json.loads(config_path.read_text(encoding='utf-8')) if config_path.is_file() else {}
     model=selected_model(job,dict(config,image_model=image_model) if image_model else config)
     if model!=job['model']:candidate_job.update(model=model,steps=model_spec(model)['steps'])
+    # The Inference steps setting, not the step count the saved artwork was first made with.
+    wanted=steps or (config.get('steps') if model==config.get('image_model') else None)
+    if wanted:candidate_job['steps']=max(1,min(150,int(wanted)))
     if prompt.strip():candidate_job['prompts'][0]=prompt.strip()
     manifest=folder/'illustrations.json'
     manifest.write_text(json.dumps(candidate_job,indent=2),encoding='utf-8')
@@ -219,6 +237,7 @@ def main():
     parser.add_argument('folder', type=Path)
     parser.add_argument('--index', type=int, default=0)
     parser.add_argument('--prompt', default='')
+    parser.add_argument('--style', default='')
     parser.add_argument('--model', default='')
     parser.add_argument('--candidate', type=Path)
     parser.add_argument('--expected-sha', default='')
@@ -236,6 +255,8 @@ def main():
         items=json.loads(args.batch.read_text(encoding='utf-8')) if args.batch else [dict(
             index=args.index,model=args.model,prompt=args.prompt,expected_sha=args.expected_sha,
             candidate=str(args.candidate) if args.candidate else None)]
+        if args.action=='verify' and args.prompt.strip() and not args.batch:
+            items[0].update(user_prompt=args.prompt.strip(),**({'style':args.style.strip()} if args.style.strip() else {}))
         if not isinstance(items,list) or any(not isinstance(item,dict) or type(item.get('index')) is not int or not 0<=item['index']<len(job['prompts']) for item in items):
             raise ValueError('Invalid batch illustration indices')
         with ModelSession([config.get('vision_model'), *(item.get('model') for item in items)]):
@@ -264,6 +285,7 @@ def main():
             entrance_effect=config.get('entrance_effect'), exit_effect=config.get('exit_effect'),
             type_effect=config.get('type_effect','none'), particle_intensity=config.get('particle_intensity',1.), particle_speed=config.get('particle_speed',1.),
             stage_pictures=config.get('stage_pictures','ai-painted'), ai_model=config.get('ai_model','auto'), image_model=config.get('image_model'),
+            image_steps=config.get('steps'),  # small typography pictures follow the Inference steps setting too
             image_cache=config.get('image_cache'), style_prompt=config.get('style_prompt',''))
         if args.action == 'rerender':
             updated = args.folder/'rerendered.mp4'

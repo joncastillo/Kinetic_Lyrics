@@ -50,9 +50,10 @@ def generate_pending(worker,root,job,config,items):
             return completed
         refit_prompts(job,config,images)
         item=images.pop(0);index=item['index'];planned=item.get('planned_job',job)
+        if item.get('style') and 'planned_job' not in item:planned=dict(planned,style_prompt=item['style'])
         prompt=planned['prompts'][index] if 'planned_job' in item else item.get('prompt','')
         worker.emit('image-start',0,message=f'Generating replacement for illustration {index+1}',index=index)
-        candidate=worker.generate_candidate(root,planned,index,Path(config['image_cache']),prompt,item.get('image_model'))
+        candidate=worker.generate_candidate(root,planned,index,Path(config['image_cache']),prompt,item.get('image_model'),item.get('steps'))
         completed.append(dict(index=index,path=str(candidate),request_id=item.get('request_id')))
         worker.emit('candidate',1,message=f'New candidate ready for illustration {index+1}',artifact=str(candidate),index=index)
         add(claim_queue(worker,root))
@@ -68,14 +69,13 @@ def refit_prompts(job,config,images):
         if 'planned_job' in item or item.get('fitted'):continue
         model=selected_model(job,dict(config,image_model=item['image_model']) if item.get('image_model') else config)
         if over_budget(item.get('prompt','').strip() or job['prompts'][item['index']],model):
-            batches.setdefault(model,[]).append(item)
+            batches.setdefault((model,item.get('style') or job.get('style_prompt',config.get('style_prompt',''))),[]).append(item)
     if not batches:return
     from model_lifecycle import current_session
     session=current_session()
     if session:session.release()
-    for model,long in batches.items():
-        fitted=refit([item.get('prompt','').strip() or job['prompts'][item['index']] for item in long],model,config,
-                     job.get('style_prompt',config.get('style_prompt','')))
+    for (model,style),long in batches.items():
+        fitted=refit([item.get('prompt','').strip() or job['prompts'][item['index']] for item in long],model,config,style)
         for item,prompt in zip(long,fitted):item.update(prompt=prompt,fitted=True)
 
 

@@ -188,31 +188,7 @@ def choose_lyrics(track, candidates, request=None, model=None):
     return (candidates[selected] if scores[selected] >= 45 else None), scores
 
 
-def song_interpretation(lyrics, request=None, model='auto'):
-    """The song's non-literal meaning from its full lyrics, to prefill the Special instructions for image prompts.
-    An empty string when no text model can answer; the import itself never fails over it."""
-    if not lyrics.strip():
-        return ''
-    from ollama_gpu import gpu_chat, unload_model
-    from ollama_service import local_json
-    resolved, already_loaded = None, True
-    try:
-        from gpu_models import resolve_prompt_model
-        resolved = resolve_prompt_model(local_json, model or 'auto')
-        # A running job may be prompting with this very model; only unload it afterwards if the import loaded it.
-        already_loaded = any(item.get('name') == resolved for item in local_json('ps').get('models', []))
-        from song_gist import song_gist
-        return song_gist(request or gpu_chat, resolved, [line for line in lyrics.splitlines() if line.strip()]).strip()
-    except (OSError, ValueError, TypeError, KeyError, IndexError) as exc:
-        print(f'Warning: the song interpretation could not be written: {exc}', flush=True)
-        return ''
-    finally:
-        if resolved and not already_loaded:
-            try:unload_model(resolved)
-            except (OSError, ValueError):pass
-
-
-def import_youtube(value, library, session=None, request=None, model=None, downloader=None, prompt_model='auto'):
+def import_youtube(value, library, session=None, request=None, model=None, downloader=None):
     from profile_audio import store_profile_audio
 
     library = Path(library)
@@ -222,8 +198,7 @@ def import_youtube(value, library, session=None, request=None, model=None, downl
         candidates = lyric_candidates(track, session)
         best, scores = choose_lyrics(track, candidates, request, model) if candidates else (None, [])
         saved = store_profile_audio(library, track['title']+'.wav', path.read_bytes(), {'.wav'})
-    interpretation = song_interpretation(best['lyrics'], request, prompt_model) if best else ''
-    return dict(audio_path=str(saved), interpretation=interpretation, audio_name=re.sub(r'[\\/:*?"<>|]', '_', track['title'])+'.wav',
+    return dict(audio_path=str(saved), audio_name=re.sub(r'[\\/:*?"<>|]', '_', track['title'])+'.wav',
                 lyrics=best['lyrics'] if best else '', lyrics_source=best['source'] if best else '',
                 candidates=[dict(source=item['source'], title=item['title'], artist=item['artist'],
                                  score=scores[i], url=item['url']) for i, item in enumerate(candidates)],

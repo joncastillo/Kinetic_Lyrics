@@ -108,6 +108,8 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
                 style_prompt=STYLE_PROMPT, director_model='auto', lookup_only=False,
                 width=1920, height=1080, cinematic=False, artwork_mode="cutout", image_instructions='',
                 reference_use='style', vision_model=''):
+    from image_instruction_cleanup import clean_legacy_imported_meaning
+    image_instructions = clean_legacy_imported_meaning(image_instructions)
     if steps is None:steps=model_spec(model)['steps']
     from kinetic_director import local_json
     from song_structure import analyze,grouped_lines,group_contexts
@@ -192,7 +194,7 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
                  for group, layout in zip(groups, layouts)]))])
     if character:
         payload['messages'][0]['content'] += ' '+casting_rule(character)
-    from subject_director import request_subjects, repair_duplicate_subjects, lengthen_short_subjects
+    from subject_director import request_subjects, repair_duplicate_subjects
     from ollama_gpu import gpu_chat, unload_model
     reference_images = bool(references) and model_spec(model)['references']
     meanings = []
@@ -249,12 +251,10 @@ def prepare_job(data, folder, line_count, model=MODEL, references=None, steps=No
         from kinetic_progress import counted
         subjects = checkpoint.get('scenes')
         if not subjects or len(subjects) != len(groups):
-            subjects = request_subjects(gpu_chat, payload, max_words=550 if artwork_mode == 'verse' else 180,
+            subjects = request_subjects(gpu_chat, payload, max_words=240 if artwork_mode == 'verse' else 180,
                                         progress=counted('scenes', 0, .6, 'Writing the scene for lyric group',
                                                          names=groups))
             subjects = repair_duplicate_subjects(gpu_chat, payload, subjects)
-            subjects = lengthen_short_subjects(gpu_chat, payload, subjects, 400 if artwork_mode == 'verse' else 120,
-                                               max_words=550 if artwork_mode == 'verse' else 180)
             checkpoint.save('scenes', subjects)
         prompts = [image_prompt(subject, layout, style_prompt, reference_images, likeness)
                    + (' Additional image direction: '+image_instructions if image_instructions else '')
@@ -596,6 +596,13 @@ def _run_job(manifest, cache):
         except (OSError, ValueError):pass
     free, total = gpu_memory.dedicated_memory(torch)
     print(f'GPU memory before image model: {free/2**30:.1f} GiB free / {total/2**30:.1f} GiB total.', flush=True)
+    try:
+        import psutil
+        ram = psutil.virtual_memory()
+        print(f'System memory before image model: {ram.available/2**30:.1f} GiB free / {ram.total/2**30:.1f} GiB RAM, '
+              f'{psutil.swap_memory().free/2**30:.1f} GiB page file free.', flush=True)
+    except Exception:
+        pass
     emit('model', 0, message='Loading image model; first use may download weights')
     from model_lifecycle import current_session
     model_session = current_session()
