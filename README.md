@@ -10,6 +10,7 @@ GPU. The aim is to reach the kind of rich, hand-crafted motion type that designe
 build by hand in tools such as Adobe After Effects.
 
 [![This is a video made with Kinetic Lyrics on YouTube](https://img.youtube.com/vi/KnIPPDcqwNk/hqdefault.jpg)](https://youtu.be/KnIPPDcqwNk)
+
 This is a video made with Kinetic Lyrics on YouTube
 
 ## AI Pipeline
