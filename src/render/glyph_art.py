@@ -206,7 +206,7 @@ def library_frames(kind):
 
 def image_pose(motion, t, beat):
     """How a single painted cutout moves: drifting, bobbing, spinning, pulsing on the beat, swaying,
-    flickering like a flame or twinkling like a star."""
+    flickering like a flame, twinkling like a star or falling like a raindrop. Positive dy is up on the 3D stage."""
     pose = dict(dx=0., dy=0., dz=0., scale=1., angle=0., alpha=1.)
     if motion == 'drift':
         pose.update(dx=.12*math.sin(t*.6), dy=.05*math.sin(t*.9), dz=.1*math.sin(t*.4))
@@ -221,6 +221,9 @@ def image_pose(motion, t, beat):
         pose.update(scale=1+flicker, angle=math.sin(t*3.3)*4, alpha=.9+flicker)
     elif motion == 'twinkle':
         pose.update(scale=.88+.16*abs(math.sin(t*2.4)), angle=math.sin(t*.9)*10)
+    elif motion == 'fall':  # drops from above, fading in and out, then falls again
+        phase = (t/2.8) % 1
+        pose.update(dy=.16-.32*phase, alpha=max(0., min(1., phase/.15, (1-phase)/.25)), angle=math.sin(t*.7)*3)
     else:
         pose.update(dy=.07*math.sin(t*1.8), angle=math.sin(t*1.1)*4)
     return pose
@@ -261,6 +264,15 @@ def cutout(path):
         substantial = substantial[substantial != 0]
         keep = binary_dilation(np.isin(components, substantial), iterations=2)
         pixels[..., 3] = np.where(keep, pixels[..., 3], 0)
+        # Image models paint floor shadows despite being asked not to. A separate, flat piece lying wholly below
+        # the subject is that shadow, and would float under the picture as a grey smudge.
+        sizes[0] = 0
+        rows = np.flatnonzero((components == sizes.argmax()).any(axis=1))
+        bottom, height = rows.max(), rows.max()-rows.min()+1
+        for piece in substantial:
+            piece_rows = np.flatnonzero((components == piece).any(axis=1))
+            if piece != sizes.argmax() and piece_rows.min() >= bottom-height*.02 and piece_rows.size < height*.18:
+                pixels[..., 3] = np.where(binary_dilation(components == piece, iterations=2), 0, pixels[..., 3])
     image = Image.fromarray(pixels, 'RGBA')
     bounds = image.getchannel('A').getbbox()
     if bounds:

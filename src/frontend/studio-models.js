@@ -43,6 +43,7 @@ function applyGpuPreset(preset,catalog){
  const gpu=preset.gpu_name?`${preset.gpu_name} · ${preset.available_gib} GiB usable. `:'';
  showModelPlan(gpu+`${preset.ai_model} → ${image?.name||preset.image_model} → ${preset.vision_model}. `+(!$('autoVerify').checked?'Validation is off. Image generation can use the full GPU budget. ':preset.co_resident===true?'Image and validation weights can stay resident together. ':'Generation and validation switch only after each full batch. ')+(missing.length?'Missing models will download automatically. ':''));
  scheduleModelDownloads();
+ renderProductionStages(state);
  gallerySignature='';if(state)renderGallery(state);
 }
 function setupModelControls(cfg){
@@ -63,7 +64,7 @@ function setupModelControls(cfg){
  $('cache').addEventListener('change',scheduleModelDownloads);
  $('aiModel').addEventListener('change',()=>{$('gpuPreset').value='';scheduleModelDownloads()});
  $('visionModel').addEventListener('change',()=>{$('gpuPreset').value='';scheduleModelDownloads()});
- $('imageModel').addEventListener('change',()=>{$('gpuPreset').value='';scheduleModelDownloads()});
+ $('imageModel').addEventListener('change',()=>{$('gpuPreset').value='';scheduleModelDownloads();renderProductionStages(state)});
  if($('rollSeed')){
   $('rollSeed').onclick=()=>{
    $('imageSeed').value=Math.floor(Math.random()*2147483647);
@@ -79,7 +80,7 @@ function setupModelControls(cfg){
   $('randomizeSeed').onchange=()=>{
    if($('randomizeSeed').checked){
     $('imageSeed').value='';
-    $('imageSeed').placeholder='Random (fresh per run)';
+    $('imageSeed').placeholder='Random per image';
    }else if(!$('imageSeed').value.trim()){
     $('imageSeed').value=Math.floor(Math.random()*2147483647);
    }
@@ -222,16 +223,121 @@ function refreshProjectPipelineLive(s){
 
 
 function renderProductionStages(s=null){
- const host=$('stages');host.replaceChildren();
- const current=s?.status==='complete'?stages.length:stages.indexOf(s?.stage);
- stages.forEach((name,index)=>{
+ // Built off-page and swapped in only when it changed: a running job polls about once a second, and rebuilding
+ // every time would throw away the element under the pointer mid-click.
+ const shown=$('stages'),host=document.createElement('div');
+ const saved=s?.production_models;
+ const image=saved?.image||$('imageModel').value;
+ const prompt=saved?.prompt||$('aiModel').value;
+ const asr=saved?.asr||$('asrModel').value;
+ const alignment=saved?.alignment||$('alignmentModel').value;
+ const vision=saved?saved.vision:($('autoVerify').checked?$('visionModel').value:'');
+ const encoder=saved?.encoder||$('encoder').value;
+ const imageName=saved?(imageModels.find(m=>m.id===image)?.name||image):($('imageModel').selectedOptions[0]?.textContent||image||'Choose image model');
+ const asrName=saved?(audioModels.find(m=>m.id===asr)?.name||asr):($('asrModel').selectedOptions[0]?.textContent||asr);
+ const promptName=!prompt||prompt==='auto'?'Auto text model':prompt;
+ const reviewName=saved?(vision||'Off'):($('autoVerify').checked?(vision||'Choose vision model'):'Off');
+ const castName=saved?promptName:($('castReference')?.checked&&$('visionModel').value?$('visionModel').value+' · '+promptName:promptName);
+ const layout=saved?.artwork_mode||$('artworkMode')?.value||'cutout';
+ const pictureMode=saved?.stage_pictures||$('stagePictures')?.value||'ai-painted';
+ const pictureName={'ai-painted':'AI · '+imageName.replace(/^Used · /,''),'ai-library':'AI · library pictures','keywords':'Keyword matches','off':'Off'}[pictureMode]||pictureMode;
+ const labels={pictures:pictureName,alignment:[asrName,alignment==='auto'?'Auto timing':alignment].filter(Boolean).join(' · '),song:castName,meanings:promptName,scenes:promptName,fit:promptName+' → '+imageName,model:saved?'Used · '+imageName:imageName,illustrations:saved?'Used · '+imageName:imageName,cutouts:'BiRefNet General',review:reviewName,direction:promptName,render:encoder||'H.264'};
+ const audio=saved?.audio||$('audio').files[0]?.name||'No audio selected';
+ const profile=saved?saved.profile||'Not recorded':localStorage.getItem('lyricStudioProfilesV1Active')||'No saved profile';
+ const selectedImage=$('imageModel').selectedOptions[0]?.textContent||'Choose image model';
+ $('headerAudio').textContent='Audio · '+audio;$('headerAudio').title=audio;
+ $('headerProfile').textContent='Profile · '+profile;$('headerProfile').title=profile;
+ $('headerSelectedImage').textContent='Selected image · '+selectedImage;$('headerSelectedImage').title='Selected image model: '+selectedImage;
+ // Older runs and single-image prompt rewrites report all prompt work as 'subjects'.
+ const stageName=s?.stage==='subjects'?'song':s?.stage;
+ const current=s?.status==='complete'?stages.length:stages.indexOf(stageName);
+ const startSelect=$('startStep'),substep=$('startSubstep');
+ // Only a run that is actually going highlights its sub-step; a cancelled or failed run leaves it plain.
+ const live=['running','queued'].includes(s?.status)&&!s?.action;
+ window.headerProgress={current,hasJob:!!jobId,running:!!s?.action||['running','queued'].includes(s?.status),
+  queued:s?.status==='queued',stage:stageName};
+ PIPELINE_STEPS.forEach((step,index)=>{
   if(index){const arrow=node('span','stage-arrow','->');arrow.setAttribute('aria-hidden','true');host.append(arrow)}
-  const pill=node('span','stage',name[0].toUpperCase()+name.slice(1));
-  pill.setAttribute('role','listitem');
-  if(index<current)pill.classList.add('done');
-  else if(name===s?.stage){pill.classList.add('active');pill.setAttribute('aria-current','step')}
+  const option=startSelect?.querySelector(`option[value="${step.value}"]`);
+  const pill=node('button','stage');pill.type='button';pill.dataset.step=step.value;
+  pill.append(node('span','stage-name',`${index+1}. ${step.name}`));
+  const parts=node('span','stage-parts');
+  step.stages.forEach((name,i)=>{
+   if(i){const arrow=node('span','stage-arrow','→');arrow.setAttribute('aria-hidden','true');parts.append(arrow)}
+   const part=node('span','stage-part');
+   part.append(node('span','stage-part-name',stageTitle(name)),node('span','stage-model',labels[name]));
+   if(saved&&$('imageModel').value&&$('imageModel').value!==image&&['model','illustrations'].includes(name)){
+    part.append(node('span','stage-selected','Selected · '+selectedImage));
+   }
+   if(name==='cutouts'&&layout!=='cutout'){part.classList.add('skipped');part.querySelector('.stage-model').textContent='Skipped · full-frame artwork'}
+   else if(name===stageName&&live)part.classList.add('active');
+   else if(stages.indexOf(name)<current)part.classList.add('done');
+   // Prompt sub-steps can be restarted from once everything before them is saved.
+   if(step.value==='prompts'&&(window.promptSubsteps||[]).includes(name)&&option&&!option.disabled){
+    part.classList.add('choosable');part.setAttribute('role','button');
+    if(startSelect.value==='prompts'&&(substep.value||'song')===name)part.classList.add('selected');
+    part.title=`Start the next generation at Prompts › ${stageTitle(name)}, reusing the saved prompting work before it.`;
+    part.onclick=event=>{
+     event.stopPropagation();
+     const chosen=startSelect.value==='prompts'&&(substep.value||'song')===name;
+     startSelect.value=chosen?'beginning':'prompts';startSelect.dispatchEvent(new Event('change',{bubbles:true}));
+     substep.value=chosen||name==='song'?'':name;renderProductionStages(s);
+    };
+   }else{
+    part.title=step.value==='prompts'?`${stageTitle(name)} can be chosen once the prompting work before it has been saved by a run.`:
+     step.value==='images'?`${step.name} runs as one step: each image is generated, then cut out. Click to start at ${step.name}.`:
+     step.value==='render'?`Starting at ${step.name} reuses the saved typography plan and renders again.`:
+     `Click to start at ${step.name}.`;
+   }
+   parts.append(part);
+  });
+  pill.append(parts);
+  const models=[...new Set(step.stages.map(name=>labels[name]))].join(' · ');
+  const indices=step.stages.map(name=>stages.indexOf(name));
+  if(Math.max(...indices)<current)pill.classList.add('done');
+  else if(step.stages.includes(stageName)&&live){pill.classList.add('active');pill.setAttribute('aria-current','step')}
+  const available=option&&!option.disabled;
+  pill.setAttribute('aria-disabled',String(!available));if(!available)pill.classList.add('unavailable');
+  if(startSelect?.value===step.value)pill.classList.add('selected');
+  pill.setAttribute('aria-pressed',String(startSelect?.value===step.value));
+  pill.title=`${step.name}: ${step.stages.map(stageTitle).join(', ')} · ${models}
+`+(available?`Click to start the next generation at ${step.name}.`:`${step.name} needs earlier steps finished first.`);
+  pill.onclick=()=>{if(!startSelect||!available)return;startSelect.value=startSelect.value===step.value?'beginning':step.value;startSelect.dispatchEvent(new Event('change',{bubbles:true}));renderProductionStages(s)};
   host.append(pill);
  });
+ if(host.innerHTML!==shown.innerHTML)shown.replaceChildren(...host.childNodes);
+ syncStartAtStage();
+}
+const PIPELINE_STEPS=[
+ {value:'timing',name:'Timing',stages:['alignment']},
+ {value:'prompts',name:'Prompts',stages:['song','meanings','scenes','fit']},
+ {value:'images',name:'Images',stages:['model','illustrations','cutouts']},
+ {value:'review',name:'Review',stages:['review']},
+ {value:'render',name:'Video',stages:['direction','pictures','render']}];
+const stageTitle=name=>name[0].toUpperCase()+name.slice(1);
+function syncStartAtStage(){
+ const button=$('startAtStage'),select=$('startStep');if(!button||!select)return;
+ const step=PIPELINE_STEPS.find(step=>step.value===select.value);
+ const sub=step?.value==='prompts'?$('startSubstep')?.value||'':'';
+ const name=step?step.name+(sub?' › '+stageTitle(sub):''):'';
+ const progress=window.headerProgress||{};
+ // Starting where the last run stopped, or at a step it never reached, picks up its work: resume.
+ const position=step?stages.indexOf(sub||step.stages[0]):0;
+ const resume=!!step&&progress.hasJob&&progress.current>=0&&progress.current<stages.length&&position>=progress.current;
+ let label,kind,help;
+ if(!progress.hasJob){label='Start new generation';kind='';help='Start a new generation from the beginning.'}
+ else if(resume){label='Resume from '+name;kind='resume';help=`Continue from ${name}, where the last run stopped, keeping everything it finished.`}
+ else if(!step||step.value==='timing'){label='Clear and Regenerate';kind='regenerate';help=step?'Redo everything from word timing; existing artwork is replaced.':'Start over in a new session with these settings.'}
+ else{label='Regenerate from '+name;kind='regenerate';help=`Redo ${name} and every step after it; earlier steps are reused.`}
+ if(progress.running){
+  const stage=stages.includes(progress.stage)?stageTitle(progress.stage):'';
+  label=progress.queued?'Queued':'Running';kind='running';help=`A run is in progress${stage?' ('+stage+')':''}; cancel it to start another.`;
+ }
+ const spinner=node('span','busy-spinner');spinner.setAttribute('aria-hidden','true');
+ button.replaceChildren(...(kind==='running'?[spinner,label]:[label+' ↗']));button.title=help;
+ button.setAttribute('aria-busy',String(kind==='running'));
+ for(const name of ['resume','regenerate','running'])button.classList.toggle(name,kind===name);
+ button.disabled=kind==='running'||$('generate').disabled;
 }
 function renderProductionHeader(s){
  renderReplacementQueue(s);
@@ -270,8 +376,8 @@ function renderReplacementQueue(s){
   entries.set(index,{label:ready?'Choose replacement':'Review replacement',kind:'review'});
  }
  for(const q of queued)entries.set(q.index,{label:q.action==='reprompt'?'Prompt queued':'Queued',kind:'queued'});
- if(['verify','repair'].includes(s?.action)&&['subjects','model','illustrations','cutouts','repair'].includes(s?.action_stage)){
-  for(const index of waiting)entries.set(index,{label:s.action_stage==='subjects'?'Revising prompt':'Repair in progress',kind:'active'});
+ if(['verify','repair'].includes(s?.action)&&['subjects','song','meanings','scenes','fit','model','illustrations','cutouts','repair'].includes(s?.action_stage)){
+  for(const index of waiting)entries.set(index,{label:['subjects','song','meanings','scenes','fit'].includes(s.action_stage)?'Revising prompt':'Repair in progress',kind:'active'});
  }
  for(const index of active)entries.set(index,{label:'Generating',kind:'active'});
  host.replaceChildren();host.hidden=!entries.size;if(!entries.size)return;
@@ -334,7 +440,7 @@ document.addEventListener('DOMContentLoaded',()=>{
  syncLetteringChecks();
 });
 
-const KINETIC_DEFAULTS={camera:'pan',pan_speed:.05,backdrop_rate:.6,backdrops:['outline','filled','vertical','echo','giant'],traces:true,geometry:.8,frames:.1,glows:['drums','other','bass'],glow_words:.15,glow_strength:.55,glitch:true,text_pulse:0,word_shapes:0,drum_reactivity:.8,chorus_fx:.75,fade:true};
+const KINETIC_DEFAULTS={camera:'pan',pan_speed:.05,backdrop_rate:.6,backdrops:['outline','filled','vertical','echo','giant'],traces:true,geometry:.8,frames:.1,glows:['drums','other','bass'],glow_words:.15,glow_strength:.55,glitch:true,text_pulse:0,word_shapes:0,drum_reactivity:.8,background_shake:.8,shake_all:false,beat_dim:0,chorus_fx:.75,fade:true};
 function kineticSettings(){
  const hidden=document.getElementById('kinetic');let value={};
  try{value=JSON.parse(hidden?.value||'{}')||{}}catch{value={}}
@@ -414,3 +520,21 @@ document.addEventListener('DOMContentLoaded',()=>{
  for(const id of ['fontFamily','fontStyle','fontScale'])document.getElementById(id)?.addEventListener('change',refreshSceneSamples);
  syncKineticControls();storeKineticControls();
 });
+
+// Mark each gallery picture as opaque or transparent once it loads, from a few corner pixels, so opaque artwork
+// fills its card and only cutouts get a checkerboard.
+function classifyGalleryImage(img){
+ if(!(img instanceof HTMLImageElement)||!img.complete||!img.naturalWidth||!img.closest('#gallery .image-stage'))return;
+ const stage=img.closest('.image-stage');
+ try{
+  const canvas=document.createElement('canvas');canvas.width=canvas.height=8;
+  const context=canvas.getContext('2d',{willReadFrequently:true});context.drawImage(img,0,0,8,8);
+  const pixels=context.getImageData(0,0,8,8).data;
+  const corners=[0,7,56,63].map(i=>pixels[i*4+3]);
+  const transparent=corners.some(alpha=>alpha<250);
+  stage.classList.toggle('transparent',transparent);stage.classList.toggle('opaque',!transparent);
+ }catch(error){stage.classList.add('opaque')}
+}
+document.addEventListener('load',event=>classifyGalleryImage(event.target),true);
+new MutationObserver(()=>document.querySelectorAll('#gallery .image-stage img').forEach(classifyGalleryImage))
+ .observe($('gallery'),{childList:true,subtree:true});

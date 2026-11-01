@@ -25,6 +25,14 @@ def vision_review(image, model, lyrics, prompt, subject="", threshold=DEFAULT_TH
         'Inspect each visible hand separately for six or more digits, fused fingers, impossible '
         'joint directions, twisted wrists, disconnected fingers, duplicated limbs and malformed appendages; '
         'anatomical continuity, faces, accidental lettering, cropping and relevance to the lyric meaning. '
+        'FIGURE CHECKS: for every visible person add one figure_checks entry. Count the arms and legs you can see. '
+        'Check that each limb starts at a plausible shoulder or hip, has a believable length, bends only at real joints '
+        'and in natural directions (no backward knees or elbows), ends in one hand or foot, and does not merge into '
+        'another limb, body or object, split, twist impossibly or vanish where nothing covers it. A limb hidden behind '
+        'something, or cropped by the frame, is fine. Set limbs_correct false only for a visible limb defect. '
+        'Record the apparent gender and whether the face shows any moustache, beard, stubble or other facial hair. '
+        'A woman or female-presenting figure with any facial hair is a severe defect. Use empty figure_checks when no '
+        'people are visible, and mark a figure uncertain when it is too small or obscured to judge. '
         'Check believable object construction and physical relationships, not anatomy alone. '
         'Inspect lamp posts and fixtures: light heads should have plausible mounts and recognizable construction; '
         'flag an unexplained light embedded halfway through a pole or disconnected from its fixture. '
@@ -81,8 +89,15 @@ def vision_review(image, model, lyrics, prompt, subject="", threshold=DEFAULT_TH
         hand_checks=dict(type='array',items=dict(type='object',properties=dict(
             hand=dict(type='string'),visible_fingers=dict(type=['integer','null']),
             assessment=dict(type='string'),uncertain=dict(type='boolean')),
-            required=['hand','visible_fingers','assessment','uncertain']))),
-        required=['summary','score','issues','uncertain','hand_checks'])
+            required=['hand','visible_fingers','assessment','uncertain'])),
+        figure_checks=dict(type='array',items=dict(type='object',properties=dict(
+            figure=dict(type='string'),apparent_gender=dict(type='string',enum=['female','male','unclear']),
+            facial_hair=dict(type='boolean'),visible_arms=dict(type=['integer','null']),
+            visible_legs=dict(type=['integer','null']),limbs_correct=dict(type='boolean'),
+            assessment=dict(type='string'),uncertain=dict(type='boolean')),
+            required=['figure','apparent_gender','facial_hair','visible_arms','visible_legs','limbs_correct',
+                      'assessment','uncertain']))),
+        required=['summary','score','issues','uncertain','hand_checks','figure_checks'])
     payload = dict(model=model, stream=False, keep_alive="30m", think=False, format=schema,
                    options=dict(temperature=.1,num_ctx=8192,num_predict=2200),
                    messages=[dict(role='user', content=instruction,
@@ -100,4 +115,4 @@ def vision_review(image, model, lyrics, prompt, subject="", threshold=DEFAULT_TH
     result['threshold']=threshold
     result['rejected']=rejected(result,threshold)
     result['verdict']='rejected' if result['rejected'] else 'accepted'
-    return dict(**result, model=model, review_policy_version=2, advisory=True, image=str(image), image_sha256=fingerprint, reviewed_at=time.time())
+    return dict(**result, model=model, review_policy_version=3, advisory=True, image=str(image), image_sha256=fingerprint, reviewed_at=time.time())

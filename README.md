@@ -2,36 +2,61 @@
 
 Kinetic Lyrics turns a song (an MP3 or other audio file) into a lyric music video.
 
-It lines the user's lyrics up with the singing, asks a local language model to plan
-the typography and scenes, paints illustrations with a local image model, has a vision
+It lines the user's lyrics up with the singing, uses a local language model to plan
+the typography and scenes, generates backgrounds using an image model, has a vision
 model check the artwork, and then renders a kinetic-typography video with particle
-transitions. Everything runs on the user's own machine, so a capable GPU is needed. The
-aim is to reach the kind of rich, hand-crafted motion type that designers usually
+transitions. Currently, all models were selected to run locally, on a consumer gaming
+GPU. The aim is to reach the kind of rich, hand-crafted motion type that designers usually
 build by hand in tools such as Adobe After Effects.
 
-## How a video is made
+[![This is a video made with Kinetic Lyrics on YouTube](https://img.youtube.com/vi/KnIPPDcqwNk/hqdefault.jpg)](https://youtu.be/KnIPPDcqwNk)
+
+## AI Pipeline
 
 ```mermaid
 flowchart TD
-    A([Audio]) --> B[Align lyrics]
+    A([Audio]) --> B["Align lyrics<br/>(Speech Model)"]
     L([Lyrics]) -.-> B
-    B --> C[Analyse the music]
-    C --> D[Plan the scenes]
-    D --> E[Paint illustrations]
+    B --> C["Analyse the music<br/>(Demucs)"]
+    C --> D["Plan the scenes<br/>(LLM)"]
+    D --> E["Paint illustrations<br/>(Image Gen Model)"]
     S([Style images]) -.-> E
-    E --> F[Cut out subjects]
-    F --> G{User reviews artwork}
+    E --> F["Cut out subjects<br/>(BiRefNet)"]
+    F --> R["Check the artwork<br/>(Vision Model)"]
+    R -- rejected --> E
+    R --> G{User reviews artwork}
     G -- redo --> E
-    G -- approve --> K[Animate images]
-    K --> H[Plan typography]
+    G -- approve --> K["Animate images<br/>(Video Model, optional)"]
+    K --> H["Plan typography<br/>(LLM)"]
     H --> I[Render video]
     I --> V([MP4])
+
+    classDef llm fill:#e8f0fe,stroke:#4a6fd1,color:#1a2b5c
+    classDef image fill:#fdeee6,stroke:#d1784a,color:#5c2a10
+    classDef vision fill:#e9f6ec,stroke:#4a9e63,color:#163d22
+    classDef audio fill:#f3ecfb,stroke:#8a5cc7,color:#33184f
+    class D,H llm
+    class E image
+    class R vision
+    class B,C audio
 ```
 
-If the user leaves the lyrics out, the first step transcribes them from the audio
-instead. Timings, audio analysis and artwork are saved in the project folder, so a
-rebuild after the user swaps an image reuses them instead of starting again from
-scratch.
+| Label | Model | Purpose |
+|---|---|---|
+| **Speech Model** | Qwen3-ASR, Parakeet or Whisper for transcription and word timing | Audio Transcription Model, Word Timing Model |
+| **Demucs** | `htdemucs`, which splits the vocals from the instruments | Fixed |
+| **LLM** | An Ollama text model that plans scenes, writes image prompts and directs the typography | Prompting and Revisions (Text Model) |
+| **Image Gen Model** | Qwen-Image (good for quality), FLUX.2-klein (allows a reference photo), Z-Image or FLUX.1 for the illustrations and small typography pictures | Image Generation Model |
+| **BiRefNet** | `birefnet-general`, which cuts subjects out of their backgrounds | Fixed |
+| **Vision Model** | An Ollama vision model that scores each image for anatomy, limbs, facial hair on women and stray lettering, and rejects failures for repainting | Image Quality Scoring (VL Model) |
+
+If no lyrics are supplied, Kinetic Lyrics will attempt to 1. For Youtube Videos, 
+try known sources to retrieve lyrics, or 2. Use an AI model to transcribe the
+lyrics from the audio.
+
+An internal graphical tool allows the user to fine-tune the timestamp for each word.
+and saved as a JSON, for later importing.
+
 
 These steps run as a [LangGraph](https://langchain-ai.github.io/langgraph/) state graph
 (`src/pipeline/graph.py`). After each step the graph saves its progress to
@@ -50,33 +75,34 @@ until the user approves the illustrations, and then carries on.
 
 ## Setup
 
-The user runs the setup script once from the project folder:
+Run the following setup script once from the project folder:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File setup.ps1
 ```
 
-The script creates a `.venv` folder, installs the CUDA build of PyTorch, and then
-installs everything listed in `requirements.txt`. Model weights are not downloaded
-during setup. They download the first time each model is used, and they are stored
-in Ollama's model folder: the one named by `OLLAMA_MODELS`, or `~/.ollama/models`
-if that variable is not set. To keep them somewhere else, the user can set
-`KINETIC_LYRICS_MODEL_CACHE` to that folder. To choose where projects are written,
-the user can set `KINETIC_LYRICS_OUTPUT`.
+This script does the following:
+1. Creates a `.venv` folder.
+2. Installs the CUDA build of PyTorch. 
+3. Installs everything listed in `requirements.txt`. 
+
+Important environment variables:
+1. `OLLAMA_MODELS`: Model weights are downloaded during only during use, and they are stored in Ollama's model folder (defined by this variable).
+If this environment variable isn't set, Ollama defaults the folder to `~/.ollama/models`
+2. `KINETIC_LYRICS_MODEL_CACHE`: Allows the user to define a specific folder where Kinetic Lyrics AI models are saved, to separate them from Ollama's.
+3. `KINETIC_LYRICS_OUTPUT`: Folder where Kinetic Lyrics projects are written.
+4. `HF_TOKEN`: Allows Kinetic Lyrics to access Hugging Face models, see https://huggingface.co/docs/huggingface_hub/en/package_reference/environment_variables
 
 ## Hugging Face
 
-The image and speech models come from [Hugging Face](https://huggingface.co). The
-default models are public, so no account is needed to get started. A few of the
-optional image models are **gated**, which means the user has to accept their terms
-on the model page and give the app an access token before they will download.
+The image and speech models come from [Hugging Face](https://huggingface.co). The default models are public, however, some are **gated**, which means the user has to accept their terms on the model page. This would require a Hugging Face account. Ensure that the `HF_TOKEN` environment is set, as mentioned above.
 
 | Model | Used for | Access |
 |---|---|---|
-| `Qwen/Qwen-Image-2512` (default) | Illustrations | Public |
-| `black-forest-labs/FLUX.2-klein-4B` | Illustrations | Public |
+| `Qwen/Qwen-Image-2512` (default) | Illustrations. Good for quality: the most detailed images, but the slowest (50 steps) | Public |
+| `black-forest-labs/FLUX.2-klein-4B` | Illustrations. Allows a reference photo, for example to cast a person as the main character | Public |
 | `Tongyi-MAI/Z-Image-Turbo` | Illustrations | Public |
-| [`black-forest-labs/FLUX.2-klein-9B`](https://huggingface.co/black-forest-labs/FLUX.2-klein-9B) | Illustrations | **Gated**, non-commercial licence |
+| [`black-forest-labs/FLUX.2-klein-9B`](https://huggingface.co/black-forest-labs/FLUX.2-klein-9B) | Illustrations. Allows a reference photo, with better detail than 4B | **Gated**, non-commercial licence |
 | [`black-forest-labs/FLUX.1-schnell`](https://huggingface.co/black-forest-labs/FLUX.1-schnell) | Illustrations | **Gated** |
 | [`black-forest-labs/FLUX.2-dev`](https://huggingface.co/black-forest-labs/FLUX.2-dev) | Illustrations | **Gated**, non-commercial licence |
 | `Qwen/Qwen3-ASR-1.7B-hf`, `Qwen/Qwen3-ASR-0.6B-hf` | Transcription | Public |
@@ -84,105 +110,17 @@ on the model page and give the app an access token before they will download.
 | `nvidia/parakeet-tdt-0.6b-v3` | Transcription | Public |
 | Whisper large-v3 / turbo | Transcription and word timing | Public |
 
-To use a gated model, the user:
+## User Interface
 
-1. Signs in at huggingface.co, opens the model page linked above and accepts the
-   terms. Access is granted straight away.
-2. Creates a token with **Read** access at https://huggingface.co/settings/tokens.
-3. Saves the token in the `HF_TOKEN` user environment variable, then opens a new
-   terminal so that it is picked up:
-
-   ```powershell
-   [Environment]::SetEnvironmentVariable('HF_TOKEN', 'hf_...', 'User')
-   ```
-
-The token must be set through `HF_TOKEN` rather than `hf auth login`. The app points `HF_HOME` at the
-model folder, so it cannot see a token that `hf auth login` saved in its default
-location. If a gated model fails with an "Access required" message, check that its
-terms were accepted with the same account that owns the token.
-
-## Project layout
-
-All code lives in `src/`, one folder per area. Each AI model family has its own folder
-under `src/models/`, so the code that loads and calls a model is kept apart from the code
-that decides what to ask it.
-
-```
-src/
-  pipeline/      Command line (pipeline/cli.py), the LangGraph graph and its steps
-  models/        One folder per AI model family:
-    ollama/        Local text language models: Ollama service, GPU admission, catalog, traces
-    vision/        Vision-model review of artwork, and the score policy
-    image/         Diffusion image models: catalog, pipeline loading, Qwen precision
-    speech/        Whisper, Qwen3-ASR, Qwen3 aligner and Parakeet
-    separation/    Demucs vocal and instrument stems
-    matting/       BiRefNet background removal
-    ocr/           RapidOCR lettering and frame checks
-    gpu/           GPU detection, VRAM accounting, presets and model sessions
-    downloads.py   Background downloads for every model family
-  direction/     What the language model is asked to plan: scenes, image prompts,
-                 typography, effects, song structure
-  audio/         Melody, vocal onsets and instrument rhythm from the separated stems
-  artwork/       Illustration files: generation jobs, gallery, review state, queues,
-                 greenscreen mattes
-  render/        Frame compositor, layouts, real-time typography, camera canvas, encoding
-  effects/       Lettering effects: particles/ and growth/
-  video_generation/  Optional video step: LTX-2.5 and MiniMax H3 image-to-video models,
-                 saved clips and looping playback (see its README.md)
-  studio/        Studio web server, background worker, batches and exports
-  core/          Paths, progress events, subprocess and text helpers
-  frontend/      Studio web front end (HTML, CSS and JavaScript)
-```
-
-- `tests/` holds the test suite, which runs with `python -m unittest discover -s tests`.
-- `assets/`, `particles/` and `shaders/` hold images, effect recipes and GLSL shaders.
-- `assets/fonts/` holds openly licensed fonts, each with its licence file. The renderer asks for
-  Windows fonts such as Impact, Segoe UI Black and Georgia by name; on a machine without one,
-  `src/core/fonts.py` uses a bundled stand-in of the same weight (Anton, Archivo Black, Alfa Slab
-  One or DejaVu), so videos and tests render the same way on Linux and macOS.
-
-The packages are imported with `src/` on `PYTHONPATH`. The `.cmd` launchers set this and
-run `python -P -m pipeline.cli` (command line) or `python -P -m studio.server` (Studio).
-
-## Studio
-
-Studio is the easiest way to make a video. Start it with:
+Kinetic Studio is Kinetic Lyrics' user interface. Start it with:
 
 ```powershell
 kinetic-studio.cmd
 ```
 
-This opens a web page on the user's own computer at http://127.0.0.1:8765. The user
-uploads the audio and pastes the lyrics, or leaves the lyrics blank so that Studio
-transcribes them, and then picks the style references, models and effects. A YouTube
-video link can also be imported: Studio downloads its audio,
-checks LRCLIB, Genius and lyrics.ovh for matching text, and asks the local text model
-to rank the lyric candidates. If none match, the usual transcription step runs.
-The **Lines per image** field accepts `auto`; the text model then chooses a grouping
-after the lyrics are timed. **Karaoke instrumental** exports the drum, bass and other
-stems without the lead vocal.
+![Kinetic Lyrics Studio rendering a video: the pipeline steps with the model each one uses, and the illustration workspace](assets/kinetic_lyrics_user_interface.png)
 
-Before the video renders, the user reviews each illustration and can replace or regenerate any
-that do not fit. After a video is finished, the user can swap a single image and
-rebuild only the parts that changed, and earlier exports remain available.
-
-### Timeline editor
-
-If some words come out of sync, the user can fix them in Studio's **Timeline editor**, which
-appears once a video is finished. It shows the illustrations, the lyric lines and each word
-above the waveforms of the full mix and of the separated vocals, drums, bass and other
-instruments, so the user can see where each word is really sung. The colour of each waveform
-can be changed, and any of them can be played on its own.
-
-- Drag a word to move it, or drag its edges to change when it starts and ends. Drag a line to
-  move all its words together. Holding Shift moves everything after it as well, which fixes a
-  song that drifts out of sync from one point onwards.
-- Drag an illustration to change when it appears.
-- Double-click a word or a line to correct its text. Each line keeps the same number of words.
-- Press T while the song plays to set the selected word to start at the playhead.
-
-**Save & rebuild video** writes the new timing and renders the video again. The edits are kept
-in `video.timings.json`, `lyrics.txt` and `video.art-times.json` in the project folder.
+This opens a web page on the user's own computer at http://127.0.0.1:8765. 
 
 ## Command line
 
@@ -215,88 +153,26 @@ Run `kinetic-lyrics.cmd --help` to see every option.
 
 ## Greenscreen scenery
 
-The `matte` artwork mode ("Greenscreen scenery with lyrics in the sky" in Studio) builds
-each scene from two generated images instead of one:
-
-1. A scenery painting with a horizon or skyline (hills, water, rooftops, trees) and no
-   main character. Everything above the skyline is painted flat chroma-key green.
-2. A plain painting of the sky that belongs above that scenery, with the same light and
-   palette.
-
-The green is keyed out into a matte, and the finished artwork is the plain sky seen
-through the scenery. When the video renders, the plain sky goes down first, the kinetic
-typography is drawn on it, and the keyed scenery is laid over both. The lyrics can only
-be seen where the green was, so a word that runs past the skyline disappears behind the
-land. Lines are placed inside the open sky, and while two scenes blend the scenery of
-both covers the lyrics. With a panning camera the camera travels along the horizon.
-
-If a generated scenery has too little green sky, it is retried with a new seed and then
-flagged for review. The matte is stored inside the artwork PNG, so selecting, archiving
-or repairing an image keeps it. A replacement image without a stored matte uses its own
-transparency as the sky, or keys any chroma green it contains. With neither, the whole
-replacement image is treated as the sky.
+The `matte` artwork layout ("Greenscreen scenery with lyrics in the sky" in Studio) builds
+each scene from two generated images: a scenery painting with a horizon or skyline and no
+main character, painted flat chroma-key green above the skyline, and a plain painting of
+the sky that belongs above it. The green is keyed out into a matte. When the video
+renders, the sky goes down first, the kinetic typography is drawn on it, and the keyed
+scenery is laid over both, so a word that runs past the skyline disappears behind the
+land. If a scenery has too little green sky, it is retried with a new seed and then
+flagged for review.
 
 ## Video generation
 
-The video step is optional and off by default. When it is on, every approved
-illustration is turned into a short clip by a local image-to-video model, and the clip
-plays behind the lyrics in place of the still image. In Studio, tick "Animate each image
-with a video model" under the artwork layout and choose LTX-2.5 or MiniMax H3. On the
-command line, pass `--video-model Lightricks/LTX-2.5-Diffusers` or
+The video step is experimental, optional and off by default. When it is on, every
+approved illustration is turned into a short clip by a local image-to-video model, and
+the clip plays behind the lyrics in place of the still image. In Studio, tick "Animate
+each image with a video model" in the **Experimental Features** box and choose LTX-2.5 or
+MiniMax H3. On the command line, pass `--video-model Lightricks/LTX-2.5-Diffusers` or
 `--video-model MiniMaxAI/MiniMax-H3`. It works with the `fullscreen` and `verse` artwork
-modes only. The models need their own Python environment, which
-`src/video_generation/setup.ps1` creates. Setup, model details, licences and timing are
-described in [src/video_generation/README.md](src/video_generation/README.md).
-
-## Real-time kinetic flow
-
-By default, each word appears at the moment it is sung.
-
-```mermaid
-flowchart TD
-    S([Song]) --> D[Demucs]
-    D --> O[Vocals] --> T[Line timing]
-    D --> M[Melody] --> H[Hero colour]
-    D --> I[Instruments] --> P[Pulses]
-    T & H & P --> R([Frames])
-```
-
-Demucs splits the song into the voice and the instruments. The voice sets when each
-line starts, the melody sets the colour and pace of hero words, and the instruments
-drive the pulses and glows.
-
-- **Panning or still camera.** By default, all the illustrations are stitched into
-  one seamless collage, and the camera glides through it at a steady speed. Each line
-  is written where the camera is heading. If the user picks the still camera instead, each
-  line is framed in a shape, and it plays its exit animation when that space is needed
-  again.
-- **Fonts chosen by role.** Small function words are set in a typewriter face, content
-  words are heavy, and the most important "hero" words are huge and condensed. Hero
-  words can also form out of particles or materials.
-- **Melody and instruments.** Demucs separates the vocals from the instruments. Each
-  line starts exactly when the voice comes in, high notes make hero words glow hot,
-  fast passages snap into place, and some lines pulse with their main instrument. The
-  voice itself never drives these pulses.
-- **Backdrops and traces.** Whole lines can scroll past as marquees, and words can
-  echo or grow giant behind the text. Glowing underlines, a ribbon of translucent wavy
-  bands that flows from one hero word to the next, soft shapes behind hero words, and
-  words that glow in time with an instrument all add depth.
-- **Readable colour.** The renderer measures the colours of each entrance effect and
-  checks the backdrop behind each line, so the lettering never blends into the
-  background. Material lettering, such as oak, maple, gold filigree, pearl lace and
-  embroidery, always gets a black outline.
-- **AI effect choice.** When the user turns this on, a local model picks each line's entrance
-  effect. It chooses from a shortlist of effects that stay readable on that line's
-  backdrop and suit its meaning and scene.
-
-The user can adjust all of this in Studio's **Kinetic effects** panel and save the
-settings as profiles, including a separate particle speed for each effect. For the
-earlier style, where the whole line appears before it is sung, use
-`--reading-flow preview`.
-
-Videos are encoded and tagged as BT.709. Every frame depends only on its timestamp,
-so a video rendered across several CPU workers is identical to one rendered on a
-single core.
+layouts only. The models need their own Python environment, which
+`src/video_generation/setup.ps1` creates; see
+[src/video_generation/README.md](src/video_generation/README.md).
 
 ## Scene mix
 
@@ -310,7 +186,7 @@ the new one settles, just before the first word of the new section.
 
 ```mermaid
 flowchart LR
-    S([Sections]) --> A[AI picks scenes]
+    S([Sections]) --> A["AI picks scenes<br/>(LLM)"]
     A --> P[Panning canvas]
     A --> F[Framed lines]
     A --> B[3D blocks]
@@ -331,85 +207,14 @@ file name is the scene's ID, and `camera` picks how the scene is filmed:
 The panning canvas and framed lines keep all their effects, including the flowing
 bands, the drifting shapes, the highlighting and the backdrops.
 
-## Black hole sun
+## Licence
 
-Black hole sun is minimal cinematic typography in the style of short-form lyric edits. It is
-used by the **Black hole sun** scene, and also on its own with `--reading-flow cinema`. Each
-line is cut into chunks of one to three words at the sung timings, and only one chunk is on
-screen at a time, centred over the artwork. Every chunk uses two weights of Montserrat (bundled
-in `assets/fonts`, under the SIL Open Font License): a hairline, widely tracked word above or
-below an ultra-black one, so "BLACK" sits thin over a heavy "HOLE". Words arrive as they are
-sung. Hairline words settle in from oversized and faint, and heavy words slide in with motion
-blur and brighten from grey. Some words flip in from their mirror image, and the odd lone word
-stands on end. A chunk pushes in slowly while it holds, then flips, slides or blurs away just
-before the next one arrives, and the artwork pushes in behind it. It looks best with
-full-screen artwork (`--artwork-mode fullscreen`).
+AGPL-3.0. For a commercial licence, contact jon.castillo.dev@gmail.com.
 
-## 3D stage
-
-The 3D stage groups the lines that are sung together into blocks and sets each block
-as a rectangle of justified words. It is used by the 3D scene effects, and also on
-its own with `--reading-flow stage`. Each row is scaled to fill the same width, so a
-short row of big words can sit above a long row of small ones. Each block stands
-somewhere in a 3D space. The camera never stops. It cruises across the current block
-while it is sung, then speeds up along an arc to the next block and pulls back on
-the way, so the earlier blocks, which stay where they were written, come back into
-view. Behind everything lies one continuous collage of the illustrations, stitched
-along the camera's path like the panning canvas and bent like a sheet of curved
-paper. Its gentle folds are shaded and shift with parallax.
-
-```mermaid
-flowchart LR
-    L([Lines]) --> B[Blocks]
-    B --> W[Justified rows]
-    B --> A[AI pictures]
-    W & A --> C[3D camera]
-    C --> F([Frames])
-```
-
-- **Top row effects.** Particle effects tagged as top only, such as the maple trees,
-  grow only on a block's top row, so they never cover the words below. The other
-  rows stay plain, with one accent word picked out in colour.
-- **Matched choices.** For each block, a local model picks the entry motion, the
-  accent colour (only from colours that stay readable on that background), which of
-  selected entrance effects grows on the top row (tree effects only in Tree canopy), and the picture, so that
-  they all suit each other and the lyric. The choices are saved in
-  `video.blocks.json`.
-- **Bands and shapes.** As in the panning canvas, translucent bands flow on from one
-  block to the next, here through 3D space, and outlined shapes drift and turn on
-  strong bass notes at different depths around the blocks. In both places the band
-  bends continuously, like the waves on a PSP menu. It never turns a corner, brakes or
-  stops: it weaves gentle S-curves where it has time to spare and cruises at one
-  steady speed, easing only slightly faster or slower to stay near the words.
-- **Moving words.** Words flip, swing, rise or drop into place as they are sung, hero
-  words are extruded for depth, and some words keep moving with a letter wave, a beat
-  pulse or a slow tilt.
-- **Small animated pictures.** A local model reads each block's lyrics and decides
-  whether it gets a small picture, which word carries it, what it shows and how it
-  moves. A round picture can replace the word's letter O, so MOON can show a moon
-  with clouds drifting across it. Any other picture takes its own slot in the word's
-  row, so the words and pictures share one rectangle. The picture comes from the library when one fits,
-  and otherwise the image model paints it as a transparent cutout. The library is
-  made up of built-in drawings plus any animated GIF, WebP or PNG that the user puts
-  in `assets/ornaments/`, named after its subject (for example `moon.webp`). Google's
-  Noto Animated Emoji are a good free source, licensed CC BY 4.0. Painted pictures
-  are asked for in the block's accent colour. The user picks AI pictures,
-  library-only AI pictures, keyword pictures or no pictures with `--stage-pictures`
-  or in Studio.
-
-The stage is drawn on the GPU with ModernGL and renders at about 50 frames per second
-on a single process at 720p.
-
-## Particle effects
-
-The entrance and exit effects are small JSON recipes stored in `particles/`. The
-[`particles/README.md`](particles/README.md) guide explains how they work and how to
-add new ones.
-
-## License
-
-Kinetic Lyrics is released under the [MIT License](LICENSE). The AI models that it
-downloads are not part of this repository and each one has its own license. Some of
-them, such as FLUX.2-klein-9B and FLUX.2-dev, allow only non-commercial use, so the
-user should check a model's terms on its Hugging Face page before using its output
+The AI models that Kinetic Lyrics downloads have their own licences. Some of
+them, such as FLUX.2-klein-9B and FLUX.2-dev, allow only non-commercial use.
+Check a model's terms on its Hugging Face page before using its output
 commercially.
+
+The fonts in `assets/fonts/` are bundled stand-ins for Windows fonts and keep their own
+open licences (SIL OFL and the DejaVu licence), which sit beside each font file.

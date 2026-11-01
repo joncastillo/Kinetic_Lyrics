@@ -45,3 +45,28 @@ def record_manifest(manifest):
     temporary=target.with_suffix('.json.tmp')
     temporary.write_text(json.dumps(dict(manifest=relative)),encoding='utf-8');temporary.replace(target)
     return relative
+
+
+def archive_images(folder,config):
+    """Move the active run's images and replacement candidates aside so a restart at Images regenerates every one.
+
+    Nothing is deleted: the files land in a dated previous-* folder next to them. Returns the manifest kept for its
+    prompts, or None when there is no saved run to restart."""
+    folder=Path(folder)
+    try:manifest=select_manifest(folder,dict(config,start_step='review'))
+    except ValueError:return None
+    archive_folder(manifest.parent)
+    return manifest
+
+
+def archive_folder(artwork):
+    """Move one run's images, and the job's replacement candidates, into a dated previous-* folder beside them.
+    The prompts and saved prompting work stay."""
+    import shutil,time
+    artwork=Path(artwork);folder=artwork.parent.parent
+    archive=artwork/time.strftime('previous-%Y%m%d-%H%M%S')
+    for path in list(artwork.iterdir()):
+        if path.is_file() and path.name not in ('illustrations.json','prompting.json'):
+            archive.mkdir(exist_ok=True);shutil.move(str(path),str(archive/path.name))
+    if (folder/'candidates').is_dir():
+        archive.mkdir(exist_ok=True);shutil.move(str(folder/'candidates'),str(archive/'candidates'))

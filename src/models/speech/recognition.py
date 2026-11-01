@@ -1,5 +1,6 @@
 """Speech entry points: transcribe lyrics, or align supplied lyrics to the vocals."""
 from __future__ import annotations
+import sys
 from core.process import run
 from models.speech.whisper import release_whisper_memory, whisper_model
 from core.text import normalized
@@ -86,4 +87,26 @@ def align(audio, lines, args):
             timed.append(dict(text=word, start=matches[0][2], end=matches[-1][3]))
             offset += length
         output.append(dict(text=line, words=timed))
+    from core.timing_repair import collapsed_lines, spread_collapsed, transcript_timing
+    collapsed = collapsed_lines(output)
+    if collapsed:
+        print(f'Forced alignment compressed lyric lines {[i+1 for i in collapsed]}; '
+              'recovering word times from transcription.', flush=True)
+        options.model = 'large-v3'
+        model = whisper_model(options)
+        try:
+            result = model.transcribe(str(audio), language=None if args.language in ('auto', '', None) else args.language,
+                                      task='transcribe', word_timestamps=True, regroup=False, verbose=False)
+        finally:
+            model.cpu()
+            del model
+            release_whisper_memory()
+        heard = [word for segment in result.to_dict().get('segments', [])
+                 for word in segment.get('words', [])]
+        output = transcript_timing(lines, heard)
+        spread = spread_collapsed(output)
+        if spread:
+            print(f'Warning: lyric lines {[i+1 for i in spread]} could not be heard clearly (often backing vocals); '
+                  'their words were spread over the gap around them. Check them in Edit timings.',
+                  file=sys.stderr, flush=True)
     return output

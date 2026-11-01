@@ -20,6 +20,20 @@ def emit(stage, fraction=None, **details):
         print('\n' + PREFIX + json.dumps(dict(stage=stage, fraction=fraction, **details)), flush=True)
 
 
+def counted(stage, start, end, what, suffix='', names=None):
+    """Progress reporter for batched model work: 'Writing the scene for lyric group 3 of 12: “Hello…”'.
+
+    It is called with (first, last, total) before each batch; `names` labels single items."""
+    def report(first, last, total):
+        span = f'{first+1}' if last-first == 1 else f'{first+1}–{last}'
+        label = ''
+        if names and last-first == 1 and first < len(names) and str(names[first]).strip():
+            text = ' '.join(str(names[first]).split())
+            label = ': “'+(text if len(text) <= 48 else text[:47].rstrip()+'…')+'”'
+        emit(stage, start+(end-start)*first/max(1, total), message=f'{what} {span} of {total}{suffix}{label}')
+    return report
+
+
 def diffusion_callback(image, total, attempt, attempts, steps):
     def callback(pipe, step, timestep, kwargs):
         from models.gpu.lifecycle import current_session

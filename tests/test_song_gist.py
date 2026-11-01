@@ -14,6 +14,7 @@ class SongGistTest(unittest.TestCase):
         calls = []
 
         def request(endpoint, payload, timeout):
+            self.assertNotIn('narrator', payload['messages'][0]['content'].casefold())
             calls.append(json.loads(payload['messages'][1]['content']))
             return {'message': {'content': json.dumps({'subjects': ['People fail to connect while worshipping a neon god.']})}}
 

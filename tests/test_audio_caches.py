@@ -24,7 +24,7 @@ class AudioCacheTest(unittest.TestCase):
         def separate(audio, folder):
             separations.append(Path(audio).read_bytes())
             return self.folder
-        with mock.patch.object(rhythm, 'separate', separate), mock.patch.object(rhythm, 'onsets', lambda path: [[1., .5]]):
+        with mock.patch.object(rhythm, 'separate', separate), mock.patch.object(rhythm, 'onsets', lambda path, kick_only=False: [[1., .5]]):
             rhythm.ensure_rhythm(self.audio, self.folder)
             rhythm.ensure_rhythm(self.audio, self.folder)
             self.assertEqual(len(separations), 1, 'the same track reuses its onsets')

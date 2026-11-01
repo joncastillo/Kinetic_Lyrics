@@ -244,8 +244,6 @@ class RealtimeTypography:
         self.large = frozenset(large)
         self.options = kinetic_options(options)
         self.rhythm = rhythm or {}
-        from audio.rhythm import four_floor_hits
-        self.floor_hits = four_floor_hits(self.rhythm.get('drums'))
         self.melody = melody.get('lines') if isinstance(melody, dict) else None
         self.speed = max(.2, speed)
         self.lines = self.path = self.world = self.mattes = None
@@ -492,13 +490,17 @@ class RealtimeTypography:
             screen = c.background(index, t, veil=False).convert('RGBA')
             c.illustration(screen, index, t)
         chorus_hit = self.c.chorus_fx.active(t) is not None
-        if chorus_hit and self.options['drum_reactivity'] > 0 and self.floor_hits:
+        shaking = chorus_hit or self.options.get('shake_all', False)
+        if shaking and (self.options['background_shake'] > 0 or self.options['beat_dim'] > 0):
+            # The same four-on-the-floor kicks that the words react to (the drum track holds one pulse per
+            # beat): in the chorus sections, or all through the song with "Shake all song".
             from render.drum_typography import shake_background
-            floor_hit = next((hit for hit in reversed(signals['drums'].hits)
-                              if hit[0] in self.floor_hits), None)
-            screen = shake_background(screen, floor_hit, self.options['drum_reactivity'])
+            screen = shake_background(screen, signals['drums'].hit, self.options['background_shake'],
+                                      self.options['beat_dim'])
+        # The painting is fixed to the screen; only the camera-borne layer (words, traces, backdrops) takes the
+        # camera's sub-pixel offset. Shifting the painting too made it creep a fraction and snap back a whole pixel
+        # on slow pans, a slight, dizzying shake.
         canvas = Image.new('RGBA', (c.width+2, c.height+2))
-        canvas.paste(screen, (0, 0))
         visible = self.visible(t)
         if visible:
             newest = visible[0][0]
@@ -519,7 +521,8 @@ class RealtimeTypography:
             canvas.alpha_composite(scenery)
         shifted = canvas.transform((c.width, c.height), Image.Transform.AFFINE, (1, 0, fraction[0], 0, 1, fraction[1]),
                                    resample=Image.Resampling.BILINEAR)
-        return shifted.convert('RGB')
+        screen.alpha_composite(shifted)
+        return screen.convert('RGB')
 
     def shift(self, index, base):
         offset = self.lines[index]['offset']

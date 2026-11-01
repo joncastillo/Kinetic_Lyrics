@@ -4,6 +4,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 from PIL import Image, ImageDraw
@@ -75,12 +76,35 @@ class PictureTest(unittest.TestCase):
             self.assertFalse(Path(old_released).with_suffix('.cutout.png').exists())
             self.assertEqual(released_pictures(folder), set())  # repainted pictures are kept again
 
+    def test_old_shape_built_picture_is_repainted(self):
+        with tempfile.TemporaryDirectory() as folder:
+            old = block(folder, 1, 0)
+            old_path = Path(old['ornament']['image'])
+            old_path.with_suffix('.svg').write_text('<svg/>', encoding='utf-8')
+            with mock.patch.object(ornament_director, 'paint') as paint:
+                paint.side_effect = lambda directions, _folder, _options: directions
+                repaint_released([old], folder, {})
+            self.assertIsNone(old['ornament']['image'])
+            self.assertTrue(old_path.is_file())
+            paint.assert_called_once()
+
+    def test_small_picture_uses_selected_image_model(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with mock.patch.object(ornament_director.subprocess, 'run') as run:
+                ornament_director.paint_icons(['a wet cobblestone'], ['cobblestone'], folder,
+                                              {'image_model': 'black-forest-labs/FLUX.2-klein-9B', 'image_steps': 4})
+            manifest = next((Path(folder)/'video.ornaments').glob('*/illustrations.json'))
+            job = json.loads(manifest.read_text(encoding='utf-8'))
+            self.assertEqual(job['model'], 'black-forest-labs/FLUX.2-klein-9B')
+            self.assertEqual(job['artwork_mode'], 'cutout')
+            run.assert_called_once()
+
     def test_object_pictures_never_inherit_faces(self):
         style = 'Delicate linework, expressive faces, flowing hair, inspired by Alphonse Mucha.'
         lamp = icon_prompt('a small, warm street lamp', 'orange', style)
         self.assertNotIn('expressive faces', lamp)
         self.assertIn('No people, faces', lamp)
-        self.assertTrue(lamp.startswith('Create one small vector-style clipart illustration of warm street lamp'))
+        self.assertTrue(lamp.startswith('Create one detailed illustration of warm street lamp'))
         self.assertIn('expressive faces', icon_prompt('a dancing woman', '', style))
 
     def test_detailed_ai_subject_does_not_become_a_generic_library_cloud(self):

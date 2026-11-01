@@ -46,27 +46,6 @@ class VerseMeaningTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'ambon'):
             lyric_meanings(request, 'test', ['ambon'], image_instructions='ambon means drizzle')
 
-    def test_verse_prompt_keeps_scene_detail_after_review(self):
-        from direction.prompt_audit import audit_prompts
-        subject = 'The speaker stands on a wet street while fine drizzle falls into an old well.'
-        layout = {'visual_prompt': 'Full-bleed painted scene with quiet space for the lyrics.'}
-        original = image_prompt(subject, layout, 'Delicate linework and soft painterly shading.')
-        self.assertGreaterEqual(len(original.split()), 235)
-        with patch('direction.scenes.request_subjects', return_value=['A wet street in fine drizzle.']):
-            result = audit_prompts(None, 'test', ['ambon means drizzle'], [subject], [original], [layout], 'verse')
-        self.assertGreaterEqual(len(result[0].split()), 235)
-        self.assertIn('fine drizzle', result[0])
-
-    def test_short_review_does_not_restore_wrong_subject(self):
-        from direction.prompt_audit import audit_prompts
-        original = image_prompt('A seashell lies on the shore.', {'visual_prompt': 'Full-bleed painted scene.'},
-                                'Delicate linework and soft painterly shading.')
-        with patch('direction.scenes.request_subjects', return_value=['Fine drizzle falls into a well.']):
-            result = audit_prompts(None, 'test', ['ambon means drizzle'], ['shell'], [original],
-                                   [{'visual_prompt': 'Full-bleed painted scene.'}], 'verse')
-        self.assertIn('drizzle', result[0])
-        self.assertNotIn('seashell', result[0])
-
 
 if __name__ == '__main__':
     unittest.main()

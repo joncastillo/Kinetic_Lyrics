@@ -34,7 +34,7 @@ DIRECTOR_PROMPT = LANGUAGE_RULE+PEOPLE_RULE+(
     'Do not invent extra people or supernatural events that the supplied meaning does not support. '
     'Use painterly simplification to unify the scene, without losing the lyric-specific anchors. '
     'Keep a coherent rendering style across the song while allowing each lyric to determine its imagery. '
-    'Write a richly detailed 400 to 500 word scene description. Specify the focal subject and action, foreground and '
+    'Write a detailed, concise 160 to 220 word scene description. Specify the focal subject and action, foreground and '
     'background relationships, viewpoint, physical setting, surface details, weather or atmosphere where the '
     'lyric supports them, and the light that makes the action readable. Every detail must serve the supplied meaning. '
     'Describe only what the illustrator should draw. Do not explain the interpretation or quote the lyrics. '
@@ -69,8 +69,7 @@ def lyric_meanings(request, model, groups, contexts=None, image_instructions='',
     """Resolve language and imagery before asking for visual interpretations."""
     from direction.scenes import request_subjects
     from models.ollama.trace import trace_stage
-    from core.progress import emit
-    emit('subjects', .1, message='Understanding each lyric group before planning its scene')
+    from core.progress import counted
     notes = translation_notes(image_instructions)
     payload = dict(model=model, stream=False, think=False, keep_alive=-1, options=dict(num_ctx=8192),
         format=dict(type='object', properties=dict(subjects=dict(type='array', items=dict(type='string'))), required=['subjects']),
@@ -97,7 +96,9 @@ def lyric_meanings(request, model, groups, contexts=None, image_instructions='',
                                                  binding_translation_notes=notes_for_group(group, notes))
                                                 for i,group in enumerate(groups)]))])
     with trace_stage('Lyric meaning / scene grounding'):
-        meanings = request_subjects(request, payload, batch_size=1, max_words=85, avoid_repeats=False)
+        meanings = request_subjects(request, payload, batch_size=1, max_words=85, avoid_repeats=False,
+                                    progress=counted('meanings', 0, 1, 'Understanding the meaning of lyric group',
+                                                     names=groups))
         for i, (group, meaning) in enumerate(zip(groups, meanings)):
             relevant = notes_for_group(group, notes)
             missing = {word: definition for word, definition in relevant.items()

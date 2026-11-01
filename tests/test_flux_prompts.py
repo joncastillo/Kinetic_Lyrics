@@ -33,6 +33,19 @@ class SelectedModelTest(unittest.TestCase):
         self.assertEqual((written['model'], written['steps']), (FLUX, 4))
         self.assertEqual(written['prompts'], ['b'])
 
+    def test_candidate_request_model_overrides_old_session_config(self):
+        import studio.worker as studio_worker
+        job = dict(model=QWEN, steps=50, seed=1, prompts=['a'], layouts=[{}], groups=['x'])
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            (root/'config.json').write_text(json.dumps(dict(image_model=QWEN)), encoding='utf-8')
+            written = {}
+            def run_job(manifest, cache):
+                written.update(json.loads(Path(manifest).read_text(encoding='utf-8')))
+            with mock.patch('artwork.generation.run_job', run_job):
+                studio_worker.generate_candidate(root, job, 0, root, '', FLUX)
+        self.assertEqual((written['model'], written['steps']), (FLUX, 4))
+
 
 class BudgetTest(unittest.TestCase):
     def test_flux_budget_leaves_room_below_512_tokens(self):
@@ -60,6 +73,27 @@ class BudgetTest(unittest.TestCase):
         self.assertEqual(refit.call_args.args[1], FLUX)
         self.assertEqual(images[0]['prompt'], 'fitted')
         self.assertNotIn('prompt', images[1])
+
+    def test_request_model_controls_prompt_budget(self):
+        import artwork.queue as generation_queue
+        job = dict(model=QWEN, prompts=['word '*618], style_prompt='ink')
+        images = [dict(index=0, image_model=FLUX)]
+        with mock.patch('direction.prompt_fit.refit', return_value=['fitted']) as refit:
+            generation_queue.refit_prompts(job, dict(image_model=QWEN), images)
+        self.assertEqual(refit.call_args.args[1], FLUX)
+        self.assertEqual(images[0]['prompt'], 'fitted')
+
+    def test_queued_request_uses_its_image_model(self):
+        import artwork.queue as generation_queue
+        job = dict(model=QWEN, prompts=['Short scene'])
+        config = dict(image_model=QWEN, image_cache='cache')
+        worker = mock.Mock()
+        worker.generate_candidate.return_value = Path('candidate.png')
+        with mock.patch.object(generation_queue, 'claim_queue', return_value=[]), \
+                mock.patch.object(generation_queue, 'refit_prompts'):
+            generation_queue.generate_pending(worker, Path('job'), job, config,
+                                              [dict(index=0, image_model=FLUX, prompt='')])
+        self.assertEqual(worker.generate_candidate.call_args.args[5], FLUX)
 
 
 class ReferenceTest(unittest.TestCase):

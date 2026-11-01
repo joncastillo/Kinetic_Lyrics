@@ -5,10 +5,13 @@ from collections import defaultdict
 
 
 def regenerate_prompts(worker,job,config,items):
+    from direction.image_instruction_cleanup import clean_legacy_imported_meaning
+    job=dict(job,image_instructions=clean_legacy_imported_meaning(
+        job.get('image_instructions',config.get('image_instructions',''))))
     from models.ollama.gpu import gpu_chat, unload_model
     from models.ollama.catalog import resolve_prompt_model
     from models.ollama.service import local_json
-    from direction.scenes import request_subjects, lengthen_short_subjects
+    from direction.scenes import request_subjects
     from direction.verse import DIRECTOR_PROMPT, LANGUAGE_RULE, PEOPLE_RULE
     if job.get('artwork_mode')=='matte':
         from artwork.greenscreen import DIRECTOR_PROMPT
@@ -17,9 +20,10 @@ def regenerate_prompts(worker,job,config,items):
     for item in items:
         model=item.get('model') or config.get('ai_model','auto')
         model=resolve_prompt_model(local_json,model)
-        batches[model].append(item)
+        image_model=item.get('image_model') or config.get('image_model') or job['model']
+        batches[(model,image_model,item.get('style') or '')].append(item)
     replacements={}
-    for model,batch in batches.items():
+    for (model,image_model,style),batch in batches.items():
         worker.emit('subjects',0,message=f'Preparing {len(batch)} replacement prompt(s) with {model}')
         system=(DIRECTOR_PROMPT if job.get('artwork_mode') in ('verse','matte') else LANGUAGE_RULE+PEOPLE_RULE+
             'Interpret each lyric group into one fresh English visual scene for an illustrator. '
@@ -29,6 +33,9 @@ def regenerate_prompts(worker,job,config,items):
             'Follow the assigned composition and orientation. '
             'No text, captions, logos or copied lyric lines. Return only JSON with a subjects array in input order. ')
         system+=' Invent a new interpretation rather than repeating the previous scene. Apply optional user guidance and additional image instructions when they fit the lyrics.'
+        if job.get('main_character'):
+            from direction.reference_character import casting_rule
+            system+=' '+casting_rule(job['main_character'])
         payload=dict(model=model,stream=False,think=False,keep_alive=-1,options=dict(num_ctx=8192),
             format=dict(type='object',properties=dict(subjects=dict(type='array',items=dict(type='string'))),required=['subjects']),
             messages=[dict(role='system',content=system),dict(role='user',content=json.dumps([
@@ -38,7 +45,6 @@ def regenerate_prompts(worker,job,config,items):
         meanings=[]
         indices=[i['index'] for i in batch]
         groups=[job['groups'][i] for i in indices]
-        audit_groups=groups
         try:
             from direction.song_gist import song_gist, attach_gist
             gist=job.get('song_gist') or song_gist(gpu_chat,model,[line for group in job['groups'] for line in group.split(' / ')],
@@ -52,22 +58,16 @@ def regenerate_prompts(worker,job,config,items):
                 inputs=json.loads(payload['messages'][1]['content'])
                 for entry,meaning in zip(inputs,meanings):entry['lyric_meaning']=meaning
                 payload['messages'][1]['content']=json.dumps(inputs)
-                audit_groups=[f'Original lyric group: {group}\nEnglish meaning: {meaning}'
-                              for group,meaning in zip(groups,meanings)]
             attach_gist(payload,gist)
-            audit_groups=[f'Song message: {gist}\n{group}' for group in audit_groups]
-            subjects=request_subjects(gpu_chat,payload,max_words=550 if job.get('artwork_mode')=='verse' else 180)
-            subjects=lengthen_short_subjects(gpu_chat,payload,subjects,400 if job.get('artwork_mode')=='verse' else 120,
-                                             max_words=550 if job.get('artwork_mode')=='verse' else 180)
-            technique=job.get('style_prompt',config.get('style_prompt',''))
+            subjects=request_subjects(gpu_chat,payload,max_words=240 if job.get('artwork_mode')=='verse' else 180)
+            technique=style or job.get('style_prompt',config.get('style_prompt',''))
             extra=job.get('image_instructions',config.get('image_instructions',''))
-            prompts=[image_prompt(subject,job['layouts'][index],technique,bool(job.get('reference_paths')))
+            if job.get('main_character'):
+                extra=(casting_rule(job['main_character'])+extra).strip()
+            prompts=[image_prompt(subject,job['layouts'][index],technique,bool(job.get('reference_paths')),job.get('reference_use')=='likeness')
                      + (' Additional image direction: '+extra if extra else '') for index,subject in zip(indices,subjects)]
-            from direction.prompt_audit import audit_prompts
-            prompts=audit_prompts(gpu_chat,model,audit_groups,subjects,prompts,[job['layouts'][i] for i in indices],job.get('artwork_mode','cutout'))
             from direction.prompt_fit import fit_prompts
-            from models.image.catalog import selected_model
-            prompts=fit_prompts(gpu_chat,model,selected_model(job,config),prompts,technique)
+            prompts=fit_prompts(gpu_chat,model,image_model,prompts,technique)
         finally:unload_model(model)
         for item,subject,prompt in zip(batch,subjects,prompts):
             index=item['index'];updated=copy.deepcopy(job)
@@ -75,13 +75,14 @@ def regenerate_prompts(worker,job,config,items):
             updated['prompts'][index]=prompt
             if 'plate_prompts' in updated:
                 from artwork.greenscreen import plate_prompt
-                updated['plate_prompts'][index]=plate_prompt(subject,job['layouts'][index],job.get('style_prompt',config.get('style_prompt','')))
+                updated['plate_prompts'][index]=plate_prompt(subject,job['layouts'][index],style or job.get('style_prompt',config.get('style_prompt','')))
+            if style:updated['style_prompt']=style
             if meanings:
                 updated.setdefault('lyric_meanings',['']*len(job['groups']))[index]=meanings[indices.index(index)]
-            updated['prompt_audit']=dict(version=1,model=model)
+            updated['prompt_model']=model
             updated['song_gist']=gist
             if 'reference_modes' in updated:
                 updated['reference_modes'][index]='technique_prompt_only' if job.get('artwork_mode') in ('verse','matte') or subject_kind(subject)=='object' else 'image_conditioning'
-            replacements[index]=updated
+            replacements[id(item)]=updated
         worker.emit('subjects',1,message=f'{len(batch)} replacement prompts ready; prompting model released')
-    return replacements
+    return [replacements[id(item)] for item in items]

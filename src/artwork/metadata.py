@@ -10,6 +10,7 @@ def variant_metadata(path,job,index):
     path=Path(path)
     metadata={key:job[field][index] for key,field in FIELDS.items() if field in job}
     metadata.setdefault('subject',metadata.get('prompt',''))
+    if job.get('style_prompt'):metadata['style']=job['style_prompt']
     sidecar=path.with_suffix('.artwork.json')
     try:
         if sidecar.exists():return {**metadata,**json.loads(sidecar.read_text(encoding='utf-8'))}
@@ -22,6 +23,7 @@ def variant_metadata(path,job,index):
         if manifest.exists():
             source=json.loads(manifest.read_text(encoding='utf-8'));position=0 if len(source['prompts'])==1 else index
             metadata.update({key:source[field][position] for key,field in FIELDS.items() if field in source})
+            if source.get('style_prompt'):metadata['style']=source['style_prompt']
     except (OSError,ValueError,IndexError,KeyError):pass
     return metadata
 

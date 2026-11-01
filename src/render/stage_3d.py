@@ -942,7 +942,8 @@ class Stage3D:
         if current and t < starts[current]+self.c.art_crossing(current):
             texture = gl.transient(self.c.background(0, t, veil=False).convert('RGBA'))
         else:
-            texture = gl.texture(('backdrop', current), lambda: self.c.art[current].convert('RGBA'))
+            texture = (gl.transient(self.c.art[current].convert('RGBA')) if current in getattr(self.c, 'videos', {})
+                       else gl.texture(('backdrop', current), lambda: self.c.art[current].convert('RGBA')))
         gl.quad(texture, scaling(2., 2.), 1., (BACKDROP_TINT,)*3)
 
     def plan_shapes(self):
@@ -1433,18 +1434,21 @@ class Stage3D:
     def camera(self, t):
         blocks = self.plan()
         number = max(0, bisect.bisect_right([b['move'] for b in blocks], t)-1)
-        block = blocks[number]
-        eye, target = self.hold_pose(block, t)
-        roll = block['shot_roll']
-        if number and t < block['move']+MOVE:
-            # Blend from the old shot to the new one while both keep drifting, with an eased weight: the glide
-            # leaves at the old shot's own velocity and arrives at the new one's, so nothing on screen (the wisp
-            # least of all) lurches when a glide starts or stops.
-            u = smooth(max(0., min(1., (t-block['move'])/MOVE)))
-            old_eye, old_target = self.hold_pose(blocks[number-1], t)
-            eye = old_eye+(eye-old_eye)*u
-            target = old_target+(target-old_target)*u
-            roll = blocks[number-1]['shot_roll']+(roll-blocks[number-1]['shot_roll'])*u
+        def pose(index):
+            block = blocks[index]
+            eye, target = self.hold_pose(block, t)
+            roll = block['shot_roll']
+            if index and t < block['move']+MOVE:
+                # A new move may begin before the previous one finishes. Blend from its actual in-progress
+                # pose so the camera cannot jump to the previous shot's unblended zoom or position.
+                u = smooth(max(0., min(1., (t-block['move'])/MOVE)))
+                old_eye, old_target, old_roll = pose(index-1)
+                eye = old_eye+(eye-old_eye)*u
+                target = old_target+(target-old_target)*u
+                roll = old_roll+(roll-old_roll)*u
+            return eye, target, roll
+
+        eye, target, roll = pose(number)
         forward = normalized(target-eye)
         angle = math.radians(roll)
         up = np.array([0., 1., 0.])

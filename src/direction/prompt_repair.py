@@ -9,6 +9,9 @@ def revise_repair_prompts(worker, job, config, items, variants=1):
     Writing all rounds' prompts up front means later repair rounds only switch between image generation and
     review, without reloading the prompting model and then the image model again.
     """
+    from direction.image_instruction_cleanup import clean_legacy_imported_meaning
+    job=dict(job,image_instructions=clean_legacy_imported_meaning(
+        job.get('image_instructions',config.get('image_instructions',''))))
     from models.ollama.catalog import resolve_prompt_model
     from models.ollama.trace import trace_stage
     from models.ollama.gpu import gpu_chat, unload_model
@@ -44,7 +47,7 @@ def revise_repair_prompts(worker, job, config, items, variants=1):
                  image_instructions=job.get('image_instructions',config.get('image_instructions','')),
                  layout=job.get('layouts', [{} for _ in job['prompts']])[item['index']],
                  assessment={key:item['review'][key] for key in
-                             ('score', 'summary', 'issues', 'hand_checks', 'uncertain') if key in item['review']},
+                             ('score', 'summary', 'issues', 'hand_checks', 'figure_checks', 'uncertain') if key in item['review']},
                  variant=variant+1)
             for item in items for variant in range(variants)]))])
     try:
@@ -56,7 +59,13 @@ def revise_repair_prompts(worker, job, config, items, variants=1):
             prompts = request_subjects(gpu_chat, payload, batch_size=2, max_words=660)
         from direction.prompt_fit import fit_prompts
         from models.image.catalog import selected_model
-        prompts = fit_prompts(gpu_chat, model, selected_model(job, config), prompts, job.get('style_prompt', config.get('style_prompt', '')))
+        by_model={}
+        for position,item in enumerate(items):
+            image_model=item.get('image_model') or selected_model(job,config)
+            by_model.setdefault(image_model,[]).extend(range(position*variants,(position+1)*variants))
+        for image_model,positions in by_model.items():
+            fitted=fit_prompts(gpu_chat,model,image_model,[prompts[position] for position in positions],job.get('style_prompt',config.get('style_prompt','')))
+            for position,prompt in zip(positions,fitted):prompts[position]=prompt
     finally:
         try:
             unload_model(model)

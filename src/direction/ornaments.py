@@ -30,13 +30,13 @@ import sys
 
 import render.glyph_art as glyph_art
 
-VERSION = 10  # ask for readable AI pictures and avoid unrelated fallback artwork
+VERSION = 10  # preserve block choices while replacing old shape-built pictures
 # Short words that never carry a picture: pronouns, particles and prepositions, in English and Tagalog.
 PICTURE_SKIP = frozenset('''nang mo natin namin ninyo nila niya akin aking 'king iyong kanyang din rin lang lamang pa po
 ba man kung 'di di hindi kong mong mo'y ako'y ika'y siya'y para upang kahit pero ngunit nga yung 'yung naman narito
 nariyan doon dito diyan sakin sayo sa'yo 'to mga'''.split())
 BATCH = 8
-MOTIONS = ('drift', 'bob', 'spin', 'pulse', 'sway', 'flicker', 'twinkle')
+MOTIONS = ('drift', 'bob', 'spin', 'pulse', 'sway', 'flicker', 'twinkle', 'fall')  # fall: raindrops, tears, leaves, snow
 ENTRANCES = dict(flip='words flip up from lying flat: crisp, decisive', swing='words swing in like opening doors: playful, warm',
                  rise='words rise out of the depth: gentle, dreamy, tender', drop='words drop from above and bounce: bold, energetic')
 ACCENTS = dict(red='#EF4C54', gold='#FFD23F', pink='#FF3D7F', sky='#4CC9FF', violet='#A98BFF', mint='#5CE1B0',
@@ -66,7 +66,7 @@ SYSTEM = (LANGUAGE_RULE+'You art-direct the word blocks of a 3D kinetic typograp
           'reads better than a diffuse cloud at small size; for example, a green poison bottle with a skull-and-crossbones '
           'pictogram can represent poison. '
           'The object must read at a small size, '
-          'never text, never a person\'s face. Name the picture subject explicitly even when choosing a library image. '
+          'never text, writing, signs, labels or anything whose point is its words, never a person\'s face. Name the picture subject explicitly even when choosing a library image. '
           'Use "library" only when one of the library pictures shows that subject; '
           'otherwise use "generate" and set "library" to "none". Pick "none" for the '
           'word when no picture fits; roughly one block in three should have no picture. Never repeat a picture subject in '
@@ -242,8 +242,11 @@ def request_directions(stage, contexts, model, request, image_instructions=''):
     notes = [notes_for_group(text, glosses) for text in lyric_texts]
     lyric_words = [set(re.findall(r"[\w']+", text.lower())) for text in lyric_texts]
     result = [direction(None, block, {}, kinds, a, p) for block, a, p in zip(blocks, accents, particles)]
+    from core.progress import counted
+    report = counted('pictures', 0, .5, 'AI choosing the small animated pictures for 3D stage block')
     for first in range(0, len(blocks), BATCH):
         numbers = list(range(first, min(len(blocks), first+BATCH)))
+        report(first, numbers[-1]+1, len(blocks))
         content = []
         for n in numbers:
             lines = blocks[n]['lines']
@@ -292,14 +295,20 @@ def lettering_colors(effect, ink):
 
 
 def icon_prompt(subject, colors='', style_prompt='', verse_meaning='', image_instructions=''):
-    """Ask the image model for a simple subject whose staging background can be cut away."""
+    """Ask the image model for a recognizable subject whose staging background can be cut away."""
     from direction.illustration_prompts import subject_kind
     subject = re.sub(r'^(?:(?:an?|the)\s+)?(?:small\b,?\s*)?', '', subject.strip(), flags=re.I)
+    # Quoted words, and anything "reading" or "saying" something, make image models paint lettering.
+    subject, verse_meaning, image_instructions = (wordless(t) for t in (subject, verse_meaning, image_instructions))
     people = subject_kind(subject) != 'object'
-    return (f'Create one small vector-style clipart illustration of {subject}, alone at the center of a square canvas. '
-            f'The visible subject is exactly {subject}. Give it a clear outer silhouette, crisp contours, a few solid '
-            'colour areas, and minimal shading so it reads beside a lyric word and can be cut out cleanly. '
-            'Keep any colour named in the subject as its dominant colour. '
+    blank = ('Every surface that could carry writing, such as pages, signs, labels, screens or covers, is blank and unmarked. '
+             if TEXT_BEARING.search(subject) else '')
+    return (f'Create one detailed illustration of {subject}, alone at the center of a square canvas. '
+            f'The visible subject is exactly {subject}. This is a wordless picture: no text of any kind. '
+            'Preserve its distinctive natural form, material texture, '
+            'and fine details, with crisp contours and subtle shading so it stays clear at a small size. '
+            + blank
+            + 'Keep any colour named in the subject as its dominant colour. '
             + (f'Use {colors} only as a secondary accent when it does not change the subject. ' if colors else '')
             + (f'Render people in this style: {style_prompt[:200]}. ' if people and style_prompt else '')
             + (f'The verse means: {verse_meaning[:240]}. Use this only to clarify the named subject. ' if verse_meaning else '')
@@ -307,14 +316,26 @@ def icon_prompt(subject, colors='', style_prompt='', verse_meaning='', image_ins
             + ('' if people else 'No people, faces, figures or characters. ')
             + 'Show the entire subject with empty space on every side. Use a plain uniform light grey staging '
               'background for clean transparency removal. No floor, scenery, shadow, halo, white outline, frame, '
-              'border, letters, numbers, logos or watermark. No loose marks outside the subject.')
+              'border, logos or watermark. No loose marks outside the subject. Absolutely no letters, words, numbers, '
+              'captions, labels, signatures or writing in any language, on the subject or anywhere else.')
+
+
+TEXT_BEARING = re.compile(r'\b(?:signs?|signpost|poster|banner|billboard|book|pages?|letters?|notes?|cards?|newspaper|'
+                          r'labels?|tags?|envelope|screens?|phone|calendar|map|scroll|menu|ticket|placard|plaque|'
+                          r'jersey|t-shirt|shirt|bottle|can|box|package)\b', re.I)
+
+
+def wordless(text):
+    """Drop quoted words and 'reading/saying ...' clauses, which image models render as lettering."""
+    text = re.sub(r'["“”«»]([^"“”«»]*)["“”«»]', '', str(text or ''))
+    text = re.sub(r"(?<!\w)'[^']{1,60}'(?!\w)", '', text)
+    text = re.sub(r'\b(?:that\s+)?(?:reads?|reading|says?|saying|spelling|spells|inscribed|lettered|written|labelled|labeled)\b'
+                  r'(?:\s+(?:with|as|in|on))?[^,.;]*', '', text, flags=re.I)
+    return re.sub(r'\s+([,.;])', r'\1', ' '.join(text.split())).strip(' ,;')
 
 
 def paint_icons(prompts, subjects, folder, options, kind='video.ornaments'):
-    """Cache tiny transparent SVG/PNG art, with legacy raster painting as an option."""
-    if options.get('mini_image_mode', 'vector') != 'raster':
-        from artwork.vector_clipart import paint_icons as paint_vectors
-        return paint_vectors(prompts, subjects, folder, options, kind)
+    """Paint detailed transparent pictures with the selected image model."""
     from models.image.catalog import MODEL, model_spec
     from render.layout import illustration_layout
     model = options.get('image_model') or MODEL
@@ -377,8 +398,7 @@ def set_picture_kept(folder, key, keep):
 
 
 def repaint_released(directions, folder, options):
-    """Keep every painted picture by default; delete and repaint only the ones the user released, plus any
-    whose file is missing. Repainted pictures are kept again until released."""
+    """Keep painted pictures, replacing released, missing, and old shape-built pictures."""
     released = released_pictures(folder)
     stale = []
     for entry in directions:
@@ -386,9 +406,10 @@ def repaint_released(directions, folder, options):
         if not ornament or ornament.get('source') != 'generate':
             continue
         image = ornament.get('image')
-        if image and Path(image).is_file() and picture_key(ornament) not in released:
+        legacy_vector = bool(image and Path(image).with_suffix('.svg').is_file())
+        if image and Path(image).is_file() and picture_key(ornament) not in released and not legacy_vector:
             continue
-        if image:
+        if image and not legacy_vector:
             for path in (Path(image), Path(image).with_suffix('.cutout.png')):
                 path.unlink(missing_ok=True)
         ornament['image'] = None

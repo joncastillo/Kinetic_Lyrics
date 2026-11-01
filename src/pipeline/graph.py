@@ -97,13 +97,19 @@ def probe(state, runtime: Runtime[Run]):
 
 def align(state, runtime: Runtime[Run]):
     from models.speech.recognition import align as align_lyrics, transcribe
-    from pipeline.timing import repair_zero_durations, validate
+    from pipeline.timing import repair_zero_durations, timing_text_matches, validate
     args = options(state, runtime)
     lines = state['lines']
     source = (args.alignment_audio or Path(state['audio'])).resolve()
     emit('alignment', 0, message='Aligning supplied lyrics' if lines is not None else 'Transcribing lyrics from audio')
     if args.timings:
         data = json.loads(args.timings.read_text(encoding='utf-8-sig'))
+        if (lines is not None and args.timings.resolve() == paths(state)['timings'].resolve()
+                and not timing_text_matches(data, lines)):
+            print('Saved timings do not match the edited lyrics; aligning the new lyrics.', flush=True)
+            args.timings = None
+            args.plan = None
+            data = align_lyrics(source, lines, args)
     elif lines is not None:
         data = align_lyrics(source, lines, args)
     else:

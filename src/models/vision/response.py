@@ -34,6 +34,11 @@ def parse_review(response):
         or 'visible_fingers' not in h
         or (h.get('visible_fingers') is not None and (type(h['visible_fingers']) is not int or not 0<=h['visible_fingers']<=20)) for h in hands):
         raise ValueError('review contains invalid hand evidence')
+    figures=result.setdefault('figure_checks',[])
+    if not isinstance(figures,list) or any(not isinstance(f,dict) or not isinstance(f.get('assessment',''),str)
+        or type(f.get('uncertain',False)) is not bool or type(f.get('limbs_correct',True)) is not bool
+        or type(f.get('facial_hair',False)) is not bool for f in figures):
+        raise ValueError('review contains invalid figure evidence')
     return result
 
 

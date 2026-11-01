@@ -28,6 +28,7 @@ CHUNK_GAP = .32  # a pause this long (seconds) always starts a new chunk
 LEAD, ENTRY, EXIT, HOLD = .06, .42, .3, .9
 PUSH = .05  # how much a holding chunk grows over its time on screen
 ART_PUSH = .06
+EDGE_EASE = 1.5  # seconds over which the push eases in and out at a scene mix's section edges
 
 
 def ease(value):
@@ -204,17 +205,37 @@ class CinemaTypography:
                 self.paint_chunk(screen, self.chunks[number], t)
         return screen.convert('RGB')
 
+    def sections(self):
+        """(first word, last word) of each run of lines this engine draws; the whole song when it draws them all."""
+        if getattr(self, '_sections', None) is None:
+            data, runs = self.c.data, []
+            lines = sorted(self.only) if self.only is not None else list(range(len(data)))
+            for i in lines:
+                if runs and runs[-1][1] == i-1:runs[-1][1] = i
+                else:runs.append([i, i])
+            self._sections = [(data[a]['words'][0]['start'], data[b]['words'][-1]['end']) for a, b in runs] or [(0., self.c.duration)]
+        return self._sections
+
+    def push(self, number, t):
+        """How far painting `number` has pushed in at t. Each painting keeps its own push, so the one leaving during
+        a crossing does not snap back; it eases to none at the edges of this engine's sections, so a scene mix hands
+        the painting to the next scene at exactly the same size."""
+        c = self.c
+        starts = list(getattr(c, 'art_starts', None) or [0.])
+        span = (starts[number+1] if number+1 < len(starts) else c.duration)-starts[number]
+        grow = max(0., min(1., (t-starts[number])/max(1., span)))
+        if self.only is not None:
+            # A scene mix's change of scene glides for TRAVEL around a switch that falls at most half a glide
+            # inside the section's first and last words: hold the push at none for the whole glide.
+            from render.scene_mix import TRAVEL
+            pad = TRAVEL/2
+            edge = max((min(t-first-pad, last-pad-t) for first, last in self.sections()), default=0.)
+            grow *= smooth(edge/EDGE_EASE)
+        return 1+ART_PUSH*grow
+
     def backdrop(self, index, t):
         """The artwork, pushing in slowly from the moment it appears."""
-        c = self.c
-        image = c.background(index, t, veil=False).convert('RGBA')
-        starts = list(getattr(c, 'art_starts', None) or [0.])
-        current = max(0, bisect.bisect_right(starts, t)-1)
-        span = (starts[current+1] if current+1 < len(starts) else c.duration)-starts[current]
-        grow = 1+ART_PUSH*max(0., min(1., (t-starts[current])/max(1., span)))
-        w, h = image.size
-        cw, ch = w/grow, h/grow
-        return image.resize(image.size, Image.Resampling.BILINEAR, box=((w-cw)/2, (h-ch)/2, (w+cw)/2, (h+ch)/2))
+        return self.c.background(index, t, veil=False, zoom=lambda number: self.push(number, t)).convert('RGBA')
 
     def paint_chunk(self, screen, chunk, t):
         W = self.c.width

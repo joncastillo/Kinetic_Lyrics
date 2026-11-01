@@ -217,6 +217,7 @@ class Compositor:
             raise ValueError('Illustration line count must be a positive integer.')
         self.art = []
         self.mattes, self.open_boxes, self._scenery = [], [], {}
+        self.videos = {}  # art slot -> VideoArt, for slots whose artwork is an uploaded clip
         self.illustration_paths = [Path(p) for p in (illustrations or [])]
         self.artwork_revisions = {}
         self.text_box = (0, 0, width, height)
@@ -226,12 +227,18 @@ class Compositor:
             seen, kept = set(), []
             for slot, path in enumerate(illustrations):
                 source_bytes = Path(path).read_bytes()
-                fingerprint = hashlib.sha256(source_bytes).digest()
+                from artwork.video_art import VideoArt, sidecar
+                clip = sidecar(path)
+                # A clip beside the still makes the slot a video; its own fingerprint marks the slot changed.
+                from artwork.video_art import clip_offset
+                from artwork.video_art import clip_settings
+                fingerprint = hashlib.sha256(source_bytes+(clip.read_bytes()+json.dumps(clip_settings(path), sort_keys=True).encode() if clip else b'')).digest()
                 self.artwork_revisions[str(slot)] = fingerprint.hex()
                 if fingerprint in seen and not preserve_art_slots:
                     continue
                 seen.add(fingerprint)
-                kept.append(fingerprint.hex())
+                # Generated clips are keyed by the still alone; an uploaded clip beside it is handled by self.videos.
+                kept.append(hashlib.sha256(source_bytes).hexdigest())
                 if artwork_mode == 'matte':
                     from artwork.greenscreen import load as load_matte, open_box
                     image, matte = load_matte(BytesIO(source_bytes))
@@ -242,15 +249,21 @@ class Compositor:
                 with Image.open(BytesIO(source_bytes)) as source:
                     image = source.convert('RGBA')
                     if artwork_mode in FULL_FRAME:
-                        self.art.append(ImageOps.fit(image, (width,height), Image.Resampling.LANCZOS))
-                        continue
-                    bounds = image.getchannel('A').getbbox()
-                    if not bounds:
-                        raise ValueError(f'Illustration is fully transparent: {path}')
-                    image = image.crop(bounds)
-                    box = illustration_layout(len(self.art), width, height, cinematic, artwork_mode, layout_seed)['art_box']
-                    size = tuple(max(1, round(v*.94)) for v in box[2:]) if cinematic else box[2:]
-                    self.art.append(ImageOps.contain(image, size, Image.Resampling.LANCZOS))
+                        prepare = lambda picture: ImageOps.fit(picture, (width,height), Image.Resampling.LANCZOS)
+                    else:
+                        box = illustration_layout(len(self.art), width, height, cinematic, artwork_mode, layout_seed)['art_box']
+                        size = tuple(max(1, round(v*.94)) for v in box[2:]) if cinematic else box[2:]
+                        def prepare(picture, size=size):
+                            bounds = picture.getchannel('A').getbbox()
+                            if not bounds:
+                                raise ValueError(f'Illustration is fully transparent: {path}')
+                            return ImageOps.contain(picture.crop(bounds), size, Image.Resampling.LANCZOS)
+                    if clip:
+                        from artwork.video_art import clip_framing, frame_picture
+                        framing = clip_framing(path)
+                        prepare = lambda picture, fit=prepare, framing=framing: fit(frame_picture(picture, framing, (width, height)))
+                        self.videos[len(self.art)] = VideoArt(clip, prepare)
+                    self.art.append(prepare(image))
         from video_generation.clips import clips_for
         self.clips = clips_for(video_clips, kept) if illustrations and self.artwork_mode in ('fullscreen', 'verse') else []
         if self.open_boxes and self.open_boxes[0]:
@@ -390,15 +403,26 @@ class Compositor:
                if current+1 < len(self.art_starts) else self.art_starts[current]-self.art_starts[current-1])
         return min(20., max(1., gap*.9))
 
-    def background(self, index, t, veil=True):
+    def background(self, index, t, veil=True, zoom=None):
+        """`zoom(number)` optionally scales painting `number` about its centre before a crossing blends it, so a
+        painting that is still leaving keeps its own push-in instead of snapping back with the new one."""
         scene = self.plan['scenes'][max(0, index)]
         if self.artwork_mode in FULL_FRAME and self.art_starts:
+            def painting(number):
+                image = self.art_frame(number, t)
+                grow = zoom(number) if zoom else 1.
+                if grow > 1.0005:
+                    w, h = image.size
+                    cw, ch = w/grow, h/grow
+                    image = image.resize(image.size, Image.Resampling.BILINEAR,
+                                         box=((w-cw)/2, (h-ch)/2, (w+cw)/2, (h+ch)/2))
+                return image
             current = max(0, bisect.bisect_right(self.art_starts,t)-1)
-            frame = self.art_frame(current, t)
+            frame = painting(current)
             if current > 0:
                 blend = min(1., max(0., (t-self.art_starts[current])/self.art_crossing(current)))
                 if blend < 1:
-                    previous = self.art_frame(current-1, t)
+                    previous = painting(current-1)
                     feather = max(2, round(self.width*.03))
                     edge = round(blend*(self.width+4*feather)-2*feather)
                     seam = Image.new('L', frame.size)
@@ -705,7 +729,17 @@ class Compositor:
             tail = self._tail_compositors[previous].frame(t, text_only=True)
             frame.paste(tail,(0,0),tail)
 
+    def advance_videos(self, t):
+        """Put each video slot's frame for time t in its place; a clip plays from its slot's start and loops."""
+        if not self.videos or not self.art_starts:
+            return
+        current = max(0, bisect.bisect_right(self.art_starts, t)-1)
+        for slot, video in self.videos.items():
+            if current-1 <= slot <= current+1 and slot < len(self.art_starts):  # on screen, or crossing in or out
+                self.art[slot] = video.frame(t-self.art_starts[slot])
+
     def frame(self, t, *, text_only=False):
+        self.advance_videos(t)
         image = self._frame(t, text_only=text_only)
         if self.instrument_stage is not None and not text_only:
             image = self.instrument_stage.paint(image, t)
@@ -968,12 +1002,12 @@ def _render_video(audio, output, data, plan, duration, args):
             plan = dict(plan, ornaments=[], pictures='off')
         else:
             from direction.ornaments import ensure_ornaments
-            emit('direction', 0, message='AI choosing the small animated pictures for each block')
+            emit('pictures', 0, message='AI choosing the small animated pictures for each block')
             plan = ensure_ornaments(data, plan, compositor, dict(vars(args), ornament_images=pictures == 'ai-painted'), Path(output).parent)
         compositor = render_compositor(data,plan,duration,args)
     if getattr(args, 'instruments_found', None) and getattr(args, 'instruments', 'off') != 'off':
         from render.instrument_stage import instrument_pictures
-        emit('direction', 0, message='Painting the instruments heard in the song')
+        emit('pictures', .8, message='Painting the instruments heard in the song')
         args.instrument_pictures = instrument_pictures(args.instruments_found, Path(output).parent, vars(args))
         compositor = render_compositor(data,plan,duration,args)
     encoding = (['-c:v', 'h264_nvenc', '-preset', 'p5', '-tune', 'hq', '-rc', 'vbr', '-cq', '18', '-b:v', '0']

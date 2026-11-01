@@ -85,6 +85,12 @@ def repair_zero_durations(data, duration):
     return repaired
 
 
+def timing_text_matches(data, lines):
+    return (isinstance(data, list) and len(data) == len(lines)
+            and all(isinstance(item, dict) and item.get('text') == line
+                    for item, line in zip(data, lines)))
+
+
 def validate(data, lines, duration):
     if len(data) != len(lines):
         raise ValueError("Timing file must have one entry per lyric line.")

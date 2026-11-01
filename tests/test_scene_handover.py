@@ -82,3 +82,60 @@ class HandoverTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class SharedPaintingTest(unittest.TestCase):
+    """With full-screen or verse artwork every scene paints the same picture, so a change of scene or of painting
+    must never move the picture: no slide into itself, no snap of Black hole sun's push-in."""
+
+    @classmethod
+    def setUpClass(cls):
+        from PIL import Image, ImageDraw
+        from render.compositor import Compositor
+        from direction.typography import rules_plan
+        from direction.theme import theme_for
+        lines = [(1.+k*3.2, 'the quiet river carries every word home') for k in range(6)]
+        data = lyrics(*lines)
+        for i, line in enumerate(data):
+            line.update(section_id=i//3, section_label=('Verse', 'Chorus')[i//3])
+        flows = [dict(start=0, end=3, scene='panning-canvas'), dict(start=3, end=6, scene='black-hole-sun')]
+        plan = dict(rules_plan(data, theme_for('autumn')), scene_flows=flows)
+        cls.c = Compositor(data, plan, 320, 180, 21., reading_flow='mixed', text_animation='none',
+                           artwork_mode='verse')
+        art = []
+        for colour in ('#336699', '#996633'):
+            image = Image.new('RGBA', (320, 180), colour)
+            draw = ImageDraw.Draw(image)
+            for x in range(0, 320, 10):
+                draw.line((x, 0, x, 180), fill='white', width=2)
+            art.append(image)
+        cls.c.art, cls.c.art_starts = art, [0., 14.]
+        cls.mix = cls.c.realtime
+        cls.mix.plan()
+
+    def stripes(self, t):
+        """Where the painting's white stripes sit: the column profile of the frame, so lyrics and the wisp drawn
+        over a few rows barely change it while any slide or zoom of the painting moves every stripe."""
+        import numpy as np
+        frame = np.asarray(self.c.frame(t).convert('L')).astype(float)
+        profile = np.median(frame, axis=0)
+        return profile-profile.mean()
+
+    def offset(self, a, b):
+        """The shift, in pixels, that best lines up stripe profile b with a (stripes repeat every 10 px)."""
+        import numpy as np
+        return min(range(-4, 5), key=lambda d: np.abs(np.roll(b, d)[20:-20]-a[20:-20]).mean())
+
+    def test_change_of_scene_does_not_slide_the_painting(self):
+        handover = next(h for h in self.mix.handovers() if h is not None)
+        start, end = handover['glide']
+        first = self.stripes(start)
+        for k in range(1, 7):
+            self.assertEqual(self.offset(first, self.stripes(start+k*(end-start)/6)), 0)
+
+    def test_black_hole_sun_push_does_not_snap_when_the_painting_changes(self):
+        # 14 s starts the second painting inside the Black hole sun section; the first is still mostly on screen.
+        import numpy as np
+        before, after = self.stripes(14.-1/30), self.stripes(14.+1/30)
+        right = slice(200, 300)
+        self.assertLess(np.abs(after[right]-before[right]).mean(), 4.)

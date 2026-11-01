@@ -5,7 +5,9 @@ Run as `python -m artwork.generation <manifest> --cache <folder>`; the model its
 from __future__ import annotations
 import argparse
 import gc
+import hashlib
 import models.gpu.memory as gpu_memory
+import secrets
 import json
 import os
 from pathlib import Path
@@ -51,8 +53,20 @@ def _run_job(manifest, cache):
     if not torch.cuda.is_available():
         raise ValueError('FLUX.2 generation requires CUDA in this environment.')
     model = job['model']
+    # "Randomize per image" in the studio: each picture gets its own seed instead of run seed + index.
+    random_seeds = False
+    if manifest.parent.parent.name == 'video.artwork':
+        try:random_seeds = bool(json.loads((manifest.parent.parent.parent/'config.json').read_text(encoding='utf-8')).get('randomize_seed'))
+        except (OSError, ValueError):pass
     free, total = gpu_memory.dedicated_memory(torch)
     print(f'GPU memory before image model: {free/2**30:.1f} GiB free / {total/2**30:.1f} GiB total.', flush=True)
+    try:
+        import psutil
+        ram = psutil.virtual_memory()
+        print(f'System memory before image model: {ram.available/2**30:.1f} GiB free / {ram.total/2**30:.1f} GiB RAM, '
+              f'{psutil.swap_memory().free/2**30:.1f} GiB page file free.', flush=True)
+    except Exception:
+        pass
     emit('model', 0, message='Loading image model; first use may download weights')
     from models.gpu.lifecycle import current_session
     model_session = current_session()
@@ -64,7 +78,11 @@ def _run_job(manifest, cache):
         ocr = RapidOCR()
         print(f'Generating with {model}: {job["steps"]} steps, guidance {guidance}.', flush=True)
         references = []
+        # The same picture uploaded several times adds nothing but weight to its conditioning.
+        unique = {}
         for path in job['reference_paths']:
+            unique.setdefault(hashlib.sha256(Path(path).read_bytes()).hexdigest(), path)
+        for path in unique.values():
             with Image.open(path) as source:
                 reference = source.convert('RGB')
             reference.thumbnail((1024, 1024))
@@ -107,8 +125,10 @@ def _run_job(manifest, cache):
             layout['image_width'],layout['image_height'] = image_dimensions(layout['image_width'],layout['image_height'],min(total,gpu_memory.dedicated_memory(torch)[0]+torch.cuda.memory_reserved())/2**30)
             reference_input = references if model_spec(model)['references'] and uses_reference(job.get('artwork_mode'), job['visual_descriptions'][i]) else []
             best_path=None;best_lettering=None;best_rank=None
+            seed=secrets.randbelow(2**31) if random_seeds else job['seed']+i
+            print(f'Illustration {i+1} seed: {seed}', flush=True)
             for attempt in range(3):
-                retry_prompt=with_reference_role(job['prompts'][i]) if reference_input else job['prompts'][i]
+                retry_prompt=with_reference_role(job['prompts'][i], job.get('reference_use') == 'likeness') if reference_input else job['prompts'][i]
                 if attempt and manifest.parent.parent.name=='video.artwork':
                     retry_prompt+=' Replace any written sign or neon lettering with unlettered geometric light tubes. All signs, screens, walls and panels are completely blank. No alphabetic marks, captions, numerals or logos anywhere.'
                 if attempt and matte:
@@ -116,7 +136,7 @@ def _run_job(manifest, cache):
                 image = pipe(prompt=retry_prompt, **inference_options(model, reference_input),
                     width=layout['image_width'], height=layout['image_height'],
                     num_inference_steps=job['steps'],
-                    generator=torch.Generator('cpu').manual_seed(job['seed']+i+attempt*10000),
+                    generator=torch.Generator('cpu').manual_seed(seed+attempt*10000),
                     callback_on_step_end=diffusion_callback(i, len(job['prompts']), attempt, 3, job['steps'])).images[0]
                 lettering = detected_lettering(ocr, image)
                 screened = True
@@ -191,7 +211,7 @@ def _run_job(manifest, cache):
             propagate_lettering(manifest.parent/f'{i:03d}.raw.png',target)
             emit('cutouts', (missing.index(i)+1)/len(missing), message=f'Greenscreen scene {i+1} keyed', artifact=str(target))
         return
-    emit('cutouts', 0, message='Removing illustration backgrounds on CPU')
+    emit('cutouts', 0, message=f'Removing backgrounds from {len(missing)} illustration{"s" if len(missing) != 1 else ""} on the CPU')
     session = new_session('birefnet-general', providers=['CPUExecutionProvider'])
     for i in missing:
         target=manifest.parent/f'{i:03d}.png'
@@ -213,7 +233,7 @@ def _run_job(manifest, cache):
                 temporary.unlink(missing_ok=True)
         from artwork.lettering_review import propagate_lettering
         propagate_lettering(manifest.parent/f'{i:03d}.raw.png',target)
-        emit('cutouts', (missing.index(i)+1)/len(missing), message=f'Transparent illustration {i+1} ready', artifact=str(manifest.parent/f'{i:03d}.png'))
+        emit('cutouts', (missing.index(i)+1)/len(missing), message=f'Background removed: illustration {i+1} ({missing.index(i)+1} of {len(missing)})', artifact=str(manifest.parent/f'{i:03d}.png'))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)

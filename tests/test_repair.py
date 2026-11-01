@@ -50,7 +50,7 @@ class RepairBatchTest(unittest.TestCase):
             review = dict(SIX_FINGERS, image_sha256=sha)
             generated, reviewed, events = [], [], []
 
-            def generate_candidate(root_, job, index, cache, prompt):
+            def generate_candidate(root_, job, index, cache, prompt, image_model=None):
                 path = root/'candidates'/f'{len(generated)}.png'
                 path.parent.mkdir(exist_ok=True)
                 path.write_bytes(str(len(generated)).encode())
@@ -89,7 +89,7 @@ class RepairBatchTest(unittest.TestCase):
                          hand_checks=[], image_sha256=sha)
             generated = []
 
-            def generate_candidate(root_, job, index, cache, prompt):
+            def generate_candidate(root_, job, index, cache, prompt, image_model=None):
                 path = root/'candidates'/f'{len(generated)}.png'
                 path.parent.mkdir(exist_ok=True)
                 path.write_bytes(str(len(generated)).encode())
@@ -105,7 +105,7 @@ class RepairBatchTest(unittest.TestCase):
                 studio_batches.repair_batch(worker, root, manifest, [dict(index=0, model='vision', expected_sha=sha, review=scene)])
             revised.assert_called_once()
             self.assertEqual(revised.call_args.kwargs['variants'], MAX_AUTO_REPAIRS)
-            self.assertEqual(generated, ['fresh 0']*CANDIDATES_PER_REPAIR+['fresh 1']*CANDIDATES_PER_REPAIR)
+            self.assertEqual(generated, [f'fresh {r}' for r in range(MAX_AUTO_REPAIRS) for _ in range(CANDIDATES_PER_REPAIR)])
 
 
 if __name__ == '__main__':

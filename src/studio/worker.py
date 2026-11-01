@@ -55,7 +55,7 @@ def splice_section(video, patch, merged, start, end, duration, encoder):
     return 'compatibility'
 
 
-def generate_candidate(root, job, index, cache, prompt):
+def generate_candidate(root, job, index, cache, prompt, image_model=None, steps=None):
     from artwork.generation import run_job
     candidate_job=copy.deepcopy(job)
     folder=root/'candidates'/f'{index:03d}'/str(time.time_ns())
@@ -65,8 +65,12 @@ def generate_candidate(root, job, index, cache, prompt):
     candidate_job['seed']+=time.time_ns()%1000000
     from models.image.catalog import model_spec, selected_model
     config_path=root/'config.json'
-    model=selected_model(job,json.loads(config_path.read_text(encoding='utf-8')) if config_path.is_file() else {})
+    config=json.loads(config_path.read_text(encoding='utf-8')) if config_path.is_file() else {}
+    model=selected_model(job,dict(config,image_model=image_model) if image_model else config)
     if model!=job['model']:candidate_job.update(model=model,steps=model_spec(model)['steps'])
+    # The Inference steps setting, not the step count the saved artwork was first made with.
+    wanted=steps or (config.get('steps') if model==config.get('image_model') else None)
+    if wanted:candidate_job['steps']=max(1,min(150,int(wanted)))
     if prompt.strip():candidate_job['prompts'][0]=prompt.strip()
     manifest=folder/'illustrations.json'
     manifest.write_text(json.dumps(candidate_job,indent=2),encoding='utf-8')
@@ -115,6 +119,7 @@ def main():
     parser.add_argument('folder', type=Path)
     parser.add_argument('--index', type=int, default=0)
     parser.add_argument('--prompt', default='')
+    parser.add_argument('--style', default='')
     parser.add_argument('--model', default='')
     parser.add_argument('--candidate', type=Path)
     parser.add_argument('--expected-sha', default='')
@@ -132,6 +137,8 @@ def main():
         items=json.loads(args.batch.read_text(encoding='utf-8')) if args.batch else [dict(
             index=args.index,model=args.model,prompt=args.prompt,expected_sha=args.expected_sha,
             candidate=str(args.candidate) if args.candidate else None)]
+        if args.action=='verify' and args.prompt.strip() and not args.batch:
+            items[0].update(user_prompt=args.prompt.strip(),**({'style':args.style.strip()} if args.style.strip() else {}))
         if not isinstance(items,list) or any(not isinstance(item,dict) or type(item.get('index')) is not int or not 0<=item['index']<len(job['prompts']) for item in items):
             raise ValueError('Invalid batch illustration indices')
         with ModelSession([config.get('vision_model'), *(item.get('model') for item in items)]):
@@ -164,6 +171,7 @@ def main():
             entrance_effect=config.get('entrance_effect'), exit_effect=config.get('exit_effect'),
             type_effect=config.get('type_effect','none'), particle_intensity=config.get('particle_intensity',1.), particle_speed=config.get('particle_speed',1.),
             stage_pictures=config.get('stage_pictures','ai-painted'), ai_model=config.get('ai_model','auto'), image_model=config.get('image_model'),
+            image_steps=config.get('steps'),  # small typography pictures follow the Inference steps setting too
             image_cache=config.get('image_cache'), style_prompt=config.get('style_prompt',''))
         from video_generation.step import project_clips
         options.video_clips = project_clips(args.folder, config, illustrations)
