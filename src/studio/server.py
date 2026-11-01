@@ -477,7 +477,10 @@ class Job:
             return []
         result = []
         since = self.gallery_since()
-        if since and manifest.stat().st_mtime < since:
+        # An older manifest stays hidden until this run paints into it: a run whose prompts are unchanged reuses the
+        # same manifest (its folder is a content hash), so its new pictures must still appear as they are made.
+        if since and manifest.stat().st_mtime < since and not any(
+                p.stat().st_mtime >= since for p in manifest.parent.glob('[0-9][0-9][0-9]*.png')):
             return []
         for i, prompt in enumerate(job['prompts']):
             current, raw = manifest.parent/f'{i:03d}.png', manifest.parent/f'{i:03d}.raw.png'

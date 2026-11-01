@@ -65,6 +65,16 @@ def _run_job(manifest, cache):
         ram = psutil.virtual_memory()
         print(f'System memory before image model: {ram.available/2**30:.1f} GiB free / {ram.total/2**30:.1f} GiB RAM, '
               f'{psutil.swap_memory().free/2**30:.1f} GiB page file free.', flush=True)
+        if os.name == 'nt':
+            import ctypes
+            class Status(ctypes.Structure):
+                _fields_ = [('length', ctypes.c_ulong), ('load', ctypes.c_ulong)]+[(n, ctypes.c_ulonglong) for n in
+                            ('total_phys', 'avail_phys', 'total_commit', 'avail_commit', 'total_virtual', 'avail_virtual', 'ext')]
+            status = Status(length=ctypes.sizeof(Status))
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+                # Commit, not free RAM, is what runs out: on Windows that kills the loader with 0xC0000005, not MemoryError.
+                print(f'Commit headroom: {status.avail_commit/2**30:.1f} of {status.total_commit/2**30:.1f} GiB. '
+                      'Loading may crash natively if this is low; close programs or enlarge the page file.', flush=True)
     except Exception:
         pass
     emit('model', 0, message='Loading image model; first use may download weights')

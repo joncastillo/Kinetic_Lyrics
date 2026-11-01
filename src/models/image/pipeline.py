@@ -70,7 +70,9 @@ def load_pipeline(model, cache, torch, offload=False):
     pipeline_type = getattr(diffusers, spec['pipeline'])
     options = dict(torch_dtype=torch.bfloat16, cache_dir=cache, device_map='cuda',
                    max_memory={torch.cuda.current_device():int(free-.5*2**30)})
-    saved = quantized_folder(model, cache) if spec['quantize'] and spec['pipeline'] != 'QwenImagePipeline' else None
+    # Qwen's 8-bit modulation layers are restored from the original shards after loading (protect_image_modulation),
+    # and the save below runs before that step, so its cached copy is plain NF4 and safe to reuse.
+    saved = quantized_folder(model, cache) if spec['quantize'] else None
     preloaded = load_quantized(saved, spec['quantize'], torch) if saved else {}
     if spec['quantize'] and not preloaded:
         options['quantization_config'] = diffusers.PipelineQuantizationConfig(
