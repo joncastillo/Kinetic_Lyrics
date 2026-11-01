@@ -47,7 +47,8 @@ def saved_clips(project, model, digests, width, height):
 
 
 class ClipFrames:
-    """Frames of one clip, played forwards then backwards so a short clip fills a scene of any length."""
+    """Frames of one clip, played once from the start; it then holds its last frame. Clips are generated as long
+    as their painting is on screen, so the hold only covers rounding or a section re-timed after generation."""
 
     def __init__(self, frames):
         self.frames = Path(frames)
@@ -65,8 +66,7 @@ class ClipFrames:
         count = len(self.paths)
         if count == 1:
             return 0
-        position = max(0, round(elapsed*self.fps)) % (2*count-2)
-        return position if position < count else 2*count-2-position
+        return min(max(0, round(elapsed*self.fps)), count-1)
 
     def frame(self, elapsed):
         from PIL import Image

@@ -216,7 +216,8 @@ def animate(state, runtime: Runtime[Run]):
     if not getattr(args, 'video_model', None) or not state.get('illustrations'):
         return dict(video_clips=None)
     from video_generation.step import animate as animate_illustrations
-    return dict(video_clips=animate_illustrations(state['illustrations'], paths(state)['output'], args))
+    return dict(video_clips=animate_illustrations(state['illustrations'], paths(state)['output'], args,
+                                                  data=state.get('data'), duration=state.get('duration')))
 
 
 def direct(state, runtime: Runtime[Run]):

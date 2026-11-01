@@ -394,7 +394,11 @@ class Compositor:
     def art_frame(self, number, t):
         """Scene `number` at time t: its animated clip's frame when one was generated, else the still."""
         clip = self.clips[number] if number < len(self.clips) else None
-        return clip.frame(t-self.art_starts[number]) if clip else self.art[number].convert('RGB')
+        if not clip:
+            return self.art[number].convert('RGB')
+        # A clip plays from the moment its painting is on screen. The first painting is shown from the start of
+        # the video, through the instrumental intro, not only from its first lyric (which can be half a minute in).
+        return clip.frame(t-(0. if number == 0 else self.art_starts[number]))
 
     def art_crossing(self, current):
         if current <= 0:

@@ -420,6 +420,18 @@ class Job:
         from urllib.parse import quote
         return '/files/'+self.folder.name+'/'+quote(path.relative_to(self.folder).as_posix())+'?v='+str(path.stat().st_mtime_ns)
 
+    def animation(self, digest):
+        """URL of the video step's finished clip for the image with this SHA-256, made with the chosen video model.
+
+        Uploaded clips (`003.mp4`) are a different thing: they replace the slot and come back as `video`."""
+        model = self.config.get('video_model')
+        if not model:
+            return None
+        from video_generation.clips import clip_folder
+        folder = clip_folder(self.folder, model, digest)
+        clip = folder/'clip.mp4'
+        return self.url(clip) if (folder/'clip.json').is_file() and clip.is_file() else None
+
     def manifest(self):
         from artwork.active import select_manifest
         return select_manifest(self.folder,self.config,self.state)
@@ -513,7 +525,8 @@ class Job:
                 metadata=variant_metadata(path,job,i)
                 from artwork.video_art import sidecar
                 clip=sidecar(path)
-                entries.append(dict(prompt=metadata.get('prompt',prompt),subject=metadata.get('subject',''),style=metadata.get('style',''),video=self.url(clip) if clip else None,path=path.relative_to(self.folder).as_posix(), url=self.url(path),
+                animation=self.animation(fingerprint) if not clip else None
+                entries.append(dict(prompt=metadata.get('prompt',prompt),subject=metadata.get('subject',''),style=metadata.get('style',''),video=self.url(clip) if clip else None,animation=animation,path=path.relative_to(self.folder).as_posix(), url=self.url(path),
                     current=path == current, raw=path == raw, fresh=path.is_relative_to(self.folder/'candidates') and stat.st_mtime>=self.state['started'], review=review))
             queued=next((q for q in self.state.get('queued_actions',[]) if q.get('index')==i and q.get('action','regenerate') in ('regenerate','reprompt')),None)
             pending=('Prompt queued' if queued.get('action')=='reprompt' else 'Image queued') if queued else ''

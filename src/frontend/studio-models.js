@@ -392,7 +392,33 @@ function renderReplacementQueue(s){
 }
 
 function appendStableArtwork(stage,active,item,previous){
- if(previous&&previous.getAttribute('src')===active.url){previous.onclick=()=>inspect(active.url,item.index);stage.append(previous);return;}
+ // An animated illustration (the video step's clip, or an uploaded clip) shows its still; hovering the card plays
+ // the whole clip silently on a loop from the start, and leaving it returns to the still.
+ const clip=active.animation||active.video;
+ if(clip){
+  // The gallery redraws often and reuses the playing element, but each redraw makes a new stage, so the hover
+  // handlers and the badge are attached to every stage, whether the video is new or reused.
+  const hover=video=>{
+   stage.onmouseenter=()=>{video.currentTime=0;video.play().catch(()=>{});};
+   stage.onmouseleave=()=>{video.pause();video.currentTime=0;video.load();};
+  };
+  const addBadge=video=>{
+   const badge=document.createElement('span');badge.className='video-badge';badge.title='Video clip · hover to play';
+   badge.innerHTML='<svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M3 1.8v8.4L10 6z" fill="currentColor"/></svg><span>Video</span>';
+   const label=()=>{if(Number.isFinite(video.duration))badge.lastChild.textContent='Video · '+video.duration.toFixed(1).replace(/\.0$/,'')+'s';};
+   label();video.addEventListener('loadedmetadata',label);
+   stage.append(badge);
+  };
+  if(previous&&previous.tagName==='VIDEO'&&previous.getAttribute('src')===clip){stage.append(previous);hover(previous);addBadge(previous);return;}
+  const video=document.createElement('video');
+  video.muted=true;video.loop=true;video.playsInline=true;video.preload='auto';
+  video.poster=active.url;video.title=item.subject+' · hover to play';video.setAttribute('aria-label',item.subject);
+  video.onclick=()=>inspect(active.url,item.index);
+  video.onerror=()=>{const img=document.createElement('img');img.alt=item.subject;img.src=active.url;img.onclick=()=>inspect(active.url,item.index);video.replaceWith(img);};
+  video.src=clip;stage.append(video);hover(video);addBadge(video);
+  return;
+ }
+ if(previous&&previous.tagName==='IMG'&&previous.getAttribute('src')===active.url){previous.onclick=()=>inspect(active.url,item.index);stage.append(previous);return;}
  const img=document.createElement('img');img.alt=item.subject;img.onclick=()=>inspect(active.url,item.index);
  if(previous){
   stage.append(previous);
