@@ -12,40 +12,137 @@ MOTION = ('The camera drifts slowly and steadily. Gentle, continuous natural mot
               'objects, no text or lettering.')
 
 
-def load(spec, cache, torch):
+TEXT_COMPONENTS = ('text_encoder', 'tokenizer', 'connectors')
+
+
+class LTXStages:
+    """LTX-2.5's video stage plus the text conditioning already computed for every prompt of the job."""
+
+    def __init__(self, pipe, encoded):
+        self.pipe, self.encoded = pipe, encoded
+
+
+def load(spec, cache, torch, prompts=()):
+    """The model ready to animate; for LTX-2.5 `prompts` (every prompt the job will use) are encoded first."""
     if not torch.cuda.is_available():
         raise ValueError('CUDA is required for video generation.')
     try:
         from diffusers import ModularPipeline
         from diffusers.modular_pipelines import ComponentsManager
         if spec['loader'] == 'ltx':
-            from diffusers import LTX2Guidance
+            from diffusers import LTX2Guidance  # noqa: F401
     except ImportError as exc:
         raise ValueError(f'Video generation needs Modular Diffusers from diffusers main ({exc}). '
                          'Run src/video_generation/setup.ps1 to create the video environment.') from exc
     _check_access(spec['id'], cache)
-    manager = ComponentsManager()
     print(f"Loading {spec['id']}; first use downloads about {spec['disk_gb']} GB.", flush=True)
     try:
-        pipe = ModularPipeline.from_pretrained(spec['id'], components_manager=manager, cache_dir=str(cache))
         if spec['loader'] == 'ltx':
-            pipe.load_components(dtype=torch.bfloat16)
-            # The distilled checkpoint is unguided: one transformer pass per step.
-            pipe.update_components(guider=LTX2Guidance(guidance_scale=1.), audio_guider=LTX2Guidance(guidance_scale=1.))
-            decoder = getattr(pipe, 'diffusion_decoder', None)
-            if decoder is not None:
-                decoder.enable_tiling()
-            manager.enable_auto_cpu_offload(device='cuda', memory_reserve_margin='4GB')
-        else:
-            pipe.load_components(workflow=spec['workflow'], dtype=torch.bfloat16)
-            _int8(pipe, torch)
-            manager.enable_auto_cpu_offload(device='cuda', memory_reserve_margin='4GB')
+            return _load_ltx(spec, cache, torch, prompts)
+        from video_generation.model_files import fetch, local_sources
+        manager = ComponentsManager()
+        pipe = ModularPipeline.from_pretrained(spec['id'], components_manager=manager, cache_dir=str(cache))
+        # The first-frame workflow's components; `transformer_ref` belongs to the reference workflow.
+        used = {c.name for c in pipe.blocks.get_workflow(spec['workflow']).expected_components}
+        names = [n for n in pipe.pretrained_component_names if n in used]
+        # Download first, resumably, into a plain folder; then load from it rather than through the hub cache.
+        root = fetch(spec['id'], names, cache)
+        pipe.load_components(names=names, dtype=torch.bfloat16,
+                             pretrained_model_name_or_path=local_sources(root, spec['id'], names))
+        _require(pipe, names, spec)
+        _int8(pipe, torch)
+        manager.enable_auto_cpu_offload(device='cuda', memory_reserve_margin='4GB')
+        return pipe
     except Exception as exc:
         if 'gated' in str(exc).lower() or '401' in str(exc) or '403' in str(exc):
             raise ValueError(f"Access required: accept the model terms at https://huggingface.co/{spec['id']} "
                              'and sign in with hf auth login, then retry.') from exc
         raise
-    return pipe
+
+
+def _load_ltx(spec, cache, torch, prompts):
+    """LTX-2.5 in two stages that each fit a 24 GB card and 32 GB of RAM.
+
+    In bf16 the pipeline needs ~78 GB of system RAM (the loader keeps every component there) and Windows kills
+    the worker with 0xC0000005. So the 22B transformer and the text encoder load as 4-bit weights streamed onto
+    the GPU one shard at a time. 4-bit weights cannot use the automatic CPU offload (moving them to the CPU
+    crashes natively on Windows), and both together leave no room for the 6 GB connectors, so the text stage
+    (text encoder + connectors, ~17 GB at peak) encodes every prompt of the job first and is freed; the video
+    stage (transformer + decoders, ~13 GB) then runs from those stored encodings. The prompt enhancer
+    (opt-in via enable_prompt_enhancement, never used here) is not loaded at all."""
+    from diffusers import LTX2Guidance, ModularPipeline
+    from diffusers.pipelines.ltx2.utils import DEFAULT_NEGATIVE_PROMPT
+    from core.progress import emit
+    from video_generation.model_files import fetch, local_sources
+    from diffusers.modular_pipelines.ltx2.modular_blocks_ltx2 import LTX2AutoDecoderStep
+    blocks = ModularPipeline.from_pretrained(spec['id'], cache_dir=str(cache)).blocks
+    text_blocks = blocks.sub_blocks.pop('text_encoder')
+    blocks.sub_blocks.pop('prompt_enhancer', None)
+    # Decode with the convolutional VAE (documented swap). LTX-2.5's default diffusion decoder uses neighbourhood
+    # attention through flex_attention, which needs Triton; without it (Windows) PyTorch materialises the whole
+    # attention and the decode asks for ~9 GB more than the card has, whatever the tile size.
+    blocks.sub_blocks['decode'] = LTX2AutoDecoderStep()
+    # Everything the text stage produces that the video stage reads (connector embeddings, masks, batch size, dtype).
+    conditioning = [o.name for o in text_blocks.intermediate_outputs if o.name in {i.name for i in blocks.inputs}]
+    text, video = text_blocks.init_pipeline(spec['id']), blocks.init_pipeline(spec['id'])
+    text_names = list(TEXT_COMPONENTS)
+    video_names = [n for n in video.pretrained_component_names
+                   if n not in ('prompt_enhancer', 'processor', *TEXT_COMPONENTS)]
+    root = fetch(spec['id'], text_names+video_names, cache)
+    nf4 = _nf4(torch)
+
+    unique = list(dict.fromkeys(prompts))
+    emit('video', 0, message=f'Encoding {len(unique)} motion prompt(s)')
+    text.load_components(names=text_names, dtype=torch.bfloat16,
+                         pretrained_model_name_or_path=local_sources(root, spec['id'], text_names),
+                         quantization_config={'text_encoder': nf4['text_encoder']})
+    _require(text, text_names, spec)
+    text.connectors.to('cuda')
+    encoded = {}
+    with torch.no_grad():
+        for prompt in unique:
+            result = text(prompt=prompt, negative_prompt=DEFAULT_NEGATIVE_PROMPT, output=conditioning)
+            encoded[prompt] = {k: v.to('cpu') if hasattr(v, 'to') else v for k, v in result.items()}
+    del text, result
+    gc.collect()
+    torch.cuda.empty_cache()
+    print(f'Encoded {len(unique)} prompt(s); text stage released.', flush=True)
+
+    emit('video', 0, message=f"Loading {spec['name']} video stage")
+    video.load_components(names=video_names, dtype=torch.bfloat16,
+                          pretrained_model_name_or_path=local_sources(root, spec['id'], video_names),
+                          quantization_config={'transformer': nf4['transformer']})
+    _require(video, video_names, spec)
+    for name in video_names:
+        component = getattr(video, name)
+        if name != 'transformer' and isinstance(component, torch.nn.Module):
+            component.to('cuda')  # small; the 4-bit transformer is already on the GPU
+    # The distilled checkpoint is unguided: one transformer pass per step.
+    video.update_components(guider=LTX2Guidance(guidance_scale=1.), audio_guider=LTX2Guidance(guidance_scale=1.))
+    video.vae.enable_tiling()
+    return LTXStages(video, encoded)
+
+
+def _require(pipe, names, spec):
+    """load_components only logs a component that fails and carries on; the run would then die later with an
+    unrelated error, so stop here with the real cause (logged just above)."""
+    missing = [n for n in names if getattr(pipe, n, None) is None]
+    if missing:
+        raise ValueError(f"{spec['name']} could not load {', '.join(missing)}; see the error logged above.")
+
+
+def _nf4(torch):
+    """Per-component 4-bit settings for LTX-2.5: the transformer is a diffusers model, the text encoder a
+    transformers one, and each library takes its own config class."""
+    try:
+        import bitsandbytes  # noqa: F401
+        import diffusers
+        import transformers
+    except ImportError as exc:
+        raise ValueError('LTX-2.5 needs bitsandbytes for 4-bit loading; run src/video_generation/setup.ps1.') from exc
+    options = dict(load_in_4bit=True, bnb_4bit_quant_type='nf4', bnb_4bit_compute_dtype=torch.bfloat16)
+    return {'transformer': diffusers.BitsAndBytesConfig(**options),
+            'text_encoder': transformers.BitsAndBytesConfig(**options)}
 
 
 def _check_access(model, cache):
@@ -81,11 +178,14 @@ def animate(pipe, spec, image, prompt, seed, torch):
     """Frames (uint8, frames × height × width × 3) that start from `image` and move as `prompt` describes."""
     generator = torch.Generator('cpu').manual_seed(seed)
     if spec['loader'] == 'ltx':
-        from diffusers.pipelines.ltx2.utils import DEFAULT_NEGATIVE_PROMPT, DISTILLED_SIGMA_VALUES
+        from diffusers.pipelines.ltx2.utils import DISTILLED_SIGMA_VALUES
+        if prompt not in pipe.encoded:
+            raise ValueError('This prompt was not encoded when the model loaded; pass every prompt to load().')
+        conditioning = {k: v.to('cuda') if hasattr(v, 'to') else v for k, v in pipe.encoded[prompt].items()}
         # The generated soundtrack is requested only because the pipeline returns both; the song is the audio.
-        result = pipe(image=image, prompt=prompt, negative_prompt=DEFAULT_NEGATIVE_PROMPT,
-                      width=image.width, height=image.height, num_frames=spec['frames'], frame_rate=float(spec['fps']),
-                      sigmas=DISTILLED_SIGMA_VALUES, generator=generator, output_type='np', output=['videos', 'audio'])
+        result = pipe.pipe(image=image, width=image.width, height=image.height, num_frames=spec['frames'],
+                           frame_rate=float(spec['fps']), sigmas=DISTILLED_SIGMA_VALUES, generator=generator,
+                           output_type='np', output=['videos', 'audio'], **conditioning)
     else:
         result = pipe(prompt=prompt, image=image, num_frames=spec['frames'], generator=generator,
                       output=['videos', 'audio', 'sampling_rate'])

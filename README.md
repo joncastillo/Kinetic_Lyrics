@@ -99,17 +99,22 @@ If this environment variable isn't set, Ollama defaults the folder to `~/.ollama
 
 The image and speech models come from [Hugging Face](https://huggingface.co). The default models are public, however, some are **gated**, which means the user has to accept their terms on the model page. This would require a Hugging Face account. Ensure that the `HF_TOKEN` environment is set, as mentioned above.
 
-| Model | Used for | Access |
-|---|---|---|
-| `Qwen/Qwen-Image-2512` (default) | Illustrations. Good for quality: the most detailed images, but the slowest (50 steps) | Public |
-| `black-forest-labs/FLUX.2-klein-4B` | Illustrations. Allows a reference photo, for example to cast a person as the main character | Public |
-| `Tongyi-MAI/Z-Image-Turbo` | Illustrations | Public |
-| [`black-forest-labs/FLUX.2-klein-9B`](https://huggingface.co/black-forest-labs/FLUX.2-klein-9B) | Illustrations. Allows a reference photo, with better detail than 4B | **Gated**, non-commercial licence |
-| [`black-forest-labs/FLUX.1-schnell`](https://huggingface.co/black-forest-labs/FLUX.1-schnell) | Illustrations | **Gated** |
-| [`black-forest-labs/FLUX.2-dev`](https://huggingface.co/black-forest-labs/FLUX.2-dev) | Illustrations | **Gated**, non-commercial licence |
-| `Qwen/Qwen3-ASR-1.7B-hf`, `Qwen/Qwen3-ASR-0.6B-hf` | Transcription | Public |
-| `Qwen/Qwen3-ForcedAligner-0.6B-hf` | Word timing | Public |
-| `nvidia/parakeet-tdt-0.6b-v3` | Transcription | Public |
+| Model | Used for | Download | Access |
+|---|---|---|---|
+| `Qwen/Qwen-Image-2512` (default) | Illustrations. Good for quality: the most detailed images, but the slowest (50 steps) | 57.7 GB | Public |
+| `black-forest-labs/FLUX.2-klein-4B` | Illustrations. Allows a reference photo, for example to cast a person as the main character | 16.0 GB | Public |
+| `Tongyi-MAI/Z-Image-Turbo` | Illustrations | 32.8 GB | Public |
+| [`black-forest-labs/FLUX.2-klein-9B`](https://huggingface.co/black-forest-labs/FLUX.2-klein-9B) | Illustrations. Allows a reference photo, with better detail than 4B | 34.7 GB | **Gated**, non-commercial licence |
+| [`black-forest-labs/FLUX.1-schnell`](https://huggingface.co/black-forest-labs/FLUX.1-schnell) | Illustrations | 33.7 GB | **Gated** |
+| [`black-forest-labs/FLUX.2-dev`](https://huggingface.co/black-forest-labs/FLUX.2-dev) | Illustrations | 112.8 GB | **Gated**, non-commercial licence |
+| `Qwen/Qwen3-ASR-1.7B-hf`, `Qwen/Qwen3-ASR-0.6B-hf` | Transcription | 4.1 GB, 1.6 GB | Public |
+| `Qwen/Qwen3-ForcedAligner-0.6B-hf` | Word timing | 1.8 GB | Public |
+| `nvidia/parakeet-tdt-0.6b-v3` | Transcription | 2.5 GB | Public |
+
+Download sizes are the weight files each model fetches on first use (decimal GB, as Hugging Face lists
+them), not the whole repository, which can be much larger because of alternative copies. Models with 4-bit
+loading also save a 4-bit copy in `quantized-nf4` inside the model cache after their first load, so allow
+some extra room.
 | Whisper large-v3 / turbo | Transcription and word timing | Public |
 
 ## User Interface

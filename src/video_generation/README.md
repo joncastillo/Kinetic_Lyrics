@@ -13,14 +13,25 @@ illustrate -> review -> animate -> direct -> render
 
 | Model | Clip | Download | Licence |
 |---|---|---|---|
-| [`Lightricks/LTX-2.5-Diffusers`](https://huggingface.co/Lightricks/LTX-2.5-Diffusers) | 121 frames at 24 fps (5 s), 960×544 | about 72 GB, gated (automatic approval) | LTX-2.x Community License, free under $10M yearly revenue |
-| [`MiniMaxAI/MiniMax-H3`](https://huggingface.co/MiniMaxAI/MiniMax-H3) | 124 frames at 24 fps (5.2 s), 1344×768 | about 125 GB | MiniMax H3 Community License, which **does not licence use in the US, EU, UK or South Korea** |
+| [`Lightricks/LTX-2.5-Diffusers`](https://huggingface.co/Lightricks/LTX-2.5-Diffusers) | 121 frames at 24 fps (5 s), 960×544 | 70.9 GB (the repository also holds a second shard set and an optional prompt enhancer, which are skipped), gated (automatic approval) | LTX-2.x Community License, free under $10M yearly revenue |
+| [`MiniMaxAI/MiniMax-H3`](https://huggingface.co/MiniMaxAI/MiniMax-H3) | 124 frames at 24 fps (5.2 s), 1344×768 | 144.0 GB for the first-frame workflow (the repository is 498 GB) | MiniMax H3 Community License, which **does not licence use in the US, EU, UK or South Korea** |
 
 Both models also generate a soundtrack, which is thrown away because the song is the
-audio. LTX-2.5 runs its distilled checkpoint without guidance, using automatic CPU
-offload. MiniMax H3 quantizes its transformer and its Qwen3-VL encoder to 8-bit weights
+audio. LTX-2.5 runs its distilled checkpoint without guidance. Its 22B transformer and
+its text encoder load as 4-bit weights straight onto the GPU, one shard at a time, so it
+fits a 24 GB card and 32 GB of RAM; at bf16 it would need about 78 GB of system RAM.
+4-bit weights cannot be offloaded to the CPU on Windows, so it runs in two stages: the
+text encoder and connectors (17 GB peak) encode every prompt of the job and are freed,
+then the transformer and decoders (12.5 GB) animate every clip from those encodings.
+Frames are decoded with the convolutional VAE rather than LTX-2.5's diffusion decoder,
+whose attention needs Triton, which Windows lacks. MiniMax H3 quantizes its transformer and its Qwen3-VL encoder to 8-bit weights
 with torchao, and streams them from system RAM. On a 24 GB card H3 needs about 75 GB of
 RAM and is much slower than LTX-2.5.
+
+Model files download into `video-models/` inside the model cache, only the files the
+chosen components load. Each file streams to a `.part` file, resumes from where it stopped
+after a network drop, crash or restart, and is checked against the repository's SHA-256
+before use. Files already in the Hugging Face cache are hard-linked rather than fetched again.
 
 ## Setup
 

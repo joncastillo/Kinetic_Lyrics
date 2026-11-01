@@ -41,6 +41,12 @@ def write_clip(frames, fps, target):
     return count
 
 
+def clip_prompt(item):
+    """The motion prompt for one clip: what was painted, then how it should move."""
+    from video_generation.models import MOTION
+    return (item['prompt']+' ' if item['prompt'] else '')+MOTION
+
+
 def eta_text(seconds):
     minutes, seconds = divmod(round(seconds), 60)
     hours, minutes = divmod(minutes, 60)
@@ -62,12 +68,17 @@ def _run_job(job_path, cache):
     spec = video_spec(job['model'])
     cache.mkdir(parents=True, exist_ok=True)
     os.environ['HF_HOME'] = str(cache)
+    # HF_HUB_CACHE outranks HF_HOME: one inherited from the user's shell would hide the weights already in
+    # <cache>/hub and start the whole download again somewhere else.
+    os.environ['HF_HUB_CACHE'] = str(cache/'hub')
+    os.environ.pop('HUGGINGFACE_HUB_CACHE', None)
     import torch
     from PIL import Image, ImageOps
     from video_generation.models import MOTION, animate, load, release
     free_ollama()
     emit('video', 0, message=f"Loading {spec['name']}; first use may download weights")
-    pipe = load(spec, cache, torch)
+    prompts = [clip_prompt(item) for item in pending]
+    pipe = load(spec, cache, torch, prompts)
     durations = []
     try:
         for number, item in enumerate(pending):
@@ -83,7 +94,7 @@ def _run_job(job_path, cache):
             started = time.monotonic()
             with Image.open(item['image']) as source:
                 image = ImageOps.fit(source.convert('RGB'), tuple(item['size']), Image.Resampling.LANCZOS)
-            prompt = (item['prompt']+' ' if item['prompt'] else '')+MOTION
+            prompt = clip_prompt(item)
             frames = animate(pipe, spec, image, prompt, item['seed'], torch)
             folder = Path(item['folder'])
             folder.mkdir(parents=True, exist_ok=True)
