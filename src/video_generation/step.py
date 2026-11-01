@@ -13,15 +13,17 @@ from core.progress import emit
 from video_generation.catalog import VIDEO_MODES, clip_size, video_spec
 from video_generation.clips import FOLDER, clip_folder, image_digest, saved_clips
 
-ENVIRONMENT = PROJECT_ROOT/'.venv-video'
+def environment():
+    """Where setup.ps1 builds the video environment: KINETIC_VIDEO_ENV, else .venv-video in the project."""
+    return Path(os.environ.get('KINETIC_VIDEO_ENV') or PROJECT_ROOT/'.venv-video')
 
 
 def video_python():
-    """The interpreter with Modular Diffusers: KINETIC_VIDEO_PYTHON, else .venv-video, else this one."""
+    """The interpreter with Modular Diffusers: KINETIC_VIDEO_PYTHON, else the video environment's, else this one."""
     override = os.environ.get('KINETIC_VIDEO_PYTHON')
     if override:
         return Path(override)
-    candidate = ENVIRONMENT/('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
+    candidate = environment()/('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
     return candidate if candidate.is_file() else Path(sys.executable)
 
 

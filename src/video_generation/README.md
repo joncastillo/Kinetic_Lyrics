@@ -33,8 +33,10 @@ project folder:
 powershell -ExecutionPolicy Bypass -File src\video_generation\setup.ps1
 ```
 
-This creates `.venv-video`. The video step runs its worker with that environment's
-Python. To use a different interpreter, set `KINETIC_VIDEO_PYTHON`. Without either, the
+This creates `.venv-video` in the project, or in the folder named by `KINETIC_VIDEO_ENV`
+(for example `D:\AI_Models\.venv-video` to keep its ~4 GB off the system drive). The video
+step runs its worker with that environment's Python. To use a different interpreter, set
+`KINETIC_VIDEO_PYTHON`. Without either, the
 step falls back to the main environment, and the run then fails with a message pointing
 at the setup script.
 

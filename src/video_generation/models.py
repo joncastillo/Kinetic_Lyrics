@@ -18,16 +18,18 @@ def load(spec, cache, torch):
     try:
         from diffusers import ModularPipeline
         from diffusers.modular_pipelines import ComponentsManager
+        if spec['loader'] == 'ltx':
+            from diffusers import LTX2Guidance
     except ImportError as exc:
-        raise ValueError('Video generation needs Modular Diffusers from diffusers main. '
+        raise ValueError(f'Video generation needs Modular Diffusers from diffusers main ({exc}). '
                          'Run src/video_generation/setup.ps1 to create the video environment.') from exc
+    _check_access(spec['id'], cache)
     manager = ComponentsManager()
     print(f"Loading {spec['id']}; first use downloads about {spec['disk_gb']} GB.", flush=True)
     try:
         pipe = ModularPipeline.from_pretrained(spec['id'], components_manager=manager, cache_dir=str(cache))
         if spec['loader'] == 'ltx':
             pipe.load_components(dtype=torch.bfloat16)
-            from diffusers.modular_pipelines.ltx2.guider import LTX2Guidance
             # The distilled checkpoint is unguided: one transformer pass per step.
             pipe.update_components(guider=LTX2Guidance(guidance_scale=1.), audio_guider=LTX2Guidance(guidance_scale=1.))
             decoder = getattr(pipe, 'diffusion_decoder', None)
@@ -44,6 +46,22 @@ def load(spec, cache, torch):
                              'and sign in with hf auth login, then retry.') from exc
         raise
     return pipe
+
+
+def _check_access(model, cache):
+    """Fail with the real reason on a gated repo; diffusers reports a 403 as 'could not find model_index.json'."""
+    from huggingface_hub import hf_hub_download
+    from huggingface_hub.errors import GatedRepoError, RepositoryNotFoundError
+    try:
+        hf_hub_download(model, 'model_index.json', cache_dir=str(cache))
+    except GatedRepoError as exc:
+        raise ValueError(f'Access required: request access to the model at https://huggingface.co/{model} '
+                         '(signed in with the same account as hf auth login), wait for approval, then retry.') from exc
+    except RepositoryNotFoundError as exc:
+        raise ValueError(f'Model {model} was not found on Hugging Face, or this account cannot see it; '
+                         'check hf auth login.') from exc
+    except Exception:
+        pass  # offline or transient: let the normal load use the local cache or report its own error
 
 
 def _int8(pipe, torch):

@@ -2,10 +2,10 @@
 param()
 $ErrorActionPreference = 'Stop'
 $projectRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..')
-$environmentFolder = Join-Path $projectRoot '.venv-video'
+$environmentFolder = if ($env:KINETIC_VIDEO_ENV) { $env:KINETIC_VIDEO_ENV } else { Join-Path $projectRoot '.venv-video' }
 $environmentPython = Join-Path $environmentFolder 'Scripts\python.exe'
-if ([IO.DriveInfo]::new([IO.Path]::GetPathRoot($projectRoot.Path)).AvailableFreeSpace -lt 8GB) {
-    throw 'Free at least 8 GiB on the project drive first.'
+if ([IO.DriveInfo]::new([IO.Path]::GetPathRoot([IO.Path]::GetFullPath($environmentFolder))).AvailableFreeSpace -lt 8GB) {
+    throw "Free at least 8 GiB on the drive for $environmentFolder first."
 }
 $modelRoot = if ($env:KINETIC_LYRICS_MODEL_CACHE) { $env:KINETIC_LYRICS_MODEL_CACHE } elseif ($env:OLLAMA_MODELS) { $env:OLLAMA_MODELS } else { Join-Path $HOME '.ollama\models' }
 $env:PIP_CACHE_DIR = Join-Path $modelRoot 'pip-cache'
@@ -19,4 +19,4 @@ if ($LASTEXITCODE -ne 0) { throw 'CUDA PyTorch installation failed.' }
 if ($LASTEXITCODE -ne 0) { throw 'Video dependency installation failed.' }
 & $environmentPython -c "import torch; from diffusers import ModularPipeline; print('CUDA available:', torch.cuda.is_available()); assert torch.cuda.is_available()"
 if ($LASTEXITCODE -ne 0) { throw 'Video runtime verification failed.' }
-Write-Host 'Video environment ready in .venv-video. Kinetic Lyrics uses it automatically for the video step.'
+Write-Host "Video environment ready in $environmentFolder. Kinetic Lyrics uses it automatically for the video step."
