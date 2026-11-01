@@ -113,9 +113,28 @@ def generate_and_review(manifest, cache):
             break
 
 
+def animate_missing(folder, config, manifest, job):
+    """The video step for the current illustrations: makes the clips that are missing or too short (a replaced image
+    has a new fingerprint, so none yet) at the length its painting is on screen; existing clips are kept."""
+    from types import SimpleNamespace
+    from render.timeline import ART_TIMES, load_art_times
+    from video_generation.step import animate
+    data = json.loads((folder/'video.timings.json').read_text(encoding='utf-8'))
+    duration = float(subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of',
+        'default=noprint_wrappers=1:nokey=1', str(config['audio'])], text=True, encoding='utf-8', errors='replace'))
+    illustrations = [manifest.parent/f'{i:03d}.png' for i in range(len(job['prompts']))]
+    options = SimpleNamespace(video_model=config['video_model'], artwork_mode=config.get('artwork_mode', 'cutout'),
+        width=config['width'], height=config['height'], image_seed=config.get('image_seed', 42),
+        image_cache=config.get('image_cache'), illustration_lines=config['illustration_lines'], lead_in=1.,
+        art_times=load_art_times(folder/ART_TIMES), ai_model=config.get('ai_model'),
+        image_instructions=config.get('image_instructions', ''), director='ollama')
+    clips = animate(illustrations, folder/'video.mp4', options, data=data, duration=duration) or {}
+    emit('complete', 1, message=f'{len(clips)} of {len(illustrations)} illustrations animated; rebuild to use new clips')
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=['regenerate', 'reprompt', 'verify', 'repair', 'patch', 'rerender'])
+    parser.add_argument('action', choices=['regenerate', 'reprompt', 'verify', 'repair', 'patch', 'rerender', 'animate'])
     parser.add_argument('folder', type=Path)
     parser.add_argument('--index', type=int, default=0)
     parser.add_argument('--prompt', default='')
@@ -143,6 +162,9 @@ def main():
             raise ValueError('Invalid batch illustration indices')
         with ModelSession([config.get('vision_model'), *(item.get('model') for item in items)]):
             process_batch(sys.modules[__name__],args.folder,manifest,args.action,items)
+        return
+    if args.action == 'animate':
+        animate_missing(args.folder, config, manifest, job)
         return
     if args.action in ('patch','rerender'):
         from render.compositor import Compositor, render

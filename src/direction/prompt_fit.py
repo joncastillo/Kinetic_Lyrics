@@ -3,8 +3,9 @@ import json
 import re
 
 # Prompt token limits per pipeline, and a word budget that leaves room for retry wording.
-TOKEN_LIMITS = dict(QwenImagePipeline=1024, ZImagePipeline=512)
-WORD_BUDGETS = dict(QwenImagePipeline=700, ZImagePipeline=350)
+TOKEN_LIMITS = dict(QwenImagePipeline=1024, QwenImageEditPlusPipeline=1024, ZImagePipeline=512)
+# The edit model also spends tokens on the reference-image sentence put in front at generation time.
+WORD_BUDGETS = dict(QwenImagePipeline=700, QwenImageEditPlusPipeline=600, ZImagePipeline=350)
 # FLUX.2 cuts the prompt at 512 tokens, chat template included. 280 words (~380 tokens) leaves room for the
 # template, the reference-image sentence put in front at generation time, and the no-lettering wording a retry
 # appends, which would otherwise be the part cut off.

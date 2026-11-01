@@ -185,6 +185,8 @@ class Job:
             if generation or len(batch)>1:
                 batch_path=self.folder/f'actions-{time.time_ns()}.json'
                 batch_path.write_text(json.dumps(batch),encoding='utf-8');command+=['--batch',str(batch_path)]
+            if operation=='animate':
+                command=[*module_command('studio.worker'),'animate',str(self.folder),'--index',str(item['index'])]
             self.state.update(action=operation,action_percent=0,active_images=[i['index'] for i in batch] if generation else [],
                               action_stage='subjects' if operation=='reprompt' else 'model',message=f'{operation.capitalize()} batch starting')
             threading.Thread(target=self.run,args=(command,operation),daemon=True).start()
@@ -332,6 +334,8 @@ class Job:
                     from studio.video_versions import verified_changes
                     dirty, verified = verified_changes(self.folder, self.state['dirty'])
                     if verified:self.state['dirty'] = dirty
+                if not code and action and action != 'animate':  # never re-queue itself: a clip it could not make would loop
+                    self.queue_missing_clips()
                 self.save()
                 self.start_next()
         except Exception as exc:
@@ -342,6 +346,27 @@ class Job:
                     self.state['status'] = 'failed'
                     self.state['finished'] = time.time()
                 self.save()
+
+    def queue_missing_clips(self):
+        """Queue the video step for every current illustration without a clip: one that was replaced, regenerated
+        or repaired after the video was animated has a new fingerprint and so no clip yet. Only once the video step
+        has run for this job; before that the pipeline animates everything itself. Called with LOCK held."""
+        model = self.config.get('video_model')
+        if (not model or self.config.get('artwork_mode') not in VIDEO_MODES or self.state['status'] not in ('review', 'complete')
+                or not (self.folder/'video-clips').is_dir() or self.state.get('action') == 'animate'
+                or any(a.get('action') == 'animate' for a in self.state['queued_actions'])):
+            return
+        try:
+            manifest = self.manifest()
+            count = len(json.loads(manifest.read_text(encoding='utf-8'))['prompts'])
+        except (OSError, ValueError, KeyError):
+            return
+        from video_generation.clips import clip_folder, image_digest
+        missing = [i for i in range(count) if (manifest.parent/f'{i:03d}.png').is_file() and not
+                   (clip_folder(self.folder, model, image_digest(manifest.parent/f'{i:03d}.png'))/'clip.json').is_file()]
+        if missing:
+            self.state['queued_actions'].append(dict(action='animate', index=missing[0], indices=missing))
+            self.log('Queued animation for illustration '+', '.join(str(i+1) for i in missing)+'.')
 
     def resume_command(self, command):
         """The same run, resumed from saved work: the pipeline checkpoint, or else timings, artwork, approval and a plan made by this run."""
@@ -929,7 +954,10 @@ def regenerate_new_session(source, image_model=None):
                   cinematic='on' if config['cinematic'] else 'off',
                   auto_verify='on' if config['auto_verify'] else 'off',
                   auto_accept='on' if config['auto_accept'] else 'off',
-                  auto_repair='on' if config['auto_repair'] else 'off')
+                  auto_repair='on' if config['auto_repair'] else 'off',
+                  # The form keeps a video model only with this checkbox on; without it the new run lost its video step.
+                  video_generation='on' if config.get('video_model') else 'off',
+                  randomize_seed='on' if config.get('randomize_seed') else 'off')
     if image_model is not None:
         from models.image.catalog import model_spec
         if image_model not in {spec['id'] for spec in MODELS}:
@@ -1459,7 +1487,9 @@ class Handler(BaseHTTPRequestHandler):
                         if (job.folder/'video.mp4').exists() and index not in job.state['dirty']:
                             job.state['dirty'].append(index)
                     job.log(f'Illustration {index+1} selected. '+('Rebuild this section to update the video.' if (job.folder/'video.mp4').exists() else 'Selection will be used in the render.'))
+                    job.queue_missing_clips()
                     job.save()
+                    job.start_next()
                     return self.respond(dict(ok=True))
                 if operation in ('regenerate','reprompt'):
                     if not args.get('image_model'):

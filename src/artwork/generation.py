@@ -133,7 +133,10 @@ def _run_job(manifest, cache):
             layout = dict(job['layouts'][i])
             from models.image.catalog import image_dimensions
             layout['image_width'],layout['image_height'] = image_dimensions(layout['image_width'],layout['image_height'],min(total,gpu_memory.dedicated_memory(torch)[0]+torch.cuda.memory_reserved())/2**30)
-            reference_input = references if model_spec(model)['references'] and uses_reference(job.get('artwork_mode'), job['visual_descriptions'][i]) else []
+            # Qwen Image Edit always draws from its references (it cannot start from nothing); the reference role
+            # wording tells it to use them only for rendering when the scene shows no person.
+            always = model_spec(model)['pipeline'] == 'QwenImageEditPlusPipeline'
+            reference_input = references if model_spec(model)['references'] and (always or uses_reference(job.get('artwork_mode'), job['visual_descriptions'][i])) else []
             best_path=None;best_lettering=None;best_rank=None
             seed=secrets.randbelow(2**31) if random_seeds else job['seed']+i
             print(f'Illustration {i+1} seed: {seed}', flush=True)

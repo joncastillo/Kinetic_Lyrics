@@ -109,7 +109,7 @@ def load_pipeline(model, cache, torch, offload=False):
             if staged:
                 gc.collect();torch.cuda.empty_cache()
                 print('Staged inactive components in RAM before image-layer preparation: '+', '.join(staged),flush=True)
-    if spec['pipeline']=='QwenImagePipeline':
+    if spec['pipeline'] in QWEN_PIPELINES:
         from models.image.precision import protect_image_modulation
         protect_image_modulation(pipe,model,cache,torch)
     if offload and not spec.get('quantize') and not getattr(pipe, 'hf_device_map', None):
@@ -123,14 +123,27 @@ def load_pipeline(model, cache, torch, offload=False):
     return pipe, spec['guidance']
 
 
+QWEN_NEGATIVE = ('extra limbs, extra fingers, fused fingers, malformed anatomy, mixed male and female anatomy on one body, '
+                 'moustache or beard on a woman, nudity, see-through clothing, lettering, watermark, grainy, noisy, '
+                 'pixelated, blurry, over-sharpened, low quality')
+QWEN_PIPELINES = ('QwenImagePipeline', 'QwenImageEditPlusPipeline')  # same 20B transformer, same 4-bit handling
+
+
 def inference_options(model, references):
     spec = model_spec(model)
+    if spec['pipeline'] == 'QwenImageEditPlusPipeline':
+        # Edits always start from images: the references (at most 3, its trained maximum). Same negative prompt as
+        # Qwen Image; true CFG as its model card recommends.
+        if not references:
+            raise ValueError('Qwen Image Edit needs a reference image; add one (for example your main character) '
+                             'or choose another image model.')
+        return dict(image=list(references)[:3], true_cfg_scale=spec['guidance'], max_sequence_length=1024,
+                    negative_prompt=QWEN_NEGATIVE)
     if spec['references']:
         from direction.prompt_fit import FLUX_TOKENS
         return dict(image=references or None, guidance_scale=spec['guidance'], max_sequence_length=FLUX_TOKENS)
     if spec['pipeline'] == 'QwenImagePipeline':
-        return dict(true_cfg_scale=spec['guidance'], max_sequence_length=1024, negative_prompt=
-                    'extra limbs, extra fingers, fused fingers, malformed anatomy, mixed male and female anatomy on one body, moustache or beard on a woman, nudity, see-through clothing, lettering, watermark, grainy, noisy, pixelated, blurry, over-sharpened, low quality')
+        return dict(true_cfg_scale=spec['guidance'], max_sequence_length=1024, negative_prompt=QWEN_NEGATIVE)
     result = dict(guidance_scale=spec['guidance'])
     if spec['pipeline'] == 'FluxPipeline':
         result['max_sequence_length'] = 512

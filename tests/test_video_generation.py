@@ -137,6 +137,21 @@ class ClipsTest(unittest.TestCase):
         job = json.loads((self.project/'video-clips'/'job.json').read_text(encoding='utf-8'))
         self.assertEqual(job['clips'][0]['frames'], 289, 'the whole 12 s on screen at 24 fps, as an 8k+1 count')
 
+    def test_long_clip_is_streamed_to_ffmpeg_part_by_part(self):
+        from video_generation import generation
+        spec = dict(video_spec(self.model), chunk_frames=33)
+        fake = lambda pipe, spec, image, prompt, seed, torch, num_frames=None: np.full((num_frames, 32, 64, 3), 90, np.uint8)
+        writer = generation.ClipWriter(self.project/'clip.mp4', 24)
+        with mock.patch('video_generation.models.animate', fake):
+            frames, parts = generation.animate_length(None, spec, Image.new('RGB', (64, 32)), 'p', 1, 81, None, sink=writer)
+        self.assertIsNone(frames, 'parts went to the writer, not RAM')
+        self.assertEqual((parts, writer.close()), (3, 89))
+        counted = subprocess.run(['ffprobe', '-v', 'error', '-count_frames', '-select_streams', 'v:0', '-show_entries',
+                                  'stream=nb_read_frames', '-of', 'csv=p=0', str(self.project/'clip.mp4')],
+                                 capture_output=True, text=True, check=True).stdout.strip()
+        self.assertEqual(counted, '89')
+        self.assertFalse((self.project/'clip.tmp.mp4').exists())
+
     def test_step_ignores_cutout_artwork(self):
         args = argparse.Namespace(video_model=self.model, artwork_mode='cutout', width=64, height=32, image_seed=7)
         self.assertIsNone(step.animate([self.image], self.project/'video.mp4', args))

@@ -47,16 +47,29 @@ def needs_clip(item):
     return length is None or (item.get('timed', False) and length < item['frames']-TOLERANCE*fps)
 
 
-def prompts_for(illustrations):
-    """The image prompt behind each illustration, so the motion matches what was painted."""
+def recorded(illustrations, key):
+    """One value per illustration from its illustrations.json list `key` ('' when absent)."""
     record = Path(illustrations[0]).parent/'illustrations.json'
-    prompts = json.loads(record.read_text(encoding='utf-8')).get('prompts', []) if record.is_file() else []
+    values = json.loads(record.read_text(encoding='utf-8')).get(key, []) if record.is_file() else []
     result = []
     for path in illustrations:
         stem = Path(path).stem
         index = int(stem) if stem.isdecimal() else None
-        result.append(prompts[index] if index is not None and index < len(prompts) else '')
+        result.append(values[index] if index is not None and index < len(values) else '')
     return result
+
+
+def prompts_for(illustrations):
+    """The image prompt behind each illustration, so the motion matches what was painted."""
+    return recorded(illustrations, 'prompts')
+
+
+def parts_for(frames, spec):
+    """How many generations make a clip of `frames`: the first covers a chunk, each later one adds a chunk less
+    the frame it repeats (see generation.animate_length)."""
+    import math
+    chunk = spec.get('chunk_frames', spec['frames'])
+    return 1 if frames <= chunk else 1+math.ceil((frames-chunk)/(chunk-1))
 
 
 def on_screen_seconds(illustrations, data, duration, args):
@@ -130,6 +143,21 @@ def animate(illustrations, output, args, data=None, duration=None):
         item['timed'] = timed is not None
     missing = [item for item in items if needs_clip(item)]
     if missing:
+        scenes, lyrics = recorded(illustrations, 'visual_descriptions'), recorded(illustrations, 'groups')
+        for item in items:
+            item['scene'] = scenes[item['index']] or item['prompt']
+            item['parts'] = parts_for(item['frames'], spec)
+        if getattr(args, 'director', 'ollama') != 'rules':
+            from direction.motion import motion_beats
+            emit('video', 0, message=f'Directing the motion of {len(missing)} clip(s)')
+            beats = motion_beats(getattr(args, 'ai_model', None),
+                                 [dict(index=item['index'], scene=item['scene'], lyrics=lyrics[item['index']],
+                                       seconds=item['frames']/spec['fps'], parts=item['parts']) for item in missing],
+                                 direction=getattr(args, 'image_instructions', '') or '')
+            for item in missing:
+                item['beats'] = beats.get(item['index'], [])
+                for number, beat in enumerate(item['beats'], 1):
+                    print(f"Motion {item['index']+1}.{number}: {beat}", flush=True)
         cache = Path(getattr(args, 'image_cache', None) or default_model_cache()).resolve()
         existing = cache
         while not existing.exists():

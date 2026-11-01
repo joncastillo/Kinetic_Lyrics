@@ -7,11 +7,6 @@ environment (see setup.ps1 in this folder); `step.video_python` picks it up auto
 from __future__ import annotations
 import gc
 
-MOTION = ('The camera drifts slowly and steadily. Gentle, continuous natural motion in hair, fabric, foliage, water, light '
-              'and atmosphere. The composition, characters and colours stay the same as the first frame; no cuts, no new '
-              'objects, no text or lettering.')
-
-
 TEXT_COMPONENTS = ('text_encoder', 'tokenizer', 'connectors')
 
 
