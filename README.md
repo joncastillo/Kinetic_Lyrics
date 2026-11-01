@@ -15,21 +15,21 @@ build by hand in tools such as Adobe After Effects.
 
 ```mermaid
 flowchart TD
-    A([Audio]) --> B["Align lyrics<br/>(Speech Model)"]
-    L([Lyrics]) -.-> B
-    B --> C["Analyse the music<br/>(Demucs)"]
-    C --> D["Plan the scenes<br/>(LLM)"]
-    D --> E["Paint illustrations<br/>(Image Gen Model)"]
-    S([Style images]) -.-> E
-    E --> F["Cut out subjects<br/>(BiRefNet)"]
-    F --> R["Check the artwork<br/>(Vision Model)"]
+    A(["#nbsp;#nbsp;Audio#nbsp;#nbsp;"]) --> B["#nbsp;#nbsp;Align lyrics#nbsp;#nbsp;<br/>(Speech Model)"]
+    L(["#nbsp;#nbsp;Lyrics#nbsp;#nbsp;"]) -.-> B
+    B --> C["#nbsp;#nbsp;Analyse the music#nbsp;#nbsp;<br/>(Demucs)"]
+    C --> D["#nbsp;#nbsp;Plan the scenes#nbsp;#nbsp;<br/>(LLM)"]
+    D --> E["#nbsp;#nbsp;Paint illustrations#nbsp;#nbsp;<br/>(Image Gen Model)"]
+    S(["#nbsp;#nbsp;Style images#nbsp;#nbsp;"]) -.-> E
+    E --> F["#nbsp;#nbsp;Cut out subjects#nbsp;#nbsp;<br/>(BiRefNet)"]
+    F --> R["#nbsp;#nbsp;Check the artwork#nbsp;#nbsp;<br/>(Vision Model)"]
     R -- rejected --> E
-    R --> G{User reviews artwork}
+    R --> G{"#nbsp;#nbsp;User reviews artwork#nbsp;#nbsp;"}
     G -- redo --> E
-    G -- approve --> K["Animate images<br/>(Video Model, optional)"]
-    K --> H["Plan typography<br/>(LLM)"]
-    H --> I[Render video]
-    I --> V([MP4])
+    G -- approve --> K["#nbsp;#nbsp;Animate images#nbsp;#nbsp;<br/>(Video Model, optional)"]
+    K --> H["#nbsp;#nbsp;Plan typography#nbsp;#nbsp;<br/>(LLM)"]
+    H --> I["#nbsp;#nbsp;Render video#nbsp;#nbsp;"]
+    I --> V(["#nbsp;#nbsp;MP4#nbsp;#nbsp;"])
 
     classDef llm fill:#e8f0fe,stroke:#4a6fd1,color:#1a2b5c
     classDef image fill:#fdeee6,stroke:#d1784a,color:#5c2a10
@@ -186,12 +186,12 @@ the new one settles, just before the first word of the new section.
 
 ```mermaid
 flowchart LR
-    S([Sections]) --> A["AI picks scenes<br/>(LLM)"]
-    A --> P[Panning canvas]
-    A --> F[Framed lines]
-    A --> B[3D blocks]
-    A --> C[Black hole sun]
-    P & F & B & C --> V([Frames])
+    S(["#nbsp;#nbsp;Sections#nbsp;#nbsp;"]) --> A["#nbsp;#nbsp;AI picks scenes#nbsp;#nbsp;<br/>(LLM)"]
+    A --> P["#nbsp;#nbsp;Panning canvas#nbsp;#nbsp;"]
+    A --> F["#nbsp;#nbsp;Framed lines#nbsp;#nbsp;"]
+    A --> B["#nbsp;#nbsp;3D blocks#nbsp;#nbsp;"]
+    A --> C["#nbsp;#nbsp;Black hole sun#nbsp;#nbsp;"]
+    P & F & B & C --> V(["#nbsp;#nbsp;Frames#nbsp;#nbsp;"])
 ```
 
 Scene effects are small JSON recipes in `scenes/`, like the particle recipes. The

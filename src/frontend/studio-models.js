@@ -536,5 +536,6 @@ function classifyGalleryImage(img){
  }catch(error){stage.classList.add('opaque')}
 }
 document.addEventListener('load',event=>classifyGalleryImage(event.target),true);
-new MutationObserver(()=>document.querySelectorAll('#gallery .image-stage img').forEach(classifyGalleryImage))
- .observe($('gallery'),{childList:true,subtree:true});
+// This script loads in <head>, before the gallery exists and before studio.html defines $.
+document.addEventListener('DOMContentLoaded',()=>new MutationObserver(()=>document.querySelectorAll('#gallery .image-stage img').forEach(classifyGalleryImage))
+ .observe(document.getElementById('gallery'),{childList:true,subtree:true}));
