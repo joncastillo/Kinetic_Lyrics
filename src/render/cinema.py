@@ -12,12 +12,12 @@ pushes in too. Every frame is a pure function of time.
 import bisect
 import math
 import random
-from functools import lru_cache
+from render.scene_fonts import font_cache as lru_cache
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from core.paths import PROJECT_ROOT
-from core.fonts import first_font, truetype
+from render.scene_fonts import first_font, truetype
 from core.easing import cubic_out as ease, smoothstep as smooth  # shared curves, under this module's own names
 
 FONT = PROJECT_ROOT / 'assets' / 'fonts' / 'Montserrat-Variable.ttf'

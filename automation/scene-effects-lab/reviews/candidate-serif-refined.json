@@ -1,0 +1,43 @@
+{
+  "model": "qwen3.8:27b",
+  "rubric_sha256": "7a548261c0bcd7ebde32d7cd6b74f4f980e82d0767d9ae4b30f7c2699aa451fd",
+  "weights": {
+    "spectacle": 0.4,
+    "readability": 0.2,
+    "choreography": 0.2,
+    "craft": 0.15,
+    "originality": 0.05
+  },
+  "threshold": 95,
+  "evidence_folder": "automation/scene-effects-lab/evidence/candidate-serif-refined",
+  "source_snapshot": "source.zip",
+  "settings": {
+    "quiet-focus": {
+      "font": "serif",
+      "size": 1.2,
+      "motion": 1.35
+    },
+    "plain-blocks": {
+      "font": "serif",
+      "motion": 1.35,
+      "geometry": 0.0
+    }
+  },
+  "evidence_protocol": "v2-full-size-sequence-with-vocal-labels",
+  "source_sha256": "3a76e16711ad35be1102bddb24d504fb6b0c0d0f0fc63f15b9341e84a15d58b4",
+  "results": {
+    "quiet-focus": {
+      "error": "Judge response was truncated; no quality score recorded",
+      "passed": false
+    },
+    "plain-blocks": {
+      "passed": false,
+      "unscored": true,
+      "interrupted": true,
+      "error": "Stopped at user request during judging; rendered evidence is saved, but no completed score exists."
+    }
+  },
+  "status": "paused_by_user",
+  "original_evidence_folder": "tmp/scene-effects-lab/candidate-serif-refined",
+  "review_video": "animation.mp4"
+}

@@ -1,7 +1,7 @@
 """Pieces several scenes use: the sung word, the sung row and the caption strip."""
 
 from PIL import ImageDraw
-from core.fonts import truetype
+from render.scene_fonts import truetype
 from effects.kinetic.easing import back_out, clamp, smoother
 from render.poster.common import CAPTION_FONT, FONTS, LEAD
 

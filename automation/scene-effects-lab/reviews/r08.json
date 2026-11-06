@@ -1,0 +1,72 @@
+{
+  "model": "qwen3.8:27b",
+  "rubric_sha256": "7a548261c0bcd7ebde32d7cd6b74f4f980e82d0767d9ae4b30f7c2699aa451fd",
+  "weights": {
+    "spectacle": 0.4,
+    "readability": 0.2,
+    "choreography": 0.2,
+    "craft": 0.15,
+    "originality": 0.05
+  },
+  "threshold": 95,
+  "evidence_folder": "automation/scene-effects-lab/evidence/r08",
+  "source_snapshot": "source.zip",
+  "evidence_protocol": "v2-full-size-sequence-with-vocal-labels",
+  "source_sha256": "6c30ff45124b6d5e34cd1b264cd1eb5812308171b7c0b0fcb9d184456c9d1681",
+  "results": {
+    "quiet-focus": {
+      "scores": {
+        "spectacle": 72,
+        "readability": 88,
+        "choreography": 78,
+        "craft": 85,
+        "originality": 70
+      },
+      "evidence": "The scene executes a clean, minimalist lyric display with a consistent visual language: a large, bold focal word (e.g., LIGHT, WATER, CLOSE) set over a faint, oversized outline of its initial letter, with a smaller, lighter pre-word above. The light-background hold (Image 11) successfully inverts the palette, maintaining high contrast and legibility. The typography is well-spaced and the composition is centered and stable. However, the spectacle is limited to a simple fade-in/out and a subtle light sweep; it lacks a dynamic visual event, transformation, or memorable payoff that would elevate it beyond a polished but ordinary lyric video. The choreography is functional and coherent, with clear word-to-word handoffs, but the transitions are standard fades without significant anticipation or development. The craft is high, with professional type selection and color relationships, but the overall effect is more of a clean template than a distinctive, compelling visual experience.",
+      "critical_issues": [
+        "The visual presentation, while clean and legible, lacks a striking or memorable visual event. The 'light sweep' is subtle and does not constitute a powerful transformation or reveal, resulting in a scene that is polished but not spectacular."
+      ],
+      "improvements": [
+        "Introduce a more dynamic visual element to the light sweep, such as a more pronounced gradient shift, a particle effect, or a subtle distortion of the background, to create a more memorable visual payoff.",
+        "Consider adding a subtle, purposeful camera move (e.g., a slow push-in or a slight parallax shift) during the hold to add depth and a sense of development to the static composition.",
+        "Enhance the transition between phrases by using a more distinctive exit/entrance animation for the large focal word, such as a dissolve that reveals the next word's outline, to create a stronger narrative flow."
+      ],
+      "weighted_score": 78.25,
+      "score": 78.25,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.014404638790160561,
+        "maximum_frame_change": 0.08807873207153231,
+        "frame_rate": 12
+      }
+    },
+    "plain-blocks": {
+      "scores": {
+        "spectacle": 88,
+        "readability": 92,
+        "choreography": 85,
+        "craft": 87,
+        "originality": 78
+      },
+      "evidence": "The 3D extruded typography with moving studio-light reflections (visible in frames 1-9) creates a strong, tactile visual event. The camera tracking and word-by-word reveal (e.g., 'GOLDEN' in frame 1, 'LIGHT' in frame 2) provide clear choreography. However, the light-background hold (frame 11) shows a significant contrast drop for the white text against the near-white background, reducing legibility compared to the dark background. The transition to the light background (frame 11) feels slightly abrupt relative to the smooth dark-mode choreography. The 'WATER' word in frame 11 is legible but the overall scene lacks the depth impact of the dark mode. No critical clipping defects are visible in the held frames (10, 11).",
+      "critical_issues": [
+        "Light-background hold (frame 11) has reduced contrast for white text, slightly compromising readability compared to the dark background."
+      ],
+      "improvements": [
+        "Adjust the light-background hold to use a slightly darker off-white or add a subtle drop shadow to the white text to maintain contrast.",
+        "Smooth the transition into the light-background hold to match the polish of the dark-mode choreography.",
+        "Consider adding a subtle environmental reflection or depth cue in the light-background hold to maintain the 3D spectacle."
+      ],
+      "weighted_score": 87.55,
+      "score": 87.55,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.015599761246415298,
+        "maximum_frame_change": 0.10029789056826434,
+        "frame_rate": 12
+      }
+    }
+  },
+  "original_evidence_folder": "tmp/scene-effects-lab/r08",
+  "review_video": "animation.mp4"
+}

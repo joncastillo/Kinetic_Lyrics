@@ -1,0 +1,29 @@
+{
+  "scores": {
+    "spectacle": 42,
+    "readability": 38,
+    "choreography": 45,
+    "craft": 55,
+    "originality": 40
+  },
+  "evidence": "The timeline shows severe, unintended clipping and collision of words during the held frames, which is a critical readability defect. Specifically, at 0.65s, the word 'LIGHT' is partially obscured by 'GOLDEN'. At 5.45s, 'UNTIL THE' overlaps with 'MORNING', and at 6.75s, the text is so compressed and overlapping ('E CLOSE', 'L THE', 'NING') that it is completely illegible. The 'held' frames (2.0s, 4.70s, 8.10s) show better spacing, but the transitions between words are chaotic rather than choreographed. The light-background frame (4th image) shows a complete failure of contrast; the dark text is barely visible against the grey background, and the green accent color becomes a muddy brown, indicating a poor color adaptation or a rendering error. The overall effect is a rough, broken text animation rather than a polished lyric video.",
+  "critical_issues": [
+    "Severe text clipping and collision during word transitions (e.g., 0.65s, 5.45s, 6.75s) makes the lyrics illegible.",
+    "The light-background variant has critically low contrast, rendering the text nearly invisible.",
+    "The color of the accent word ('UPON', 'MORNING', 'LET') shifts to an unreadable brown in the light-background frame."
+  ],
+  "improvements": [
+    "Fix the text layout engine to prevent words from overlapping or clipping during transitions. Ensure each word has its own clear space before the next one enters.",
+    "Implement a proper color scheme for the light background. The text should be dark (e.g., near-black) and the accent color should be a vibrant, high-contrast color (e.g., a bright green or blue) that works on a light background.",
+    "Slow down the transitions or use a cleaner animation (like a simple fade or slide) to ensure the text is always readable and the handoff between words is smooth.",
+    "Add a subtle drop shadow or outline to the text to improve legibility against both dark and light backgrounds."
+  ],
+  "weighted_score": 43.65,
+  "score": 43.65,
+  "passed": false,
+  "metrics": {
+    "mean_frame_change": 0.032125865828548456,
+    "maximum_frame_change": 0.10519250408496732,
+    "frame_rate": 12
+  }
+}

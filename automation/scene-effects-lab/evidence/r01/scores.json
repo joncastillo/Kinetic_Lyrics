@@ -1,0 +1,76 @@
+{
+  "model": "qwen3.8:27b",
+  "rubric_sha256": "7a548261c0bcd7ebde32d7cd6b74f4f980e82d0767d9ae4b30f7c2699aa451fd",
+  "weights": {
+    "spectacle": 0.4,
+    "readability": 0.2,
+    "choreography": 0.2,
+    "craft": 0.15,
+    "originality": 0.05
+  },
+  "threshold": 95,
+  "source_sha256": "a44c1f2476ff89ee1887cb7f2a04ce75911049f9d84b35524cbff28d5b50c247",
+  "results": {
+    "quiet-focus": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 88,
+        "choreography": 72,
+        "craft": 85,
+        "originality": 55
+      },
+      "evidence": "The timeline shows clean word-by-word handoffs with no clipping on held frames (e.g., 'the water' at 2.0s/2.65s, 'hold me close' at 3.6s/4.15s, 'do not let' at 6.75s/7.35s). The large held frame and portrait frame both present centered, high-contrast serif text on a dark navy field with generous margins and no collisions. The light-background frame confirms the text remains legible when inverted to a pale field, though the contrast is softer there. Transitions appear as simple fades (visible in the 4.70s and 5.45s frames where text is mid-fade), which are smooth but unremarkable. The frame-difference metrics (mean ~0.001, max ~0.006 at 12fps) support gentle, low-motion fades rather than any dynamic event. There is no scale shift, depth, transformation, or reveal \u2014 the visual event is limited to text appearing and disappearing. Typography is well-set (consistent tracking, appropriate size, clean serif), and composition is balanced in both orientations. The main weakness is the absence of any memorable visual payoff or distinctive concept; it reads as a competent but generic lyric card sequence.",
+      "critical_issues": [
+        "No striking visual event or memorable payoff \u2014 the scene is a plain fade-in/out of text with no transformation, depth, or reveal, which caps Spectacle well below the 95 threshold.",
+        "The light-background frame, while legible, shows noticeably reduced contrast compared to the dark frames, suggesting the color relationship is not fully optimized for both backgrounds."
+      ],
+      "improvements": [
+        "Introduce a single purposeful visual event tied to the lyric \u2014 e.g., a subtle water-reflection shimmer on 'the water', a slow scale or blur transition on 'hold me close', or a light-source shift on 'golden light' \u2014 to create a memorable payoff without adding clutter.",
+        "Add a brief anticipation beat before each phrase (e.g., a 1\u20132 frame dim or slight letter-spacing ease-in) and a more deliberate finish (e.g., a gentle settle or micro-zoom-out) to strengthen Choreography beyond a plain fade.",
+        "Tighten the light-background contrast by darkening the text slightly or adding a very subtle warm tint to the pale field so legibility matches the dark-frame performance.",
+        "Consider a single distinctive typographic or compositional gesture (e.g., a hairline rule, a soft vignette, or a slight baseline shift on the final phrase 'do not let go') to elevate Originality and Craft beyond a standard centered-text layout."
+      ],
+      "weighted_score": 64.3,
+      "score": 64.3,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.0009665057601008558,
+        "maximum_frame_change": 0.005886279048656499,
+        "frame_rate": 12
+      }
+    },
+    "plain-blocks": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 38,
+        "choreography": 45,
+        "craft": 40,
+        "originality": 55
+      },
+      "evidence": "The scene is a minimal lyric overlay on a dark background with a thin green particle trail. The 'sun' icon is a crude yellow blob that overlaps and obscures the 'O' in 'GOLDEN' in every frame (e.g., 0.66s, 2.65s, 5.45s), which is a persistent readability defect. The text layout is inconsistent: in the portrait frame (3rd image), 'GOLDEN LIGHT' and 'UPON the WATER' are stacked, but in the landscape frames, the line breaks shift awkwardly (e.g., 'HOLD me CLOSE' wraps to a new line at 4.15s, then 'UNTIL' wraps at 4.70s). The transition to the second phrase 'HOLD me close until the morning' is a hard cut/stack rather than a smooth handoff, and the third phrase 'DO NOT LET GO' appears as a large, centered block that feels disconnected from the previous left-aligned text. The light-background frame (4th image) shows the text is barely legible against the grey background, with low contrast. The particle trail is the only dynamic element, but it is subtle and does not create a 'striking visual event'. The overall composition feels like a rough draft rather than a polished, professional execution. The frame difference metrics (mean ~0.03) suggest low motion, consistent with the static-looking text and slow particle movement.",
+      "critical_issues": [
+        "The 'sun' icon obscures the letter 'O' in 'GOLDEN', creating a persistent clipping/overlap defect.",
+        "Text contrast is insufficient in the light-background frame, making the lyrics hard to read.",
+        "Line breaks and text alignment are inconsistent and awkward across different phrases and orientations (e.g., 'UNTIL' wrapping alone on a line)."
+      ],
+      "improvements": [
+        "Reposition or remove the 'sun' icon so it does not overlap the text. If it's meant to be a decorative element, place it clearly to the side or integrate it into the particle trail without obscuring letters.",
+        "Increase text contrast, especially for the light-background variant. Use a darker text color or add a subtle drop shadow/outline to ensure legibility on both dark and light backgrounds.",
+        "Standardize the text layout and line breaks. Ensure phrases wrap logically and consistently across all orientations. Avoid single words like 'UNTIL' being isolated on a line if it looks unintentional.",
+        "Improve the transition between phrases. Instead of a hard stack or cut, consider a smoother fade or slide to maintain visual continuity.",
+        "Enhance the particle trail to be more visually engaging. Increase its brightness, add more particles, or make its movement more dynamic to create a stronger visual event."
+      ],
+      "weighted_score": 42.15,
+      "score": 42.15,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.029993457371266265,
+        "maximum_frame_change": 0.11686111678467682,
+        "frame_rate": 12
+      }
+    }
+  },
+  "evidence_folder": "automation/scene-effects-lab/evidence/r01",
+  "original_evidence_folder": "tmp/scene-effects-lab/r01",
+  "review_video": "animation.mp4"
+}

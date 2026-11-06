@@ -2,5 +2,5 @@
   "name": "3D blocks",
   "camera": "blocks",
   "particles": [],
-  "description": "Clean justified word blocks in 3D space; the camera glides between them."
+  "description": "Sculpted word blocks turn into place with deep extrusion and a moving studio-light reflection; the camera follows each lyric line."
 }

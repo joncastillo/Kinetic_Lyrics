@@ -1,0 +1,29 @@
+{
+  "scores": {
+    "spectacle": 42,
+    "readability": 38,
+    "choreography": 45,
+    "craft": 55,
+    "originality": 40
+  },
+  "evidence": "The timeline shows severe, unintended clipping and collision defects that violate the core readability requirement. At 0.65s, the word 'LIGHT' is rendered as a tiny, illegible white box inside the letter 'O' of 'GOLD', creating a visual collision rather than a legible lyric. At 1.40s, 'UPON' is similarly crushed into a small box inside the 'O' of 'GOLDEN'. At 4.15s, 'UNTIL' is a tiny box inside the 'O' of 'CLOSE'. At 5.45s, 'THE' is a tiny box inside the 'T' of 'UNTIL'. At 8.10s, 'NOT' is a tiny box inside the 'O' of 'DO'. These are not intentional transitions; they are persistent, held-state rendering failures where secondary words are illegible and visually collide with primary words. The 'larger held frame' (WATER) is legible but visually flat, with a simple drop shadow that looks like a default preset rather than a designed effect. The 'light-background held frame' shows the same 'WATER' text with a harsh, black outline that looks like a rendering artifact or a failed stroke effect, not a professional finish. The 'portrait held frame' is acceptable but offers no compositional interest. The overall spectacle is minimal to the point of being static; there is no transformation, depth, or memorable payoff. The choreography is broken by the collision defects, making the word-to-word handoffs incoherent. The craft is undermined by the inconsistent treatment of words (some large, some tiny boxes) and the poor finish on the light background. The originality is low, as it appears to be a basic text-on-background template with significant execution errors.",
+  "critical_issues": [
+    "Severe, persistent clipping and collision: Secondary words ('LIGHT', 'UPON', 'UNTIL', 'THE', 'NOT') are rendered as tiny, illegible boxes inside the letters of primary words, making them unreadable and creating visual clutter.",
+    "Poor finish on light background: The 'WATER' text on the light background has a harsh, black outline that looks like a rendering artifact or a failed stroke effect, not a professional design choice.",
+    "Lack of visual impact: The scene is static and minimal without any compensating depth, transformation, or memorable visual event."
+  ],
+  "improvements": [
+    "Fix the text rendering logic to ensure all words are legible and do not collide. Secondary words should be given their own space and appropriate size, not crammed into the counters of other letters.",
+    "Redesign the light-background treatment. Remove the harsh black outline and use a more subtle shadow or a different color that provides adequate contrast without looking like an artifact.",
+    "Add visual interest and depth. Consider subtle animations, parallax, or background elements to create a more engaging and memorable scene.",
+    "Improve the choreography by ensuring smooth, intentional transitions between words, rather than the current jarring collisions and abrupt changes in scale."
+  ],
+  "weighted_score": 43.65,
+  "score": 43.65,
+  "passed": false,
+  "metrics": {
+    "mean_frame_change": 0.16496289116849577,
+    "maximum_frame_change": 0.5068870790214234,
+    "frame_rate": 12
+  }
+}

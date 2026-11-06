@@ -1,0 +1,30 @@
+{
+  "scores": {
+    "spectacle": 42,
+    "readability": 58,
+    "choreography": 55,
+    "craft": 62,
+    "originality": 48
+  },
+  "evidence": "The timeline shows a severe readability defect: in the 0.95s frame, the word 'GOLDEN' is clipped at the baseline by the horizontal rule, with the lower halves of the letters cut off. This is not an intentional transition but a collision in a held state. The 3.60s frame shows a similar issue where the text is barely visible above the line, suggesting inconsistent vertical alignment. The 'light-background held frame' (4th image) is critically flawed: the text 'UPON THE' is rendered in a near-white color against a light gray background, resulting in almost zero contrast and making the words illegible. The choreography relies on a simple scale-up/scale-down effect with a static horizontal line, which lacks anticipation or a memorable payoff. The color shifts (orange, pink, blue) feel arbitrary rather than purposeful. The frame-difference metrics (mean 0.017) confirm minimal motion, consistent with a basic fade/scale effect rather than dynamic choreography.",
+  "critical_issues": [
+    "Text clipping: 'GOLDEN' is cut off at the bottom by the horizontal line in the 0.95s frame.",
+    "Illegibility: The light-background frame has near-zero contrast between text and background.",
+    "Inconsistent alignment: Vertical positioning of text relative to the line varies unpredictably between frames (e.g., 3.60s vs 4.15s)."
+  ],
+  "improvements": [
+    "Fix the vertical alignment of the text container so that the baseline never intersects the horizontal rule. Add padding-bottom to the text element.",
+    "Ensure high contrast in all background modes. For the light background, use a dark text color (e.g., #333 or #000) instead of white.",
+    "Standardize the vertical position of the text relative to the line across all frames to prevent jitter or inconsistent spacing.",
+    "Enhance the choreography by adding a subtle entrance animation (e.g., slide-up or fade-in with a slight delay) rather than just scaling, to create a more deliberate reveal.",
+    "Use a more cohesive color palette. The random color shifts (orange, pink, blue) dilute the visual impact. Consider a single accent color or a gradient that transitions smoothly."
+  ],
+  "weighted_score": 51.1,
+  "score": 51.1,
+  "passed": false,
+  "metrics": {
+    "mean_frame_change": 0.017194563589324616,
+    "maximum_frame_change": 0.04598007443718228,
+    "frame_rate": 12
+  }
+}

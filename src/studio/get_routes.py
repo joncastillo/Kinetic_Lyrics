@@ -13,6 +13,7 @@ from direction.illustration_prompts import STYLE_PROMPT
 from render.text_effects import TEXT_ANIMATIONS
 from effects.particles.catalog import discover_effects, catalog_choices
 from direction.scene_catalog import scene_catalog
+from effects.particles.scene_backdrops import backdrop_choices
 from models.image.catalog import MODELS
 from models.speech.catalog import ASR_MODELS, LANGUAGES, DEFAULT_ASR
 from studio.lock import LOCK
@@ -92,6 +93,7 @@ class GetRoutes:
     def _get_scene_preview(self, url):
         """GET path == '/api/scene-preview'"""
         from effects.particles.preview import render_scene_preview
+        from effects.particles.scene_backdrops import DEFAULT_BACKDROP, backdrop_spec
 
         query = parse_qs(url.query)
         scene = query.get('scene', [''])[0]
@@ -108,6 +110,8 @@ class GetRoutes:
         from direction.scene_controls import scene_settings
 
         overrides = scene_settings({scene: json.loads(query.get('settings', ['{}'])[0])}).get(scene, {})
+        background = query.get('background', [DEFAULT_BACKDROP])[0]
+        backdrop_spec(background)
         return self.respond(
             render_scene_preview(
                 scene,
@@ -115,6 +119,7 @@ class GetRoutes:
                 settings['font_style'],
                 settings['font_scale'],
                 json.dumps(overrides, sort_keys=True),
+                background,
             ),
             content_type='image/gif',
         )
@@ -207,6 +212,7 @@ class GetRoutes:
                 replacement_priority_supported=True,
                 particle_effects=catalog_choices(),
                 scene_effects=list(scene_catalog().values()),
+                scene_preview_backgrounds=backdrop_choices(),
                 prompt_regeneration=True,
                 generation_queue_version=2,
                 style_prompt=STYLE_PROMPT,

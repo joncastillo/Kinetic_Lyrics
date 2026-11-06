@@ -1,0 +1,76 @@
+{
+  "model": "qwen3.8:27b",
+  "rubric_sha256": "7a548261c0bcd7ebde32d7cd6b74f4f980e82d0767d9ae4b30f7c2699aa451fd",
+  "weights": {
+    "spectacle": 0.4,
+    "readability": 0.2,
+    "choreography": 0.2,
+    "craft": 0.15,
+    "originality": 0.05
+  },
+  "threshold": 95,
+  "source_sha256": "267b3cd80b16c20354eb32a94b2316ace10a82e9e63b0ef468ce9f9031a5db52",
+  "results": {
+    "quiet-focus": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 88,
+        "choreography": 68,
+        "craft": 72,
+        "originality": 35
+      },
+      "evidence": "The timeline shows a functional but visually inert lyric presentation. The held frames (landscape and portrait) display clean, legible text with strong contrast against the dark background, and the light-background frame confirms the type remains readable when inverted. However, there is no visual event, transformation, depth, or memorable payoff \u2014 the scene is a static text card with minimal motion (mean frame change ~0.006, max ~0.042 at 12fps), indicating near-static rendering. The choreography is basic: words appear and disappear in sequence without anticipation, development, or a purposeful finish. The 'golden light upon the water' phrase fades in and out with no visual metaphor or spatial movement. The 'hold me close until the morning' and 'do not let go' phrases follow the same flat pattern. There is no word-to-word handoff, no spatial relationship between lines, and no compositional evolution. The typeface is clean but generic; the layout is centered and symmetrical with no distinctive design choices. The light-background frame is a simple inversion, not a designed variation. No clipping or collision is visible in the held frames, which is a positive, but the overall execution lacks the impact, intentionality, and polish required for a high score. The scene reads as a functional lyric display, not a crafted visual experience.",
+      "critical_issues": [
+        "No visual spectacle or memorable payoff \u2014 the scene is a static text card with minimal motion, failing to create any striking visual event or transformation.",
+        "Choreography is flat and mechanical \u2014 words appear and disappear in sequence without anticipation, development, or a purposeful finish; no spatial or temporal dynamics are present.",
+        "Originality is low \u2014 the design is a generic centered-text layout with no distinctive combination of decisions, spatial relationships, or visual metaphors."
+      ],
+      "improvements": [
+        "Introduce a visual event or transformation tied to the lyrics \u2014 e.g., a subtle light shift, particle effect, or spatial movement that reflects 'golden light upon the water' or 'hold me close.'",
+        "Add choreographic intentionality \u2014 use staggered entrances, spatial handoffs between words, or a purposeful exit that creates a sense of development and finish.",
+        "Enhance craft with distinctive design choices \u2014 vary type weight, introduce subtle motion or parallax, or use color/contrast shifts to create visual interest without sacrificing readability.",
+        "Create a memorable payoff \u2014 end the sequence with a visual or typographic moment that resonates with the emotional weight of 'do not let go.'"
+      ],
+      "weighted_score": 60.55,
+      "score": 60.55,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.0059311981531536126,
+        "maximum_frame_change": 0.04184941789215686,
+        "frame_rate": 12
+      }
+    },
+    "plain-blocks": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 38,
+        "choreography": 45,
+        "craft": 55,
+        "originality": 40
+      },
+      "evidence": "The timeline shows severe, unintended clipping and collision of words during the held frames, which is a critical readability defect. Specifically, at 0.65s, the word 'LIGHT' is partially obscured by 'GOLDEN'. At 5.45s, 'UNTIL THE' overlaps with 'MORNING', and at 6.75s, the text is so compressed and overlapping ('E CLOSE', 'L THE', 'NING') that it is completely illegible. The 'held' frames (2.0s, 4.70s, 8.10s) show better spacing, but the transitions between words are chaotic rather than choreographed. The light-background frame (4th image) shows a complete failure of contrast; the dark text is barely visible against the grey background, and the green accent color becomes a muddy brown, indicating a poor color adaptation or a rendering error. The overall effect is a rough, broken text animation rather than a polished lyric video.",
+      "critical_issues": [
+        "Severe text clipping and collision during word transitions (e.g., 0.65s, 5.45s, 6.75s) makes the lyrics illegible.",
+        "The light-background variant has critically low contrast, rendering the text nearly invisible.",
+        "The color of the accent word ('UPON', 'MORNING', 'LET') shifts to an unreadable brown in the light-background frame."
+      ],
+      "improvements": [
+        "Fix the text layout engine to prevent words from overlapping or clipping during transitions. Ensure each word has its own clear space before the next one enters.",
+        "Implement a proper color scheme for the light background. The text should be dark (e.g., near-black) and the accent color should be a vibrant, high-contrast color (e.g., a bright green or blue) that works on a light background.",
+        "Slow down the transitions or use a cleaner animation (like a simple fade or slide) to ensure the text is always readable and the handoff between words is smooth.",
+        "Add a subtle drop shadow or outline to the text to improve legibility against both dark and light backgrounds."
+      ],
+      "weighted_score": 43.65,
+      "score": 43.65,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.032125865828548456,
+        "maximum_frame_change": 0.10519250408496732,
+        "frame_rate": 12
+      }
+    }
+  },
+  "evidence_folder": "automation/scene-effects-lab/evidence/r02",
+  "original_evidence_folder": "tmp/scene-effects-lab/r02",
+  "review_video": "animation.mp4"
+}

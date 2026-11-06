@@ -131,7 +131,7 @@ function initParticleEffects(cfg) {
       if($('effectBrowser').open && currentParticleSample && currentParticleSample[0])showParticleSample(...currentParticleSample);
     });
   }
-  window.renderSceneEffects?.(cfg.scene_effects);
+  window.renderSceneEffects?.(cfg.scene_effects,cfg.scene_preview_backgrounds);
   window.aiTypographyAvailable=!!cfg.ai_typography_supported;
   const aiOption=$('textAnimation').querySelector('option[value=ai]');
   if(aiOption)aiOption.disabled=!window.aiTypographyAvailable;

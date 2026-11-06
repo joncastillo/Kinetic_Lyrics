@@ -1,0 +1,33 @@
+{
+  "scores": {
+    "spectacle": 42,
+    "readability": 58,
+    "choreography": 48,
+    "craft": 62,
+    "originality": 35
+  },
+  "evidence": "The timeline shows severe, unintended clipping and collision defects on held text. At 0.5s, 'GOLDEN' and 'LIGHT' overlap with 'LIGHT' partially obscured. At 1.4s, 'UPON' and 'THE' collide, with 'THE' rendered as a fragmented, illegible artifact beneath 'UPON'. At 2.0s, 'UPON' is vertically mirrored/inverted, a clear rendering error. At 4.15s, 'CLOSE' and 'HOLD' overlap with 'HOLD' ghosted behind. At 6.75s, 'DO' and 'TON' (likely 'NOT' clipped) collide vertically. The held frames confirm these are not transitions but settled states with broken layout. The light-background frame (WATER) shows poor contrast\u2014white text on near-white background is barely legible. The portrait frame is acceptable but offers no improvement. The frame-difference metrics (mean 0.0089, max 0.0419) indicate minimal motion, consistent with static or near-static text rather than smooth choreography. There is no visual spectacle, no depth, no transformation\u2014only text appearing and disappearing with broken spacing. The typeface is clean but the execution is fundamentally flawed in layout and contrast.",
+  "critical_issues": [
+    "Unintended text clipping and collision on multiple held frames (0.5s, 1.4s, 4.15s, 6.75s)",
+    "Vertical mirroring/inversion of text at 2.0s ('UPON' rendered upside down)",
+    "Poor contrast in light-background frame: white text on near-white background is illegible",
+    "No visual spectacle or memorable payoff\u2014minimalist text with no impact",
+    "Choreography is incoherent: words appear, collide, and disappear without purposeful handoffs or development"
+  ],
+  "improvements": [
+    "Fix text layout engine to prevent overlap and clipping\u2014ensure each word has dedicated space and no collision with adjacent words",
+    "Correct the vertical mirroring bug at 2.0s\u2014text must render upright in all frames",
+    "Increase contrast in light-background frame: use dark text on light background or add a subtle shadow/outline to white text",
+    "Add visual spectacle: introduce depth, scale changes, or a precise reveal (e.g., words emerging from darkness, or a light sweep) to create a memorable payoff",
+    "Improve choreography: stagger word entrances with clear anticipation and development, ensure smooth handoffs between phrases, and add a purposeful finish (e.g., final word holds with emphasis)",
+    "Enhance craft: refine spacing, add subtle motion (e.g., gentle fade-in/out, slight scale change) to make the text feel designed rather than static"
+  ],
+  "weighted_score": 49.05,
+  "score": 49.05,
+  "passed": false,
+  "metrics": {
+    "mean_frame_change": 0.008868610822660668,
+    "maximum_frame_change": 0.04187777437363834,
+    "frame_rate": 12
+  }
+}

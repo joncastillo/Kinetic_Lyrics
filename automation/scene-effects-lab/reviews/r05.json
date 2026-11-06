@@ -1,0 +1,75 @@
+{
+  "model": "qwen3.8:27b",
+  "rubric_sha256": "7a548261c0bcd7ebde32d7cd6b74f4f980e82d0767d9ae4b30f7c2699aa451fd",
+  "weights": {
+    "spectacle": 0.4,
+    "readability": 0.2,
+    "choreography": 0.2,
+    "craft": 0.15,
+    "originality": 0.05
+  },
+  "threshold": 95,
+  "evidence_protocol": "v2-full-size-sequence-with-vocal-labels",
+  "source_sha256": "3af7dc6681e86047bd026658b919731fc9e551cc27624c345652f02cd8357474",
+  "results": {
+    "quiet-focus": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 38,
+        "choreography": 45,
+        "craft": 68,
+        "originality": 55
+      },
+      "evidence": "The scene fails the pass threshold due to severe readability defects and a lack of visual impact. \n\n1. **Readability (38/100):** The primary failure is the aggressive, non-linear scaling of the 'sung word' (the large text). In Frame 1 (0.35s, 'light'), the word is so large it is cropped by the screen edges. In Frame 4 (1.40s, 'upon'), the word 'WATER' is similarly cropped. In Frame 8 (8.10s, 'go'), the word is cropped at the bottom. This makes the text illegible during the moments it is supposed to be the focus. Furthermore, the hierarchy is inconsistent; sometimes the small text is the sung word (Frame 2, 'golden'), sometimes the large text is (Frame 3, 'light'), creating confusion about what the viewer should read.\n\n2. **Spectacle (42/100):** The visual event is a simple text fade/scale on a dark background. There is no depth, transformation, or memorable payoff. It is a functional lyric display, not a spectacle. The 'soft focus' mentioned in the intent is barely perceptible and does not contribute to a striking visual experience.\n\n3. **Choreography (45/100):** The transitions are jarring. The text doesn't just fade; it scales up and down erratically. The handoff between words is not smooth; the large word often appears to 'pop' into a larger size rather than transitioning fluidly. The timing feels disjointed, with the large text often lingering or appearing abruptly.\n\n4. **Craft (68/100):** The type selection (a clean sans-serif) and the color palette (cream on dark blue) are professional and aesthetically pleasing. The spacing is generally good. However, the execution of the animation (the scaling) is poor, undermining the otherwise clean design.\n\n5. **Originality (55/100):** The concept of highlighting the sung word is common in music videos. The specific execution here (large/small text swap) is a standard technique, not a distinctive combination of decisions.\n\n**Actionable Corrections:**\n- **Fix Scaling:** The large text must fit within the safe area of the screen at all times. It should not be cropped.\n- **Clarify Hierarchy:** Decide on a consistent rule for which text is the 'sung word'. If the large text is the sung word, ensure it is always legible and fully visible. If the small text is the sung word, the large text should be a static background element or a previous line, not a competing element.\n- **Smooth Transitions:** Use easing functions for the scale and opacity changes to create a fluid, professional feel. Avoid abrupt 'pops'.\n- **Add Visual Interest:** To improve the spectacle score, consider adding subtle background motion (e.g., a slow gradient shift, a particle effect) or a more dynamic text reveal (e.g., a wipe, a blur-in) to create a more memorable visual event.",
+      "critical_issues": [
+        "The 'sung word' (large text) is frequently cropped by the screen edges, making it illegible (e.g., Frames 1, 4, 8).",
+        "The hierarchy between the small and large text is inconsistent, causing confusion about which word is currently being sung.",
+        "The scaling animation is jarring and unpolished, detracting from the overall quality."
+      ],
+      "improvements": [
+        "Ensure all text, especially the highlighted 'sung word', remains fully visible within the screen boundaries.",
+        "Establish a clear and consistent visual hierarchy for the lyrics.",
+        "Implement smooth, eased transitions for text scaling and opacity to improve the professional finish.",
+        "Consider adding subtle background dynamics to elevate the visual spectacle beyond a simple text display."
+      ],
+      "weighted_score": 46.35,
+      "score": 46.35,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.01361068770573923,
+        "maximum_frame_change": 0.13011785130718956,
+        "frame_rate": 12
+      }
+    },
+    "plain-blocks": {
+      "scores": {
+        "spectacle": 62,
+        "readability": 88,
+        "choreography": 70,
+        "craft": 75,
+        "originality": 55
+      },
+      "evidence": "The scene is a clean, minimalist lyric display. The 3D extrusion and the color shift on the sung word (e.g., 'WATER' in frame 5, 'ME' in frame 6) provide a clear visual hierarchy. However, the spectacle is limited to a simple camera glide and color change; there is no significant transformation, depth play, or memorable visual payoff. The choreography is functional but predictable. The craft is good, with consistent typography and spacing, but the overall effect is that of a high-quality template rather than a bespoke, compelling visual event. The light-background hold (frame 11) successfully maintains readability, though the color palette becomes less distinct.",
+      "critical_issues": [
+        "The visual presentation is competent but lacks a 'wow' factor or a unique artistic identity. It feels like a standard, high-end lyric video rather than a striking piece of motion design."
+      ],
+      "improvements": [
+        "Introduce a more dynamic camera move, such as a slow dolly-in or a subtle parallax effect, to create a greater sense of depth and immersion.",
+        "Enhance the 3D effect by adding a subtle, animated light source that sweeps across the text, creating moving highlights and shadows to make the extrusion feel more tangible.",
+        "Consider a more expressive transition between phrases, such as the words dissolving into particles or morphing, to add a layer of visual interest and narrative flow.",
+        "Experiment with a more unique color palette or a subtle background texture/gradient to move away from the generic dark blue and create a more distinct mood."
+      ],
+      "weighted_score": 70.4,
+      "score": 70.4,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.017352251196335523,
+        "maximum_frame_change": 0.11497428172657952,
+        "frame_rate": 12
+      }
+    }
+  },
+  "evidence_folder": "automation/scene-effects-lab/evidence/r05",
+  "original_evidence_folder": "tmp/scene-effects-lab/r05",
+  "review_video": "animation.mp4"
+}

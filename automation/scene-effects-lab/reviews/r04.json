@@ -1,0 +1,75 @@
+{
+  "model": "qwen3.8:27b",
+  "rubric_sha256": "7a548261c0bcd7ebde32d7cd6b74f4f980e82d0767d9ae4b30f7c2699aa451fd",
+  "weights": {
+    "spectacle": 0.4,
+    "readability": 0.2,
+    "choreography": 0.2,
+    "craft": 0.15,
+    "originality": 0.05
+  },
+  "threshold": 95,
+  "source_sha256": "3af7dc6681e86047bd026658b919731fc9e551cc27624c345652f02cd8357474",
+  "results": {
+    "quiet-focus": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 88,
+        "choreography": 68,
+        "craft": 72,
+        "originality": 55
+      },
+      "evidence": "The timeline shows a functional but visually flat lyric presentation. The held frames (e.g., 'upon the WATER', 'do not let GO') are legible with clear hierarchy between the small preposition line and the large keyword, and contrast is adequate on both dark and light backgrounds. However, the spectacle is minimal: there is no depth, transformation, or memorable visual event\u2014just static text on a solid background. The choreography is basic; the timeline reveals abrupt clipping during transitions (e.g., 'LIGHT' partially cut off at 1.40s, 'MORNING' fragmented at 4.70s), which, while possibly intentional, lacks smooth anticipation or development. The frame-difference metrics (mean 0.017, max 0.130) confirm low motion, supporting the observation of static, non-dynamic presentation. Craft is competent but unremarkable: type selection is clean, spacing is consistent, but the overall design feels like a default lyric template rather than a bespoke visual experience. Originality is low; the combination of centered text, two-line hierarchy, and solid background is a common, generic approach with no distinctive visual identity.",
+      "critical_issues": [
+        "Lack of visual spectacle or memorable payoff; the scene is static and unengaging.",
+        "Choreography is rudimentary with no clear anticipation, development, or purposeful finish; transitions appear abrupt or clipped without smooth handoffs."
+      ],
+      "improvements": [
+        "Introduce subtle motion or transformation (e.g., gentle fade-in/out, slight scale or blur transitions) to create a sense of development and polish.",
+        "Enhance the visual spectacle with background elements (e.g., soft gradients, subtle textures, or animated light effects) to add depth and atmosphere without compromising readability.",
+        "Refine the choreography by adding anticipation (e.g., a brief pause or pre-animation before text appears) and a purposeful finish (e.g., a smooth exit or resolution) to make the timing feel intentional and cohesive.",
+        "Consider a more distinctive type pairing or layout variation to increase originality and visual interest, moving beyond the generic centered-text template."
+      ],
+      "weighted_score": 61.55,
+      "score": 61.55,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.017292646496769353,
+        "maximum_frame_change": 0.13011785130718956,
+        "frame_rate": 12
+      }
+    },
+    "plain-blocks": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 68,
+        "choreography": 55,
+        "craft": 60,
+        "originality": 45
+      },
+      "evidence": "The timeline shows a basic word-by-word reveal with no significant visual transformation, depth, or memorable payoff. The held frames (landscape and portrait) display clean, legible text with good contrast against the dark background, but the light-background frame reveals a critical defect: the text color shifts to a muddy brown/dark tone that significantly reduces contrast and legibility. The choreography is functional but unremarkable\u2014words appear sequentially without anticipation, development, or a purposeful finish. The typeface is a standard bold sans-serif with no distinctive character, and the color palette (cream/gold on dark blue) is generic. The frame-difference metrics (mean 0.020, max 0.115) confirm minimal motion, consistent with a simple fade/reveal rather than dynamic choreography. No clipping or collisions are visible in the held frames, but the light-background variant fails the readability standard for adequate contrast across backgrounds.",
+      "critical_issues": [
+        "Light-background frame has insufficient contrast: text appears in a dark brown/muddy tone that blends with the light gray background, violating the readability requirement for adequate contrast in both backgrounds.",
+        "No visual spectacle or memorable payoff: the scene is a plain text reveal with no transformation, depth, scale, or striking event, falling far below the 95/100 threshold for exceptional execution."
+      ],
+      "improvements": [
+        "Fix the light-background frame: ensure text color maintains high contrast (e.g., dark navy or black text on light background, or retain the gold/cream with a darker outline/shadow).",
+        "Add visual spectacle: introduce a subtle background element (e.g., water ripple, light refraction, or gradient shift) that ties to the lyric 'golden light upon the water' to create a memorable payoff.",
+        "Enhance choreography: add anticipation (e.g., a brief pause or scale-up before each word), development (e.g., words slightly overlapping or cascading), and a purposeful finish (e.g., final line holds with a subtle glow or fade-out).",
+        "Improve craft: use a more distinctive typeface (e.g., a serif or custom font) and refine spacing/alignment for a more designed look.",
+        "Increase originality: combine the text reveal with a unique visual metaphor (e.g., words appearing as if reflected on water) to avoid a generic lyric video feel."
+      ],
+      "weighted_score": 52.65,
+      "score": 52.65,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.020259565048544512,
+        "maximum_frame_change": 0.11497428172657952,
+        "frame_rate": 12
+      }
+    }
+  },
+  "evidence_folder": "automation/scene-effects-lab/evidence/r04",
+  "original_evidence_folder": "tmp/scene-effects-lab/r04",
+  "review_video": "animation.mp4"
+}

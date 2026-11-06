@@ -1,6 +1,6 @@
 """The counter dive: one huge word at a time, the camera diving through a letter's counter to the next."""
 
-from functools import lru_cache
+from render.scene_fonts import font_cache as lru_cache
 
 import numpy as np
 from PIL import Image, ImageChops, ImageDraw

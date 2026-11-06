@@ -269,7 +269,7 @@ class SceneMix:
         lines = {}
         for flow in self.flows:
             configured = options['scene_settings'].get(flow['scene'], {})
-            flow['engine'] = flow['scene'] if configured else flow['camera']
+            flow['engine'] = flow['scene'] if configured or flow['scene'] == 'plain-blocks' else flow['camera']
         for flow in self.flows:
             lines.setdefault(flow['engine'], []).extend(range(flow['start'], flow['end']))
         self.engines = {}
@@ -281,6 +281,8 @@ class SceneMix:
                 options, **{k: config[k] for k in ('pan_speed', 'backdrop_rate', 'geometry') if k in config}
             )
             if camera == 'blocks':
+                if flow['scene'] == 'plain-blocks':
+                    local_options.update(traces=False, geometry=config.get('geometry', 0.0))
                 staged = [
                     (i, catalog[f['scene']])
                     for f in self.flows
@@ -329,6 +331,12 @@ class SceneMix:
                     large=large,
                 )
             self.engines[key].scene_config = config
+            self.engines[key].clean_lines = {
+                i for f in self.flows if f['scene'] == 'plain-blocks' for i in range(f['start'], f['end'])
+            }
+            from render.scene_fonts import configure_scene_fonts
+
+            configure_scene_fonts(self.engines[key])
             if camera == 'poster':
                 # Keep palette/side variations stable when overrides partition one renderer into several.
                 poster_lines = dict.fromkeys(

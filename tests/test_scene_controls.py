@@ -158,7 +158,7 @@ def test_scene_preview_route_validates_and_forwards_overrides():
     ):
         result = GetRoutes._get_scene_preview(response, urlparse('/api/scene-preview?' + query))
         assert result[0] == b'gif'
-        assert json.loads(render.call_args.args[-1]) == dict(shape='round', motion=0.0)
+        assert json.loads(render.call_args.args[4]) == dict(shape='round', motion=0.0)
     bad = urlencode(dict(scene='word-seal', settings=json.dumps(dict(shape='triangle'))))
     with pytest.raises(ValueError):
         GetRoutes._get_scene_preview(response, urlparse('/api/scene-preview?' + bad))

@@ -1,0 +1,31 @@
+{
+  "scores": {
+    "spectacle": 42,
+    "readability": 58,
+    "choreography": 48,
+    "craft": 55,
+    "originality": 40
+  },
+  "evidence": "The timeline shows a severe readability defect in the first phrase: at 0.35s, the word 'LIGHT' is partially obscured by a solid orange rectangle, and at 0.50s, the words 'THE' and 'WATER' are similarly clipped by orange blocks. This is not a transition but a held state where text is illegible. The 'DO NOT LET GO' phrase (6.7s-8.7s) exhibits a critical layout failure where the words are stacked vertically ('DO NOT' over 'LET GO') with inconsistent sizing and alignment, breaking the horizontal flow expected of a lyric line. The 'HOLD ME CLOSE' phrase (3.6s-5.4s) shows a jarring color shift from pink to white mid-phrase without clear purpose. The light-background frame (4th image) reveals that the text has a heavy, hard-edged drop shadow that looks like a rendering artifact rather than a stylistic choice, and the white text on light grey has poor contrast. The overall effect is of a broken template rather than a designed sequence.",
+  "critical_issues": [
+    "Text is clipped by solid color blocks in the first phrase (0.35s-0.50s), making words like 'LIGHT', 'THE', and 'WATER' illegible.",
+    "The 'DO NOT LET GO' phrase is stacked vertically with inconsistent sizing, breaking the horizontal lyric flow and creating a disjointed layout.",
+    "The light-background frame shows poor contrast for white text and an artifact-like hard drop shadow that detracts from the design.",
+    "Color transitions in the 'HOLD ME CLOSE' phrase are abrupt and lack clear visual logic."
+  ],
+  "improvements": [
+    "Remove the solid color blocks that are clipping text in the first phrase; if they are meant to be highlights, they should be behind the text or used as a background wash, not obscuring it.",
+    "Reformat 'DO NOT LET GO' to flow horizontally or use a consistent vertical stack with uniform sizing and alignment.",
+    "Improve contrast in the light-background frame by darkening the text or using a different color scheme.",
+    "Refine the drop shadow to be softer and more integrated, or remove it entirely for a cleaner look.",
+    "Ensure color transitions are smooth and purposeful, avoiding abrupt shifts that distract from the lyrics."
+  ],
+  "weighted_score": 48.25,
+  "score": 48.25,
+  "passed": false,
+  "metrics": {
+    "mean_frame_change": 0.030548782272514403,
+    "maximum_frame_change": 0.14413086646695716,
+    "frame_rate": 12
+  }
+}

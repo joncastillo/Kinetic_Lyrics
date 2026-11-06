@@ -1,0 +1,26 @@
+{
+  "scores": {
+    "spectacle": 88,
+    "readability": 92,
+    "choreography": 85,
+    "craft": 87,
+    "originality": 78
+  },
+  "evidence": "The 3D extruded typography with moving studio-light reflections (visible in frames 1-9) creates a strong, tactile visual event. The camera tracking and word-by-word reveal (e.g., 'GOLDEN' in frame 1, 'LIGHT' in frame 2) provide clear choreography. However, the light-background hold (frame 11) shows a significant contrast drop for the white text against the near-white background, reducing legibility compared to the dark background. The transition to the light background (frame 11) feels slightly abrupt relative to the smooth dark-mode choreography. The 'WATER' word in frame 11 is legible but the overall scene lacks the depth impact of the dark mode. No critical clipping defects are visible in the held frames (10, 11).",
+  "critical_issues": [
+    "Light-background hold (frame 11) has reduced contrast for white text, slightly compromising readability compared to the dark background."
+  ],
+  "improvements": [
+    "Adjust the light-background hold to use a slightly darker off-white or add a subtle drop shadow to the white text to maintain contrast.",
+    "Smooth the transition into the light-background hold to match the polish of the dark-mode choreography.",
+    "Consider adding a subtle environmental reflection or depth cue in the light-background hold to maintain the 3D spectacle."
+  ],
+  "weighted_score": 87.55,
+  "score": 87.55,
+  "passed": false,
+  "metrics": {
+    "mean_frame_change": 0.015599761246415298,
+    "maximum_frame_change": 0.10029789056826434,
+    "frame_rate": 12
+  }
+}

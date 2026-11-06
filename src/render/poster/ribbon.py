@@ -1,12 +1,12 @@
 """The type ribbon: the line along a rippling paper ribbon that twists to show its printed back."""
 
 import math
-from functools import lru_cache
+from render.scene_fonts import font_cache as lru_cache
 
 import numpy as np
 from PIL import Image, ImageDraw
 
-from core.fonts import truetype
+from render.scene_fonts import truetype
 from effects.kinetic.easing import back_out, clamp, pulse, smoother
 from render.poster.common import CAPTION_FONT, FONTS, LEAVE, WALL_INK, WHITE, paste, tint
 

@@ -16,6 +16,35 @@ COLOR = dict(key='accent', label='Accent color (blank uses scene palette)', type
 VARIANT = slider('variant', 'Variation seed offset', 0, 0, 20, 1)
 SIZE = slider('size', 'Type size multiplier', 1.0, 0.65, 1.35)
 SPEED = slider('speed', 'Entrance speed multiplier', 1.0, 0.25, 3.0)
+FONT = choice('font', 'Typeface', ['modern-sans', 'humanist', 'condensed', 'geometric', 'serif', 'display-serif'])
+FONT['labels'] = {
+    'auto': 'Scene default',
+    'modern-sans': 'Montserrat',
+    'humanist': 'Bricolage Grotesque',
+    'condensed': 'Big Shoulders Display',
+    'geometric': 'Syne',
+    'serif': 'DM Serif Display',
+    'display-serif': 'Fraunces',
+}
+
+
+def scene_family(scene):
+    if scene['camera'] == 'cinema' or scene['layout'] == 'focus':
+        return 'Cinematic focus'
+    if scene['layout'] in ('editorial', 'caption', 'baseline'):
+        return 'Editorial & captions'
+    if scene['camera'] in ('pan', 'still'):
+        return 'Flowing canvas'
+    if scene['camera'] == 'blocks':
+        return 'Sculpted typography' if not scene['particles'] else 'Illustrated lettering'
+    if scene['layout'] in ('stack', 'recede', 'drop'):
+        return 'Stacks & depth'
+    if scene['layout'] in ('seal', 'spiral', 'drum', 'wall'):
+        return 'Rings & repeating type'
+    if scene['layout'] in ('fold', 'ribbon', 'stamp', 'register', 'halftone'):
+        return 'Paper & print'
+    return 'Kinetic layouts'
+
 
 # Entries describe the actual painters, rather than inferring motion from the recipe name.
 POSTERS = {
@@ -131,8 +160,8 @@ QUIET_SCENES = {
     ),
     'focus': (
         'Quiet focus',
-        'Centered serif phrases resolve from soft focus with a slight push-in.',
-        'Type gently defocuses and fades.',
+        'Optical bands converge into a large focal word over an outlined initial.',
+        'The phrase separates into optical bands and recedes.',
     ),
     'baseline': (
         'Baseline reveal',
@@ -159,7 +188,7 @@ def scene_tags(scene):
             'golden-ornament': ['ornamental'],
             'lace-and-paper': ['textured', 'ornamental'],
             'sweet-contrast': ['textured', 'editorial'],
-            'plain-blocks': ['geometric', 'professional'],
+            'plain-blocks': ['geometric', 'architectural'],
         }
         return ['3d', 'typographic', *style.get(scene['id'], ['geometric'])]
     if scene['camera'] in ('pan', 'still'):
@@ -183,11 +212,22 @@ def scene_details(scene, effects=None):
                 exit=exit_,
                 selection='Built-in restrained motion; global entrance and exit selections are ignored.',
                 controls=[
-                    dict(COLOR, label='Highlight color (blank uses warm white)'),
+                    dict(COLOR, label='Highlight color (Automatic adapts to the background)'),
                     SIZE,
                     dict(SPEED, label='Transition speed multiplier'),
                     slider('motion', 'Motion distance', 1.0, 0.0, 2.0),
                     slider('tracking', 'Letter spacing (em)', 0.015, 0.0, 0.15, 0.005),
+                    choice('composition', 'Line layout', ['single-line', 'wrapped', 'stacked']),
+                    choice('placement', 'Text position', ['center', 'left', 'lower-left']),
+                    choice('weight', 'Type treatment', ['regular', 'contrast', 'serif']),
+                    slider(
+                        'phrase_words',
+                        'Words per phrase (0 = whole line)',
+                        3 if scene['layout'] in ('editorial', 'focus') else 0,
+                        0,
+                        8,
+                        1,
+                    ),
                 ],
             )
         entry, exit_, controls = POSTERS[scene['layout']]
@@ -222,18 +262,27 @@ def scene_details(scene, effects=None):
             )
             + ', '.join(names)
             if preferred
-            else 'Selected entrances can decorate the top row.'
+            else 'Clean lettering without decorative particle entrances.'
         )
         return dict(
-            entry=('Elastic letter bounce. ' if scene['layout'] == 'contrast' else 'Flip, swing, rise, drop or pop. ')
+            entry='Words turn forward from depth into clean extruded blocks.'
+            if scene['id'] == 'plain-blocks'
+            else ('Elastic letter bounce. ' if scene['layout'] == 'contrast' else 'Flip, swing, rise, drop or pop. ')
             + particles,
-            exit='Earlier blocks remain in the world, dimming as the camera moves to the next block.',
-            selection='Global exit selections are ignored. Particle intensity and selected entrances apply.',
+            exit='Previous lines fade as the camera travels to the next block.'
+            if scene['id'] == 'plain-blocks'
+            else 'Earlier blocks remain in the world, dimming as the camera moves to the next block.',
+            selection='Global exit selections are ignored. Particle intensity and selected entrances apply.'
+            if preferred
+            else 'Built-in word motion; global entrance and exit selections are ignored.',
             controls=[
                 COLOR,
                 VARIANT,
                 slider('motion', 'Camera cruising motion', 1.0, 0.0, 2.0),
-                slider('geometry', 'Drifting geometry', 0.8, 0.0, 1.0),
+                dict(
+                    slider('geometry', 'Drifting geometry', 0.0 if scene['id'] == 'plain-blocks' else 0.8, 0.0, 1.0),
+                    inherit=scene['id'] != 'plain-blocks',
+                ),
             ],
         )
     return dict(
@@ -294,9 +343,9 @@ def scene_settings(value):
                 or not spec['min'] <= raw <= spec['max']
             ):
                 raise ValueError(f'Scene setting {key} is out of range')
-            if key == 'variant' and raw != int(raw):
+            if key in ('variant', 'phrase_words') and raw != int(raw):
                 raise ValueError('Scene variation must be a whole number')
-            clean[key] = int(raw) if key == 'variant' else float(raw)
+            clean[key] = int(raw) if key in ('variant', 'phrase_words') else float(raw)
         if clean:
             result[scene_id] = clean
     return result

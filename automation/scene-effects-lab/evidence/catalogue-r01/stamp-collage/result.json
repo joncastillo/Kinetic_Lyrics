@@ -1,0 +1,33 @@
+{
+  "scores": {
+    "spectacle": 62,
+    "readability": 48,
+    "choreography": 55,
+    "craft": 60,
+    "originality": 58
+  },
+  "evidence": "The scene uses a stamp-style typeface with heavy texture and outline, which creates a strong visual identity but fails on legibility under several conditions. In the 0.65s frame, 'GOLDEN' is legible, but by 2.0s\u20132.6s, overlapping words ('UPON', 'GOLDEN', 'LIGHT', 'THE', 'WATER') collide and partially obscure each other, making the phrase 'golden light upon the water' difficult to parse in sequence. The 2.6s frame shows 'WATER' overlapping 'GOLDEN' and 'LIGHT' overlapping 'THE', with no clear hierarchy or spacing. In the 4.15s frame, 'CLOSE' is rendered in a very low-contrast gray against the dark background, nearly invisible compared to the pink 'HOLD' and 'ME'. The 5.45s frame shows 'THE', 'HOLD', 'ME', 'UNTIL', 'MORNING' all overlapping in a cluttered cluster, with 'UNTIL' and 'MORNING' colliding. The 8.10s\u20138.70s frames show 'LET', 'DO', 'NOT', 'GO' with 'GO' and 'DO' overlapping and 'NOT' partially obscured. The light-background frame (4th image) shows the same overlapping layout but with reduced contrast for the lighter-colored words ('UPON', 'GOLDEN', 'LIGHT', 'THE'), making them harder to read against the pale background. The portrait frame (3rd image) shows the same overlapping issue, with 'WATER' and 'GOLDEN' colliding and 'LIGHT' and 'THE' overlapping. The frame-difference metrics (mean 0.0198, max 0.0708) suggest minimal motion between frames, indicating the overlaps are static or near-static, not transitional. The choreography lacks clear word-by-word handoffs; words appear to pop in and overlap rather than sequence cleanly. The craft is undermined by inconsistent contrast (gray 'CLOSE' vs. pink 'HOLD'), poor spacing, and lack of visual hierarchy. The originality is moderate \u2014 the stamp aesthetic is distinctive but the execution is cluttered and not polished. No critical defect caps the score at 94, but the readability and choreography failures prevent a high score.",
+  "critical_issues": [
+    "Severe word overlap and collision in multiple frames (2.0s, 2.6s, 5.45s, 8.10s, 8.70s) making the sung phrases illegible in sequence.",
+    "Low-contrast rendering of 'CLOSE' in 4.15s frame, nearly invisible against dark background.",
+    "Poor spacing and lack of visual hierarchy in all held frames, with words overlapping rather than arranging cleanly.",
+    "Light-background frame shows reduced contrast for lighter-colored words, further impairing readability.",
+    "Choreography lacks clear word-by-word handoffs; words appear to pop in and overlap rather than sequence cleanly."
+  ],
+  "improvements": [
+    "Increase spacing between words to prevent overlap and collision, ensuring each word is fully legible in sequence.",
+    "Improve contrast for all words, especially 'CLOSE' in 4.15s frame, by using a brighter color or adding a subtle background glow.",
+    "Establish clear visual hierarchy by varying size, weight, or color to indicate the order of words in the phrase.",
+    "Refine choreography to ensure words appear in sequence with clear handoffs, rather than popping in and overlapping.",
+    "Test readability in both dark and light backgrounds, adjusting colors and contrast as needed to ensure legibility in all conditions.",
+    "Consider using a cleaner, less textured typeface for better legibility, or reducing the texture intensity to improve readability."
+  ],
+  "weighted_score": 57.3,
+  "score": 57.3,
+  "passed": false,
+  "metrics": {
+    "mean_frame_change": 0.019821352300222618,
+    "maximum_frame_change": 0.07076078544843864,
+    "frame_rate": 12
+  }
+}

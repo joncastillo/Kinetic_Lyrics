@@ -2,7 +2,7 @@
 
 import math
 from PIL import Image, ImageDraw
-from core.fonts import truetype
+from render.scene_fonts import truetype
 from effects.kinetic.easing import back_out, clamp, keyframes, pulse, smoother, window
 from render.poster.common import CAPTION_FONT, ENTRY, FONTS, LEAVE, STACK_FONT, WALL_FONT, WHITE, paste, tint, word_mask
 

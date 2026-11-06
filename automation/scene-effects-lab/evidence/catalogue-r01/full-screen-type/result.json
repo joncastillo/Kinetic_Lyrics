@@ -1,0 +1,31 @@
+{
+  "scores": {
+    "spectacle": 62,
+    "readability": 58,
+    "choreography": 60,
+    "craft": 65,
+    "originality": 55
+  },
+  "evidence": "The scene attempts a layered, thematic lyric treatment (ice/crystal for 'GOLDEN', green organic strokes for 'HOLD', bright green for 'MORNING'), but the execution is inconsistent and visually noisy. In the timeline, the first phrase 'GOLDEN LIGHT UPON THE WATER' is heavily overlaid with a faint repeated background text ('GOLDEN LIGHT UPON THE WATER') that collides with the primary text, reducing clarity. The word 'the' in 'UPON the WATER' is italicized and smaller, creating a hierarchy that feels arbitrary rather than intentional. In the large held frame, the ice texture on 'GOLDEN' is visually striking but the underlying text is partially obscured by the crystalline effect, making it less legible than it could be. The green stroke element in 'HOLD me CLOSE' appears as a random decorative flourish rather than a meaningful visual metaphor, and its placement overlaps awkwardly with the text. In the portrait frame, the vertical stacking of 'GOLDEN LIGHT UPON the WATER' is cramped, and the background text still bleeds through, creating visual clutter. The light-background frame shows a dramatic color shift to orange/brown for 'GOLDEN', but this feels disconnected from the rest of the scene and lacks a clear narrative or thematic justification. The transition between phrases is abrupt, with no clear anticipation or development. The overall composition lacks a cohesive visual language, appearing as a collection of disparate effects rather than a unified design. The frame-difference metrics (mean 0.028, max 0.085) suggest moderate motion, but the static frames reveal that the motion is not smooth or purposeful, often resulting in overlapping or misaligned elements.",
+  "critical_issues": [
+    "Background text repetition creates visual noise and reduces readability of the primary lyric text.",
+    "Decorative elements (ice, green strokes) are applied inconsistently and sometimes obscure the text rather than enhance it.",
+    "Lack of a cohesive visual theme or narrative progression across the three phrases.",
+    "Arbitrary typographic choices (e.g., italicized 'the', inconsistent sizing) undermine the professional finish."
+  ],
+  "improvements": [
+    "Remove or significantly reduce the opacity of the repeated background text to ensure the primary lyric text is the clear focal point.",
+    "Develop a consistent visual metaphor for each phrase (e.g., ice for 'GOLDEN', water ripples for 'UPON THE WATER', dawn light for 'MORNING') and apply it cohesively across all elements.",
+    "Refine the typographic hierarchy by using consistent sizing, weight, and style for all words, avoiding arbitrary changes like the italicized 'the'.",
+    "Introduce smoother, more purposeful transitions between phrases, using motion or color shifts that reinforce the thematic progression.",
+    "Ensure that decorative elements (ice, strokes) are integrated in a way that enhances rather than obscures the text, possibly by using them as subtle textures or accents rather than dominant overlays."
+  ],
+  "weighted_score": 60.9,
+  "score": 60.9,
+  "passed": false,
+  "metrics": {
+    "mean_frame_change": 0.028264239271340242,
+    "maximum_frame_change": 0.08549765681735658,
+    "frame_rate": 12
+  }
+}

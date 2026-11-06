@@ -1,0 +1,29 @@
+{
+  "scores": {
+    "spectacle": 88,
+    "readability": 92,
+    "choreography": 85,
+    "craft": 87,
+    "originality": 78
+  },
+  "evidence": "The 3D extruded typography with moving studio-light reflections creates a strong visual spectacle, particularly evident in frames 2-3 where 'GOLDEN LIGHT' is fully revealed with dynamic lighting. The word-by-word reveal choreography is clear and purposeful, with each sung word highlighted in gold (frames 1-8). However, frame 4 shows 'THE' as extremely small and partially obscured, creating a readability issue during the transition. Frame 7 shows 'THE' similarly small and blurry. The portrait hold (frame 10) and light-background hold (frame 11) maintain good legibility, though the light background in frame 11 reduces contrast slightly. The camera movement and word reveals are smooth and intentional, with no arbitrary spinning. The type selection is bold and appropriate for the 3D treatment, though the font choice is somewhat generic. The color relationship between the white/silver base and gold highlights is effective. The overall composition is clean and professional, but the small word reveals in frames 4 and 7 create minor readability concerns that prevent a higher score.",
+  "critical_issues": [
+    "Frame 4 (sung word: upon): 'THE' is rendered extremely small and partially obscured, creating a readability defect during the transition",
+    "Frame 7 (sung word: until): 'THE' is similarly small and blurry, reducing legibility of the upcoming word"
+  ],
+  "improvements": [
+    "Increase the minimum size threshold for upcoming words to maintain legibility during transitions (frames 4, 7)",
+    "Add a subtle scale-up animation for small words as they approach their sung moment to improve readability",
+    "Consider adding a brief pause or emphasis moment when small words like 'THE' are sung to give them proper visual weight",
+    "Enhance the light-background hold (frame 11) with slightly darker text or increased contrast to maintain readability",
+    "Add more distinctive typographic elements or custom letterforms to increase originality beyond standard 3D extrusion"
+  ],
+  "weighted_score": 87.55,
+  "score": 87.55,
+  "passed": false,
+  "metrics": {
+    "mean_frame_change": 0.01629706479526793,
+    "maximum_frame_change": 0.10558966503267973,
+    "frame_rate": 12
+  }
+}

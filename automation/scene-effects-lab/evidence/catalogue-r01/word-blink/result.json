@@ -1,0 +1,34 @@
+{
+  "scores": {
+    "spectacle": 42,
+    "readability": 38,
+    "choreography": 45,
+    "craft": 55,
+    "originality": 50
+  },
+  "evidence": "The rendered scene fails on core readability and choreography. In the timeline (0.9s\u20132.6s), the word 'UPON' is severely clipped by an overlapping beige bar, and 'LIGHT' is partially obscured, making the phrase 'golden light upon the water' illegible during its hold. The large held frame shows 'WATER' duplicated and overlapping with 'THE' in a chaotic, unreadable stack \u2014 this is not a transition but a settled state with collision. The portrait frame confirms the same collision: 'WATER' and 'THE' overlap with no clear hierarchy. The light-background frame (4th image) shows the same overlapping text with poor contrast against the pale background, and the pill-shaped caption at the bottom has inconsistent letter spacing and alignment. The choreography lacks anticipation or purposeful handoff \u2014 words appear to snap into place with abrupt clipping rather than smooth entrances. The frame-difference metrics (mean 0.064, max 0.228) suggest moderate motion, but the static frames reveal that the 'motion' results in persistent visual collisions, not clean transitions. The color palette (orange, beige, teal) is pleasant but poorly applied \u2014 bars overlap without z-order logic, and text is not consistently aligned to its background. The pill captions are a nice touch but suffer from inconsistent kerning and placement. No spectacle is achieved; the scene feels like a broken prototype rather than a designed lyric video. Critical defects: illegible held text, unintended clipping, and collision in all orientations. These cap the score well below the 95 threshold.",
+  "critical_issues": [
+    "Held text 'UPON' and 'LIGHT' are clipped and obscured by overlapping bars in the 0.9s\u20132.6s timeline frames",
+    "In the large and portrait held frames, 'WATER' and 'THE' are stacked and overlapping with no clear hierarchy or spacing",
+    "Light-background frame shows poor contrast and continued text collision, making the phrase unreadable",
+    "Pill-shaped captions have inconsistent letter spacing and alignment across frames",
+    "No visible anticipation or smooth handoff between words \u2014 transitions appear abrupt and result in persistent visual clutter"
+  ],
+  "improvements": [
+    "Redesign the layout to ensure each word has its own clear, non-overlapping background bar with proper z-ordering and spacing",
+    "Implement smooth, staggered entrances and exits for each word to avoid clipping during holds \u2014 use easing and timing to create anticipation",
+    "Ensure consistent alignment and kerning in the pill-shaped captions; consider using a monospaced or tightly tracked font for uniformity",
+    "Increase contrast between text and background in all orientations, especially in the light-background frame \u2014 use darker text or a subtle drop shadow",
+    "Add a clear visual hierarchy: primary words should be larger and more prominent, with secondary elements (like the pill captions) receding in size and weight",
+    "Test the scene in both landscape and portrait orientations to ensure no text is clipped or colliding in either mode",
+    "Consider adding a subtle background texture or gradient to enhance depth without distracting from the text"
+  ],
+  "weighted_score": 44.15,
+  "score": 44.15,
+  "passed": false,
+  "metrics": {
+    "mean_frame_change": 0.06399900192964864,
+    "maximum_frame_change": 0.22850899827523602,
+    "frame_rate": 12
+  }
+}

@@ -95,10 +95,12 @@ def scene_catalog():
     catalog = {}
     for path in sorted(SCENE_ROOT.glob('*.json')):
         try:
-            from direction.scene_controls import scene_details, scene_tags
+            from direction.scene_controls import scene_details, scene_tags, scene_family, FONT
 
             scene = read_scene(path, entrances)
-            catalog[path.stem] = dict(scene, **scene_details(scene, entrances), tags=scene_tags(scene))
+            details = scene_details(scene, entrances)
+            details['controls'] = [FONT, *details['controls']]
+            catalog[path.stem] = dict(scene, **details, tags=scene_tags(scene), family=scene_family(scene))
         except (OSError, ValueError, TypeError) as exc:
             warnings.warn(f'Skipping scene {path}: {exc}', stacklevel=2)
     return catalog

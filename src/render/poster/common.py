@@ -1,11 +1,11 @@
 """Constants and drawing helpers shared by the poster scenes."""
 
-from functools import lru_cache
+from render.scene_fonts import font_cache as lru_cache
 
 import numpy as np
 from PIL import Image, ImageDraw
 
-from core.fonts import truetype
+from render.scene_fonts import truetype
 from core.paths import ASSET_ROOT
 
 FONTS = ASSET_ROOT / 'fonts'

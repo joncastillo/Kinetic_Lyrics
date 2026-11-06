@@ -1,0 +1,271 @@
+{
+  "threshold": 95,
+  "passed": 0,
+  "total": 32,
+  "presets": [
+    {
+      "scene": "accordion-fold",
+      "name": "Accordion fold",
+      "score": 57.1,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "baseline-reveal",
+      "name": "Baseline reveal",
+      "score": 41.25,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "black-hole-sun",
+      "name": "Spotlight",
+      "score": 49.05,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "block-drop",
+      "name": "Block drop",
+      "score": 53.6,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "camera-tour",
+      "name": "Camera tour",
+      "score": 43.65,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "counter-dive",
+      "name": "Counter dive",
+      "score": 43.65,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "crystal-and-coral",
+      "name": "Crystal and coral",
+      "score": 42.15,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "editorial",
+      "name": "Editorial",
+      "score": 60.55,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "full-screen-type",
+      "name": "Full-screen typography",
+      "score": 60.9,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "gallery-caption",
+      "name": "Gallery caption",
+      "score": 47.0,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "golden-ornament",
+      "name": "Golden ornament",
+      "score": 42.15,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "halftone-bloom",
+      "name": "Halftone bloom",
+      "score": 49.2,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "horizon-rise",
+      "name": "Horizon rise",
+      "score": 51.1,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "lace-and-paper",
+      "name": "Lace and paper",
+      "score": 42.15,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "misregistration",
+      "name": "Misregistration",
+      "score": 43.65,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "panning-canvas",
+      "name": "Panning canvas",
+      "score": 42.15,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "plain-blocks",
+      "name": "3D blocks",
+      "score": 87.55,
+      "passed": false,
+      "round": "candidate-geometric",
+      "settings": {
+        "font": "geometric",
+        "motion": 1.4,
+        "geometry": 0.0
+      }
+    },
+    {
+      "scene": "proportion-stack",
+      "name": "Proportion stack",
+      "score": 48.25,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "quiet-focus",
+      "name": "Optical focus",
+      "score": 88.2,
+      "passed": false,
+      "round": "candidate-serif",
+      "settings": {
+        "font": "serif",
+        "size": 1.2,
+        "motion": 1.35
+      }
+    },
+    {
+      "scene": "receding-stack",
+      "name": "Receding stack",
+      "score": 41.15,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "stamp-collage",
+      "name": "Stamp collage",
+      "score": 57.3,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "sweet-contrast",
+      "name": "Sweet contrast",
+      "score": 54.1,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "title-grid",
+      "name": "Title grid",
+      "score": 68.45,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "tree-canopy",
+      "name": "Tree canopy",
+      "score": 50.9,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "type-drum",
+      "name": "Type drum",
+      "score": 43.65,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "type-mobile",
+      "name": "Type mobile",
+      "score": 48.65,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "type-ribbon",
+      "name": "Type ribbon",
+      "score": 57.3,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "word-blink",
+      "name": "Word blink",
+      "score": 44.15,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "word-seal",
+      "name": "Word seal",
+      "score": 71.95,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "word-search",
+      "name": "Word search",
+      "score": 44.65,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "word-spiral",
+      "name": "Word spiral",
+      "score": 78.05,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    },
+    {
+      "scene": "word-wall",
+      "name": "Word wall",
+      "score": 42.15,
+      "passed": false,
+      "round": "catalogue-r01",
+      "settings": {}
+    }
+  ]
+}

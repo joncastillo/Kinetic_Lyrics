@@ -75,17 +75,46 @@ class StagePlanning:
         previous_extent = 0.0
         groups = group_lines(c.data, self.art_breaks() | self.breaks)
         groups = [g for g in ([i for i in group if self.only is None or i in self.only] for group in groups) if g]
+        clean_lines = getattr(self, 'clean_lines', set())
+        groups = [
+            part
+            for group in groups
+            for part in ([[i] for i in group] if group and group[0] in clean_lines else [group])
+        ]
         direction = self.directions()
         for number, members in enumerate(groups):
             rng = random.Random(self.seed * 7919 + number * 104729)
             directed = direction.get(members[0]) if direction is not None else None
+            clean = members[0] in clean_lines
             scene = c.plan['scenes'][members[0]]
             palette = [hex_rgb(v) for v in c.scene_palette(scene)]
+            light_background = False
+            if clean:
+                if c.artwork_mode in ('fullscreen', 'verse') and getattr(c, 'art', None):
+                    when = c.data[members[0]]['words'][0]['start']
+                    slot = max(0, min(len(c.art) - 1, bisect.bisect_right(c.art_starts or [0.0], when) - 1))
+                    background = c.art[slot]
+                else:
+                    background = c.background(members[0], c.data[members[0]]['words'][0]['start'], veil=False)
+                light_background = float(np.asarray(background.convert('L').resize((8, 8))).mean()) > 155
+            if light_background:
+                palette[2], palette[3] = (20, 27, 36), (105, 54, 26)
+            if clean and not light_background:
+                palette[2], palette[3] = (242, 237, 226), (222, 164, 107)
+            if clean and getattr(c, 'ink_override', None):
+                palette[2] = tuple(c.ink_override)
+            if clean and getattr(c, 'accent_override', None):
+                palette[3] = tuple(c.accent_override)
             words = self.block_words(members, palette)
+            if clean:
+                for word in words:
+                    word.update(text=word['text'].upper(), font='sculpture')
             config = getattr(self, 'scene_config', {})
             accent = (
                 hex_rgb(config['accent'])
                 if config.get('accent')
+                else palette[3]
+                if clean
                 else self.artwork_accent(words[0]['start'], palette[3])
             )
             style = self.contrast_style(words, rng, accent) if self.layouts.get(members[0]) == 'contrast' else None
@@ -100,8 +129,11 @@ class StagePlanning:
             self.choose_accent(words, palette[2], accent, style)
             self.follow_instructions(words)
             ornament = (directed or {}).get('ornament') if direction is not None else None
-            no_pictures = self.c.plan.get('pictures') == 'off'  # the setting turns off keyword pictures too
+            no_pictures = clean or self.c.plan.get('pictures') == 'off'  # the setting turns off keyword pictures too
             self.choose_motion(words, rng, None if no_pictures else ornament if direction is not None else False)
+            if clean:
+                for word in words:
+                    word['motion'] = 'sculpture' if word['role'] != 'function' else None
             pictured = next((w for w in words if w['ornament'] and w['letter'] is None), None)
             if pictured is not None:
                 height = arrange(pictured)
@@ -121,6 +153,8 @@ class StagePlanning:
             previous_extent = extent
             tilt = 1.6 if rng.random() < 0.2 else 1.0
             yaw, pitch, roll = rng.uniform(-24, 24) * tilt, rng.uniform(-10, 10) * tilt, rng.uniform(-4, 4)
+            if clean:
+                yaw, pitch, roll = (-12 if number % 2 else 12), 6.0, 0.0
             placement = translation(*center) @ rotation(yaw, pitch, roll)
             normal = placement[:3, :3] @ np.array([0.0, 0.0, 1.0])
             view = normalized(normal * VIEW_TILT + np.array([0.0, 0.0, 1.0]) * (1 - VIEW_TILT))
@@ -136,6 +170,7 @@ class StagePlanning:
             self.blocks.append(
                 dict(
                     lines=members,
+                    clean=clean,
                     words=words,
                     height=height,
                     center=center,
@@ -147,8 +182,8 @@ class StagePlanning:
                     start=min(w['start'] for w in words),
                     end=max(w['end'] for w in words),
                     palette=palette,
-                    entrance=rng.choice(ENTRANCES),
-                    motes=self.motes(rng, height),
+                    entrance='rise' if clean else rng.choice(ENTRANCES),
+                    motes=[] if clean else self.motes(rng, height),
                     drift=rng.choice((-1.0, 1.0)),
                     accent=accent,
                     layout='contrast' if style else 'justified',
@@ -160,6 +195,9 @@ class StagePlanning:
             if directed and directed.get('entrance') in ENTRANCES:
                 self.blocks[-1]['entrance'] = directed['entrance']
         for number, block in enumerate(self.blocks):
+            if block.get('clean'):
+                next_start = self.blocks[number + 1]['start'] if number + 1 < len(self.blocks) else self.c.duration
+                block['leave_at'] = min(next_start, block['end'] + 0.9)
             required = block['distance'] * 1.06
             if number == 0:
                 block['camera_distance'] = required * 1.08
@@ -169,7 +207,9 @@ class StagePlanning:
                 scale = (1.16, 1.12, 1.0, 0.84, 0.9)[phase - 1]
                 block['camera_distance'] = max(required, min(required * 1.65, previous * scale))
             block['shot_roll'] = (0.0, 0.0, 7.0, -6.0, 0.0, 5.0)[number % 6] + block['roll'] * 0.25
-            block['move'] = block['start'] - MOVE_LEAD if number else -math.inf
+            if block.get('clean'):
+                block['shot_roll'] = 0.0
+            block['move'] = block['start'] - (0.4 if block.get('clean') else MOVE_LEAD) if number else -math.inf
             following = (
                 self.blocks[number + 1]['start'] - MOVE_LEAD if number + 1 < len(self.blocks) else self.c.duration
             )
@@ -338,6 +378,7 @@ class StagePlanning:
             width,
             [n for n in lengths if n],
             *(() if leading is None else (leading,)),
+            word_gap=0.6 if members[0] in getattr(self, 'clean_lines', set()) else 0.28,
         )
         height = layout['height']
         caps = {}
@@ -405,6 +446,8 @@ class StagePlanning:
         """Allowed entrances for a scene block; tree canopy alone is restricted to tree effects."""
         c = self.c
         pool = getattr(c, 'entrance_pool', None)
+        if self.crowns is not None and not self.crowns.get(line):
+            return []  # an empty recipe deliberately requests clean typography
         flow = next((f for f in c.plan.get('scene_flows', []) if f['start'] <= line < f['end']), None)
         tree = flow is not None and flow['scene'] == 'tree-canopy'
         choices = (self.crowns or {}).get(line) or [] if tree else c.effect_catalog['entrance']

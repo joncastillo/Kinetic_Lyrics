@@ -1,10 +1,10 @@
 """Fonts by role, the Word record, word roles, line layout and word sprites."""
 from dataclasses import dataclass, field
-from functools import lru_cache
+from render.scene_fonts import font_cache as lru_cache
 import math
 import string
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
-from core.fonts import first_font, truetype
+from render.scene_fonts import first_font, truetype
 from core.color import hex_rgb
 from render.realtime.common import DISPLAY_ROLES, FUNCTION_WORDS, HOT_COLORS, ROLE_FONTS, ROLE_SCALE, ROW_LEADING, _chosen_font
 

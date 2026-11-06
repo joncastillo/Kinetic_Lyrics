@@ -1,0 +1,33 @@
+{
+  "scores": {
+    "spectacle": 42,
+    "readability": 38,
+    "choreography": 45,
+    "craft": 40,
+    "originality": 55
+  },
+  "evidence": "The timeline shows severe clipping and collision defects. At 0.35s-0.65s, the text 'GOLDEN LIGHT UPON' is partially obscured by a green wavy line and appears to be rendered with a dotted/stippled texture that reduces legibility. At 3.60s-5.45s, the phrase 'HOLD me CLOSE UNTIL the MORNING' exhibits critical layout failures: 'HOLD me' overlaps with 'CLOSE', and 'MORNING' is partially cut off or collides with the previous line. The word 'MORNING' at 5.45s is rendered in a bright green that clashes with the white text and the background. At 6.75s-8.70s, 'DO NOT LET GO' shows inconsistent coloring (rainbow gradient on 'DO NOT', solid green on 'LET', white on 'GO') which creates a disjointed visual hierarchy. The green wavy line element is arbitrary and often intersects with the text, causing occlusion (e.g., 0.35s, 4.15s, 6.75s). The 'dotted' texture on the text in early frames (0.35s-2.65s) makes the words difficult to read against the dark background. The light-background frame (4th image) shows the text is barely legible due to low contrast between the white/dotted text and the grey background. The choreography lacks clear anticipation or purposeful development; the text appears to pop in and out with inconsistent spacing. The frame difference metrics (mean 0.024, max 0.095) suggest low motion, consistent with the static, cluttered appearance rather than smooth animation.",
+  "critical_issues": [
+    "Text clipping and collision: 'HOLD me CLOSE' overlaps at 3.60s-4.70s; 'MORNING' is cut off/collides at 5.45s.",
+    "Occlusion: The green wavy line frequently intersects and obscures the text (e.g., 0.35s, 4.15s, 6.75s).",
+    "Legibility: The dotted/stippled texture on text in early frames (0.35s-2.65s) significantly reduces readability.",
+    "Contrast: The light-background frame shows poor contrast, making text hard to read.",
+    "Inconsistent styling: Mixed rainbow gradients, solid colors, and dotted textures create a disjointed visual hierarchy."
+  ],
+  "improvements": [
+    "Remove or reposition the green wavy line to prevent text occlusion.",
+    "Fix text layout to eliminate clipping and collisions, especially in the 'HOLD me CLOSE UNTIL the MORNING' phrase.",
+    "Replace the dotted/stippled text texture with solid, high-contrast text for better legibility.",
+    "Standardize text styling (color, weight) to create a clear visual hierarchy.",
+    "Improve contrast in the light-background frame by using darker text or a different background color.",
+    "Refine choreography to ensure smooth, purposeful transitions without arbitrary elements."
+  ],
+  "weighted_score": 42.15,
+  "score": 42.15,
+  "passed": false,
+  "metrics": {
+    "mean_frame_change": 0.02408169770266189,
+    "maximum_frame_change": 0.09488448620188816,
+    "frame_rate": 12
+  }
+}

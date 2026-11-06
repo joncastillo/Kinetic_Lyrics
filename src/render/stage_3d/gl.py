@@ -1,4 +1,5 @@
 """Headless GL: shaders, matrices and a per-thread context that draws quads and strips."""
+
 from __future__ import annotations
 from collections import OrderedDict
 import math
@@ -28,6 +29,7 @@ in vec2 uv;
 out vec4 color;
 void main() {
     vec4 texel = texture(image, uv);
+    if (texel.a < .01) discard;
     color = vec4(texel.rgb*tint, texel.a)*opacity;
 }
 '''
@@ -88,6 +90,7 @@ float fbm(vec2 p) {
 
 void main() {
     vec4 texel = texture(image, uv);
+    if (texel.a < .01) discard;
     vec2 p = origin+vec2(uv.x, 1.-uv.y)*span+vec2(seed*7.31, seed*3.17);
     vec2 along = vec2(cos(angle), sin(angle));
     float drift = time*speed*.018;
@@ -98,45 +101,62 @@ void main() {
     float shade = .5+.15*(noise(p*3.2+vec2(drift, 0.))-.5);
     vec3 ink = mix(deep, middle, shade);
     ink = mix(ink, light, fibre*.18);
+    if (pattern == 5) {
+        float x = origin.x + uv.x*span.x;
+        float scan = fract(time*.18+seed*.035)*(span.x+2.)-1.;
+        float reflection = exp(-pow((x-scan)/.32, 2.));
+        float brushing = .025*sin((origin.y+uv.y*span.y)*180.);
+        float rim = clamp(length(vec2(dFdx(texel.a),dFdy(texel.a)))*12.,0.,1.);
+        ink = mix(deep,middle,.76+brushing);
+        ink = mix(ink,light,clamp(reflection*.82+rim*.28,0.,1.));
+    }
     color = vec4(ink*texel.r, texel.a)*opacity;
 }
 '''
 _LOCAL = threading.local()
-def perspective(fov, aspect, near=.05, far=400.):
-    f = 1/math.tan(math.radians(fov)/2)
-    return np.array([[f/aspect, 0, 0, 0], [0, f, 0, 0],
-                     [0, 0, (far+near)/(near-far), 2*far*near/(near-far)], [0, 0, -1, 0]])
 
 
-def look_at(eye, target, up=(0., 1., 0.)):
+def perspective(fov, aspect, near=0.05, far=400.0):
+    f = 1 / math.tan(math.radians(fov) / 2)
+    return np.array(
+        [
+            [f / aspect, 0, 0, 0],
+            [0, f, 0, 0],
+            [0, 0, (far + near) / (near - far), 2 * far * near / (near - far)],
+            [0, 0, -1, 0],
+        ]
+    )
+
+
+def look_at(eye, target, up=(0.0, 1.0, 0.0)):
     forward = normalized(np.subtract(target, eye))
     side = normalized(np.cross(forward, up))
     upward = np.cross(side, forward)
     view = np.identity(4)
     view[0, :3], view[1, :3], view[2, :3] = side, upward, -forward
-    view[:3, 3] = -view[:3, :3]@np.asarray(eye, dtype=float)
+    view[:3, 3] = -view[:3, :3] @ np.asarray(eye, dtype=float)
     return view
 
 
-def rotation(yaw=0., pitch=0., roll=0.):
+def rotation(yaw=0.0, pitch=0.0, roll=0.0):
     """4x4 rotation from degrees: yaw about y, pitch about x, roll about z."""
     a, b, c = (math.radians(v) for v in (yaw, pitch, roll))
     ry = np.array([[math.cos(a), 0, math.sin(a)], [0, 1, 0], [-math.sin(a), 0, math.cos(a)]])
     rx = np.array([[1, 0, 0], [0, math.cos(b), -math.sin(b)], [0, math.sin(b), math.cos(b)]])
     rz = np.array([[math.cos(c), -math.sin(c), 0], [math.sin(c), math.cos(c), 0], [0, 0, 1]])
     matrix = np.identity(4)
-    matrix[:3, :3] = ry@rx@rz
+    matrix[:3, :3] = ry @ rx @ rz
     return matrix
 
 
-def translation(x=0., y=0., z=0.):
+def translation(x=0.0, y=0.0, z=0.0):
     matrix = np.identity(4)
     matrix[:3, 3] = (x, y, z)
     return matrix
 
 
 def scaling(x, y):
-    return np.diag((x, y, 1., 1.))
+    return np.diag((x, y, 1.0, 1.0))
 
 
 class GLStage:
@@ -154,24 +174,36 @@ class GLStage:
         self.strip_program = self.ctx.program(vertex_shader=STRIP_VERTEX, fragment_shader=STRIP_FRAGMENT)
         self.fill_program = self.ctx.program(vertex_shader=VERTEX, fragment_shader=FILL_FRAGMENT)
         self.fill_vao = self.ctx.vertex_array(self.fill_program, [])
+        from render.stage_3d.sculpture import VERTEX as SIDE_VERTEX, FRAGMENT as SIDE_FRAGMENT
+
+        self.side_program = self.ctx.program(vertex_shader=SIDE_VERTEX, fragment_shader=SIDE_FRAGMENT)
+        self.meshes = OrderedDict()
         samples = min(4, self.ctx.max_samples)
-        self.msaa = self.ctx.framebuffer([self.ctx.renderbuffer(self.size, 4, samples=samples)])
-        self.output = self.ctx.framebuffer([self.ctx.renderbuffer(self.size, 4)])
+        self.msaa = self.ctx.framebuffer(
+            [self.ctx.renderbuffer(self.size, 4, samples=samples)],
+            self.ctx.depth_renderbuffer(self.size, samples=samples),
+        )
+        self.output = self.ctx.framebuffer(
+            [self.ctx.renderbuffer(self.size, 4)], self.ctx.depth_renderbuffer(self.size)
+        )
         self.textures = OrderedDict()
         self.transients = []
 
     def upload(self, image):
         pixels = np.asarray(image.convert('RGBA'), dtype=np.float32)
-        pixels[..., :3] *= pixels[..., 3:]/255
+        pixels[..., :3] *= pixels[..., 3:] / 255
         texture = self.ctx.texture(image.size, 4, pixels.round().astype(np.uint8).tobytes())
         texture.build_mipmaps()
         texture.filter = (self.moderngl.LINEAR_MIPMAP_LINEAR, self.moderngl.LINEAR)
-        texture.anisotropy = 8.
+        texture.anisotropy = 8.0
         texture.repeat_x = texture.repeat_y = False
         return texture
 
     def texture(self, key, image):
         """A cached, mipmapped, premultiplied texture; `image` may be a callable that makes it."""
+        from render.scene_fonts import current_font
+
+        key = (current_font(), key)
         if key in self.textures:
             self.textures.move_to_end(key)
             return self.textures[key]
@@ -189,11 +221,43 @@ class GLStage:
     def begin(self):
         self.msaa.use()
         self.ctx.viewport = (0, 0, *self.size)
-        self.msaa.clear(0., 0., 0., 1.)
+        self.msaa.clear(0.0, 0.0, 0.0, 1.0)
         self.ctx.enable(self.moderngl.BLEND)
         self.ctx.blend_func = (self.moderngl.ONE, self.moderngl.ONE_MINUS_SRC_ALPHA)
+        self.ctx.disable(self.moderngl.DEPTH_TEST)
 
-    def quad(self, texture, mvp, opacity=1., tint=(1., 1., 1.), uv=(0., 0., 1., 1.)):
+    def side_mesh(self, key, mask):
+        from render.scene_fonts import current_font
+        from render.stage_3d.sculpture import side_vertices
+
+        key = (current_font(), key)
+        if key not in self.meshes:
+            vertices = side_vertices(mask())
+            if not len(vertices):
+                return None
+            buffer = self.ctx.buffer(vertices.tobytes())
+            vao = self.ctx.vertex_array(self.side_program, [(buffer, '3f 3f', 'position', 'normal')])
+            self.meshes[key] = (vao, buffer)
+            while len(self.meshes) > 128:
+                old_vao, old_buffer = self.meshes.popitem(last=False)[1]
+                old_vao.release()
+                old_buffer.release()
+        self.meshes.move_to_end(key)
+        return self.meshes[key][0]
+
+    def sides(self, vao, mvp, model, opacity, tint, eye, time):
+        program = self.side_program
+        program['mvp'].write(np.ascontiguousarray(mvp.T, dtype='f4').tobytes())
+        program['model'].write(np.ascontiguousarray(model.T, dtype='f4').tobytes())
+        normal = np.linalg.inv(model[:3, :3]).T
+        program['normal_matrix'].write(np.ascontiguousarray(normal.T, dtype='f4').tobytes())
+        program['opacity'].value = float(opacity)
+        program['tint'].value = tuple(float(v) for v in tint)
+        program['eye'].value = tuple(float(v) for v in eye)
+        program['time'].value = float(time)
+        vao.render(self.moderngl.TRIANGLES)
+
+    def quad(self, texture, mvp, opacity=1.0, tint=(1.0, 1.0, 1.0), uv=(0.0, 0.0, 1.0, 1.0)):
         texture.use(0)
         self.program['mvp'].write(np.ascontiguousarray(mvp.T, dtype='f4').tobytes())
         self.program['opacity'].value = float(opacity)
@@ -208,9 +272,9 @@ class GLStage:
         program = self.fill_program
         program['mvp'].write(np.ascontiguousarray(mvp.T, dtype='f4').tobytes())
         program['opacity'].value = float(opacity)
-        program['uv_rect'].value = (0., 0., 1., 1.)
+        program['uv_rect'].value = (0.0, 0.0, 1.0, 1.0)
         for name in ('deep', 'middle', 'light'):
-            program[name].value = tuple(v/255 for v in fill[name])
+            program[name].value = tuple(v / 255 for v in fill[name])
         for name in ('time', 'seed', 'angle', 'speed'):
             program[name].value = float(fill[name])
         program['pattern'].value = int(fill['pattern'])
@@ -218,7 +282,7 @@ class GLStage:
             program[name].value = tuple(float(v) for v in fill[name])
         self.fill_vao.render(self.moderngl.TRIANGLES, vertices=6)
 
-    def strip(self, texture, mvp, vertices, opacity=1.):
+    def strip(self, texture, mvp, vertices, opacity=1.0):
         """A continuous band: rows of (x, y, z, across, r, g, b) drawn as one triangle strip."""
         buffer = self.ctx.buffer(np.ascontiguousarray(vertices, dtype='f4').tobytes())
         vao = self.ctx.vertex_array(self.strip_program, [(buffer, '3f 1f 3f', 'position', 'across', 'color')])
@@ -238,6 +302,10 @@ class GLStage:
         return Image.frombytes('RGB', self.size, data).transpose(Image.Transpose.FLIP_TOP_BOTTOM)
 
     def close(self):
+        for vao, buffer in self.meshes.values():
+            vao.release()
+            buffer.release()
+        self.meshes.clear()
         for texture in self.textures.values():
             texture.release()
         self.textures.clear()

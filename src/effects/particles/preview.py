@@ -4,10 +4,11 @@ from io import BytesIO
 import os
 from threading import Semaphore
 
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw
 
 from render.text_effects import paint_word
 from core.fonts import truetype
+from effects.particles.scene_backdrops import DEFAULT_BACKDROP, backdrop_spec, scene_backdrop
 
 _RENDER_SLOTS = Semaphore(1)
 SAMPLE_FPS = 20
@@ -170,28 +171,36 @@ def _render_text(animation, font_family="auto", font_style="auto", font_scale=1.
 
 
 SCENE_SAMPLE = ((0.4, 'golden light upon the water'), (3.3, 'hold me close until the morning'))
-SCENE_SIZE, SCENE_SECONDS, SCENE_FPS = (480, 270), 6.6, 12
+SCENE_SIZE, SCENE_SECONDS, SCENE_FPS = (480, 270), 6.6, 24
 
 
-def scene_backdrop(folder, size):
-    """A neutral dusk painting for scene samples: deep blue above, a warm glow low on the horizon."""
-    import numpy as np
+def scene_gif(frames, fps):
+    """A shared palette prevents a static backdrop from changing color between GIF frames."""
+    count = min(20, len(frames))
+    atlas = Image.new('RGB', (480, 68 * ((count + 3) // 4)))
+    for i in range(count):
+        index = round(i * (len(frames) - 1) / max(1, count - 1))
+        atlas.paste(frames[index].convert('RGB').resize((120, 68)), ((i % 4) * 120, (i // 4) * 68))
+    palette = atlas.quantize(colors=256, method=Image.Quantize.MEDIANCUT)
+    indexed = [frame.convert('RGB').quantize(palette=palette, dither=Image.Dither.NONE) for frame in frames]
+    output = BytesIO()
+    indexed[0].save(
+        output,
+        format='GIF',
+        append_images=indexed[1:],
+        save_all=True,
+        duration=round(1000 / fps),
+        loop=0,
+        disposal=1,
+        optimize=False,
+    )
+    return output.getvalue()
 
-    path = folder / f'scene-backdrop-{size[0]}x{size[1]}.png'
-    if not path.is_file():
-        w, h = size
-        y, x = np.mgrid[0:h, 0:w] / np.array((h, w))[:, None, None]
-        top, low, glow = np.array((22, 34, 58)), np.array((58, 78, 104)), np.array((214, 150, 110))
-        sky = top + (low - top) * (y**1.3)[..., None]
-        halo = np.exp(-(((x - 0.62) / 0.38) ** 2 + ((y - 0.78) / 0.22) ** 2))[..., None]
-        image = np.clip(sky + (glow - sky) * halo * 0.55, 0, 255).astype('uint8')
-        folder.mkdir(exist_ok=True)
-        Image.fromarray(image, 'RGB').filter(ImageFilter.GaussianBlur(2)).save(path)
-    return path
 
-
-def _render_scene(scene_id, font_family="auto", font_style="auto", font_scale=1.25, settings="{}"):
-    """A few seconds of two sample lines filmed in one scene effect, over a neutral dusk backdrop."""
+def _render_scene(
+    scene_id, font_family="auto", font_style="auto", font_scale=1.25, settings="{}", background=DEFAULT_BACKDROP
+):
+    """A few seconds of two sample lines filmed in one scene effect, over a selected studio backdrop."""
     import json
     from render.compositor import Compositor
     from direction.typography import rules_plan
@@ -207,7 +216,7 @@ def _render_scene(scene_id, font_family="auto", font_style="auto", font_scale=1.
         data.append(dict(text=text, words=words, section_id=0, section_label='Chorus'))
     plan = dict(rules_plan(data, theme_for('bright')), scene_flows=[dict(start=0, end=len(data), scene=scene_id)])
     width, height = SCENE_SIZE
-    art = scene_backdrop(PROJECT_ROOT / '.preview-cache', SCENE_SIZE)
+    art = scene_backdrop(PROJECT_ROOT / '.preview-cache', SCENE_SIZE, background)
     with _RENDER_SLOTS:
         compositor = Compositor(
             data,
@@ -224,7 +233,16 @@ def _render_scene(scene_id, font_family="auto", font_style="auto", font_scale=1.
             font_family=font_family,
             font_style=font_style,
             font_scale=font_scale,
-            kinetic=dict(scenes=[scene_id], fade=False, scene_settings={scene_id: json.loads(settings)}),
+            kinetic=dict(
+                scenes=[scene_id],
+                fade=False,
+                beat_effect='none',
+                beat_confetti=False,
+                beat_intensity=0.0,
+                beat_blur=0.0,
+                background_shake=0.0,
+                scene_settings={scene_id: json.loads(settings)},
+            ),
         )
         try:
             frames = [compositor.frame(index / SCENE_FPS) for index in range(round(SCENE_SECONDS * SCENE_FPS))]
@@ -233,17 +251,7 @@ def _render_scene(scene_id, font_family="auto", font_style="auto", font_scale=1.
                 from render.stage_3d import close_stage
 
                 close_stage()
-        result = BytesIO()
-        frames[0].save(
-            result,
-            format="GIF",
-            append_images=frames[1:],
-            save_all=True,
-            duration=round(1000 / SCENE_FPS),
-            loop=0,
-            disposal=2,
-        )
-        return result.getvalue()
+        return scene_gif(frames, SCENE_FPS)
 
 
 _POOL = None
@@ -351,8 +359,11 @@ def render_preview(effect, phase, intensity=1.0, speed=1.0, font_family="auto", 
     return _cached('effect', (effect, phase, intensity, speed, font_family, font_style, font_scale), _render_effect)
 
 
-def render_scene_preview(scene_id, font_family="auto", font_style="auto", font_scale=1.25, settings="{}"):
-    return _cached('scene', (scene_id, font_family, font_style, font_scale, settings), _render_scene)
+def render_scene_preview(
+    scene_id, font_family="auto", font_style="auto", font_scale=1.25, settings="{}", background=DEFAULT_BACKDROP
+):
+    backdrop_spec(background)
+    return _cached('scene', (scene_id, font_family, font_style, font_scale, settings, background), _render_scene)
 
 
 def render_text_preview(animation, font_family="auto", font_style="auto", font_scale=1.25, speed=1.0):

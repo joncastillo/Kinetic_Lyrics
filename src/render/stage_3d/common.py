@@ -3,11 +3,11 @@
 from __future__ import annotations
 import colorsys
 import itertools
-from functools import lru_cache
+from render.scene_fonts import font_cache as lru_cache
 import math
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
-from core.fonts import first_font
+from render.scene_fonts import first_font
 from render.realtime import role_font
 from render.thread_path import monotone_keys, settle_keys
 
@@ -70,6 +70,8 @@ def normalized(vector):
 @lru_cache(maxsize=256)
 def stage_font(name, size):
     """The stage's extra faces (thin, heavy, sweet), or the real-time role fonts."""
+    if name == 'sculpture':
+        return first_font(('BricolageGrotesque[opsz,wdth,wght].ttf',), size)
     if name not in STAGE_FONTS:
         return role_font(name, size)
     return first_font(STAGE_FONTS[name], size) or role_font('content', size)
@@ -85,7 +87,8 @@ def text_sprite(text, role, size, color):
     ImageDraw.Draw(shape).text((pad, pad + ascent), text, font=font, fill=255, anchor='ls')
     halo = shape.filter(ImageFilter.GaussianBlur(max(2, size * 0.07))).point(lambda a: min(255, round(a * 1.4)))
     image = Image.new('RGBA', shape.size, (0, 0, 0, 0))
-    image.putalpha(halo.point(lambda a: round(a * 0.55)))
+    if role != 'sculpture':
+        image.putalpha(halo.point(lambda a: round(a * 0.55)))
     image.alpha_composite(Image.merge('RGBA', (*Image.new('RGB', shape.size, color).split(), shape)))
     return image, pad, ascent
 

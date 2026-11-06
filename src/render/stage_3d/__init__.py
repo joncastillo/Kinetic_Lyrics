@@ -119,6 +119,8 @@ class Stage3D(StagePlanning, StageWisp, StageDrawing):
             if number > current + 1 or np.linalg.norm(block['center'] - target) > reach:
                 continue
             opacity = self.block_opacity(number, current, t)
+            if opacity <= 0.001:
+                continue  # invisible geometry must not write depth over the next lyric
             for x, y, z, size, phase, speed in block['motes']:
                 twinkle = 0.5 + 0.5 * math.sin(t * speed * 2 + phase)
                 position = block['placement'] @ np.array(
@@ -143,13 +145,22 @@ class Stage3D(StagePlanning, StageWisp, StageDrawing):
                     lead = (GROW_ENTRY if recipe.trajectory == 'grow' else PARTICLE_ENTRY) / c.effect_speed(recipe.id)
                 else:
                     entry, stagger = (BOUNCE_ENTRY, BOUNCE_STAGGER) if word.get('bouncy') else (ENTRY, LETTER_STAGGER)
-                    letters = word['motion'] in ('wave', 'bounce') or word['letter'] is not None or word.get('bouncy')
+                    letters = (
+                        word['motion'] in ('wave', 'bounce', 'sculpture')
+                        or word['letter'] is not None
+                        or word.get('bouncy')
+                    )
                     lead = entry + (len(word['text']) - 1) * stagger if letters else entry
                 if t >= word['start'] - lead:
                     items.extend(self.word_items(gl, block, word, t, opacity, beat))
         depth = lambda item: (view @ item[0] @ np.array([0.0, 0.0, 0.0, 1.0]))[2]
+        if any(block.get('clean') for block in blocks):
+            gl.ctx.enable(gl.moderngl.DEPTH_TEST)
+            gl.ctx.depth_func = '<='
         for item in sorted(items, key=depth):
-            if len(item) > 4:
+            if len(item) > 5 and item[5] == 'sides':
+                gl.sides(item[1], camera @ item[0], item[0], item[2], item[3], eye, t)
+            elif len(item) > 4:
                 gl.fill(item[1], camera @ item[0], item[2], item[4])
             else:
                 gl.quad(item[1], camera @ item[0], item[2], item[3])

@@ -2,7 +2,7 @@
 
 import math
 from PIL import Image
-from core.fonts import truetype
+from render.scene_fonts import truetype
 from effects.kinetic.easing import clamp, keyframes, pulse, smoother, window
 from render.poster.common import (
     CAPTION_FONT,

@@ -1,0 +1,934 @@
+{
+  "model": "qwen3.8:27b",
+  "rubric_sha256": "7a548261c0bcd7ebde32d7cd6b74f4f980e82d0767d9ae4b30f7c2699aa451fd",
+  "weights": {
+    "spectacle": 0.4,
+    "readability": 0.2,
+    "choreography": 0.2,
+    "craft": 0.15,
+    "originality": 0.05
+  },
+  "threshold": 95,
+  "source_sha256": "3af7dc6681e86047bd026658b919731fc9e551cc27624c345652f02cd8357474",
+  "results": {
+    "accordion-fold": {
+      "scores": {
+        "spectacle": 62,
+        "readability": 48,
+        "choreography": 55,
+        "craft": 58,
+        "originality": 60
+      },
+      "evidence": "The accordion-fold concept is a strong visual idea, but the execution has significant readability and craft issues. In the timeline, the text is frequently clipped at the panel edges (e.g., 'UPON' at 0.9s, 'CLOSE' at 3.6s, 'LET' at 6.7s). The held frames show that the text does not always fit within the colored panels, causing words to be cut off or to sit awkwardly across the fold lines. The perspective is inconsistent; some panels appear to be at different depths or angles, creating a disjointed look rather than a smooth, continuous fold. The color palette is pleasant, but the contrast between the dark text and the light panels is sometimes weak, especially on the greyish panels. The choreography feels mechanical, with the panels simply unfolding and folding without a sense of rhythm or musicality. The overall effect is more of a technical demonstration than a polished, professional lyric video.",
+      "critical_issues": [
+        "Text is frequently clipped at the edges of the panels, making words illegible.",
+        "The perspective and depth of the panels are inconsistent, creating a disjointed visual effect.",
+        "The choreography is mechanical and lacks a sense of rhythm or musicality."
+      ],
+      "improvements": [
+        "Adjust the text size and positioning to ensure all words are fully visible within the panels.",
+        "Refine the perspective and depth of the panels to create a more consistent and smooth visual effect.",
+        "Add more nuance to the choreography, such as easing in and out of the unfolding and folding motions, to create a more musical and engaging visual experience.",
+        "Increase the contrast between the text and the panels to improve readability."
+      ],
+      "weighted_score": 57.1,
+      "score": 57.1,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.08065916647790129,
+        "maximum_frame_change": 0.30513546772875816,
+        "frame_rate": 12
+      }
+    },
+    "baseline-reveal": {
+      "scores": {
+        "spectacle": 35,
+        "readability": 40,
+        "choreography": 45,
+        "craft": 55,
+        "originality": 40
+      },
+      "evidence": "The scene is a static text overlay with no visual event, depth, or transformation. The 'spectacle' is minimal to the point of being absent. Readability is compromised by the deliberate use of a custom, highly stylized font (visible in the 'WATER' and 'HOLD' frames) where letters like 'A' are rendered as triangles and 'O' as circles, which significantly reduces legibility for a lyric video. The timeline shows a simple word-by-word reveal, but the 'held' frames (e.g., 2.65s, 5.45s) show the text is left-aligned and occupies only a small portion of the frame, creating a weak composition. The light-background frame (4th image) shows the text is dark, which is good for contrast, but the overall design feels like a basic template rather than a crafted piece. The frame difference metrics are very low, confirming the lack of motion or dynamic changes.",
+      "critical_issues": [
+        "The use of a highly stylized, non-standard font for the lyrics (e.g., 'WATER' with a triangular 'A') severely impacts readability, which is the primary function of a lyric video.",
+        "The composition is weak; the text is small, left-aligned, and does not utilize the frame effectively, resulting in a lack of visual impact or 'spectacle'.",
+        "The scene lacks any choreography beyond a simple text reveal. There is no anticipation, development, or purposeful finish that would elevate it from a basic text display."
+      ],
+      "improvements": [
+        "Replace the stylized font with a clean, highly legible typeface. The current font choice prioritizes a quirky aesthetic over the essential function of readability.",
+        "Improve the composition by centering the text and increasing its size to fill the frame more dynamically. Consider using line breaks to create a more interesting visual shape.",
+        "Introduce subtle motion or animation to the text entrance and exit. A simple fade is insufficient; consider a slight scale-up, a blur-to-focus effect, or a word-by-word reveal with a more deliberate timing to create a sense of choreography.",
+        "Add a visual element to the background, even if it's a subtle gradient or a very slow-moving texture, to create a sense of depth and atmosphere, moving away from the flat, static appearance."
+      ],
+      "weighted_score": 41.25,
+      "score": 41.25,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.0017340553184323228,
+        "maximum_frame_change": 0.018105965187000726,
+        "frame_rate": 12
+      }
+    },
+    "black-hole-sun": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 58,
+        "choreography": 48,
+        "craft": 62,
+        "originality": 35
+      },
+      "evidence": "The timeline shows severe, unintended clipping and collision defects on held text. At 0.5s, 'GOLDEN' and 'LIGHT' overlap with 'LIGHT' partially obscured. At 1.4s, 'UPON' and 'THE' collide, with 'THE' rendered as a fragmented, illegible artifact beneath 'UPON'. At 2.0s, 'UPON' is vertically mirrored/inverted, a clear rendering error. At 4.15s, 'CLOSE' and 'HOLD' overlap with 'HOLD' ghosted behind. At 6.75s, 'DO' and 'TON' (likely 'NOT' clipped) collide vertically. The held frames confirm these are not transitions but settled states with broken layout. The light-background frame (WATER) shows poor contrast\u2014white text on near-white background is barely legible. The portrait frame is acceptable but offers no improvement. The frame-difference metrics (mean 0.0089, max 0.0419) indicate minimal motion, consistent with static or near-static text rather than smooth choreography. There is no visual spectacle, no depth, no transformation\u2014only text appearing and disappearing with broken spacing. The typeface is clean but the execution is fundamentally flawed in layout and contrast.",
+      "critical_issues": [
+        "Unintended text clipping and collision on multiple held frames (0.5s, 1.4s, 4.15s, 6.75s)",
+        "Vertical mirroring/inversion of text at 2.0s ('UPON' rendered upside down)",
+        "Poor contrast in light-background frame: white text on near-white background is illegible",
+        "No visual spectacle or memorable payoff\u2014minimalist text with no impact",
+        "Choreography is incoherent: words appear, collide, and disappear without purposeful handoffs or development"
+      ],
+      "improvements": [
+        "Fix text layout engine to prevent overlap and clipping\u2014ensure each word has dedicated space and no collision with adjacent words",
+        "Correct the vertical mirroring bug at 2.0s\u2014text must render upright in all frames",
+        "Increase contrast in light-background frame: use dark text on light background or add a subtle shadow/outline to white text",
+        "Add visual spectacle: introduce depth, scale changes, or a precise reveal (e.g., words emerging from darkness, or a light sweep) to create a memorable payoff",
+        "Improve choreography: stagger word entrances with clear anticipation and development, ensure smooth handoffs between phrases, and add a purposeful finish (e.g., final word holds with emphasis)",
+        "Enhance craft: refine spacing, add subtle motion (e.g., gentle fade-in/out, slight scale change) to make the text feel designed rather than static"
+      ],
+      "weighted_score": 49.05,
+      "score": 49.05,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.008868610822660668,
+        "maximum_frame_change": 0.04187777437363834,
+        "frame_rate": 12
+      }
+    },
+    "block-drop": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 68,
+        "choreography": 55,
+        "craft": 62,
+        "originality": 58
+      },
+      "evidence": "The timeline shows words entering with chaotic rotations and overlapping positions (e.g., 3.60s, 6.75s) that do not resolve into a clean, stable composition. In the settled frames (2.65s, 5.45s), the 'scrapbook' aesthetic is inconsistent: some words are perfectly horizontal while others remain slightly tilted, creating visual noise rather than intentional design. The light-background frame (Image 4) reveals a significant contrast failure where the off-white text blocks blend into the light grey background, losing the sharp definition seen in the dark mode. The 'spectacle' is minimal; it is a basic text animation without a memorable visual payoff or transformation. The choreography feels like a random scatter rather than a purposeful reveal, lacking anticipation or a strong finish.",
+      "critical_issues": [
+        "Contrast failure in light mode: The off-white text blocks have insufficient contrast against the light grey background, making the text harder to read and the design look washed out.",
+        "Inconsistent alignment in settled states: Even when the animation 'settles' (e.g., 2.65s, 5.45s), the words are not aligned to a consistent baseline or grid, resulting in a messy, accidental look rather than a designed composition.",
+        "Chaotic entrance choreography: The initial rotation and positioning of words (e.g., 'THE' at 1.40s, 'MORNING' at 6.75s) appear random and distracting rather than a deliberate stylistic choice, hurting the perceived quality of the motion."
+      ],
+      "improvements": [
+        "Fix light-mode contrast: In the light background variant, either darken the text blocks slightly or add a subtle drop shadow/stroke to ensure they pop against the background. Alternatively, use a darker background for the light text blocks.",
+        "Enforce a strict grid or baseline alignment: When the words settle, they should align perfectly to a horizontal baseline or a clear grid structure. The current 'slightly tilted' look in the settled state looks like a rendering error, not a style.",
+        "Refine the entrance animation: Reduce the initial rotation chaos. Use a more controlled 'drop' or 'slide' with a consistent easing curve. If rotation is intended, ensure it is subtle and consistent across all words, and that the final state is perfectly straight.",
+        "Improve color hierarchy: The current color palette (orange, pink, blue) feels arbitrary. Establish a clearer color logic\u2014for example, highlighting key words (like 'GOLDEN', 'CLOSE', 'GO') with the accent color and keeping the rest neutral\u2014to create a stronger visual hierarchy."
+      ],
+      "weighted_score": 53.6,
+      "score": 53.6,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.07489664910724587,
+        "maximum_frame_change": 0.2094006218228032,
+        "frame_rate": 12
+      }
+    },
+    "camera-tour": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 38,
+        "choreography": 45,
+        "craft": 55,
+        "originality": 40
+      },
+      "evidence": "The timeline shows severe, unintended clipping and collision on held text, which is a critical readability defect. At 0.95s, the word 'LIGHT' is partially obscured by the word 'GOLDEN' above it and appears to be cut off on the left. At 1.40s, 'UPON' is heavily overlapped by 'LIGHT' and 'GOLDEN', making it nearly illegible. At 2.65s, the word 'THE' is rotated 90 degrees and collides with the right edge of the text block. At 4.15s, 'CLO' (presumably 'CLOSE') is clipped on the left and overlaps 'ME'. At 4.70s, 'UNTIL' is clipped on the left and overlaps 'CLOSE'. At 5.45s, 'MORNING' is clipped on the left and overlaps 'THE'. At 7.35s, 'NOT' and 'LET' are stacked directly on top of 'DO', creating a complete collision. At 8.10s, 'NOT' and 'LET' are still stacked on 'DO', and 'GO' is clipped on the left. The large held frame (2.65s) shows 'WATER' with a heavy, misaligned drop shadow that looks like a rendering artifact rather than a design choice. The portrait frame (3.4s) shows the same collision issues, with 'THE' rotated and overlapping. The light-background frame (6.6s) shows 'DO', 'NOT', and 'LET' all stacked on top of each other, making the text completely unreadable. The choreography is chaotic, with words appearing, disappearing, and colliding in a way that suggests a broken animation system rather than intentional design. The craft is poor, with inconsistent spacing, misaligned shadows, and a lack of visual hierarchy. The originality is low, as the design appears to be a generic, poorly executed lyric video template.",
+      "critical_issues": [
+        "Severe text clipping and collision on held frames (e.g., 0.95s, 1.40s, 4.15s, 4.70s, 5.45s, 7.35s, 8.10s).",
+        "Words are rotated and overlapping in a way that makes them illegible (e.g., 'THE' at 2.65s, 'NOT'/'LET' at 7.35s/8.10s).",
+        "Misaligned and inconsistent drop shadows that look like rendering artifacts (e.g., 'WATER' at 2.65s).",
+        "Lack of visual hierarchy and clear spacing between words."
+      ],
+      "improvements": [
+        "Fix the text layout to prevent clipping and collision. Ensure each word has its own space and does not overlap with others.",
+        "Remove or fix the misaligned drop shadows. If shadows are intended, they should be consistent and aligned with the text.",
+        "Establish a clear visual hierarchy. The main words should be larger and more prominent than secondary words.",
+        "Improve the choreography. Words should appear and disappear in a smooth, intentional way, not chaotically.",
+        "Use a consistent and professional font. The current font appears to be a generic sans-serif, which is not very distinctive."
+      ],
+      "weighted_score": 43.65,
+      "score": 43.65,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.024423939170467424,
+        "maximum_frame_change": 0.11581103054647786,
+        "frame_rate": 12
+      }
+    },
+    "counter-dive": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 38,
+        "choreography": 45,
+        "craft": 55,
+        "originality": 40
+      },
+      "evidence": "The timeline shows severe, unintended clipping and collision defects that violate the core readability requirement. At 0.65s, the word 'LIGHT' is rendered as a tiny, illegible white box inside the letter 'O' of 'GOLD', creating a visual collision rather than a legible lyric. At 1.40s, 'UPON' is similarly crushed into a small box inside the 'O' of 'GOLDEN'. At 4.15s, 'UNTIL' is a tiny box inside the 'O' of 'CLOSE'. At 5.45s, 'THE' is a tiny box inside the 'T' of 'UNTIL'. At 8.10s, 'NOT' is a tiny box inside the 'O' of 'DO'. These are not intentional transitions; they are persistent, held-state rendering failures where secondary words are illegible and visually collide with primary words. The 'larger held frame' (WATER) is legible but visually flat, with a simple drop shadow that looks like a default preset rather than a designed effect. The 'light-background held frame' shows the same 'WATER' text with a harsh, black outline that looks like a rendering artifact or a failed stroke effect, not a professional finish. The 'portrait held frame' is acceptable but offers no compositional interest. The overall spectacle is minimal to the point of being static; there is no transformation, depth, or memorable payoff. The choreography is broken by the collision defects, making the word-to-word handoffs incoherent. The craft is undermined by the inconsistent treatment of words (some large, some tiny boxes) and the poor finish on the light background. The originality is low, as it appears to be a basic text-on-background template with significant execution errors.",
+      "critical_issues": [
+        "Severe, persistent clipping and collision: Secondary words ('LIGHT', 'UPON', 'UNTIL', 'THE', 'NOT') are rendered as tiny, illegible boxes inside the letters of primary words, making them unreadable and creating visual clutter.",
+        "Poor finish on light background: The 'WATER' text on the light background has a harsh, black outline that looks like a rendering artifact or a failed stroke effect, not a professional design choice.",
+        "Lack of visual impact: The scene is static and minimal without any compensating depth, transformation, or memorable visual event."
+      ],
+      "improvements": [
+        "Fix the text rendering logic to ensure all words are legible and do not collide. Secondary words should be given their own space and appropriate size, not crammed into the counters of other letters.",
+        "Redesign the light-background treatment. Remove the harsh black outline and use a more subtle shadow or a different color that provides adequate contrast without looking like an artifact.",
+        "Add visual interest and depth. Consider subtle animations, parallax, or background elements to create a more engaging and memorable scene.",
+        "Improve the choreography by ensuring smooth, intentional transitions between words, rather than the current jarring collisions and abrupt changes in scale."
+      ],
+      "weighted_score": 43.65,
+      "score": 43.65,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.16496289116849577,
+        "maximum_frame_change": 0.5068870790214234,
+        "frame_rate": 12
+      }
+    },
+    "crystal-and-coral": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 38,
+        "choreography": 45,
+        "craft": 40,
+        "originality": 55
+      },
+      "evidence": "The scene fails on multiple core requirements. First, the sample phrases are not rendered as specified: the timeline shows 'GOLDEN LIGHT UPON the WATER' (not 'golden light upon the water'), 'HOLD me CLOSE UNTIL the MORNING' (not 'hold me close until the morning'), and 'DO NOT LET GO' (not 'do not let go'). This is a fundamental mismatch between the requested content and the output. Second, readability is severely compromised: in the timeline frames, text is heavily clipped at the left edge (e.g., 'GOLDEN LIGHT' becomes 'GOLDEN LIGH', 'HOLD me CLOSE' becomes 'HOLD me CLO', 'DO NOT LET GO' becomes 'DO NOT LET'), and in the portrait frame, 'GOLDEN LIGHT' is cut off to 'GOLDEN LIGH'. The light-background frame shows the same text with poor contrast against the gray background, making it nearly illegible. Third, the choreography is incoherent: the text appears to be static or poorly animated, with no clear entrance/exit logic visible in the timeline; the 'held' frames show inconsistent text states (e.g., 'GOLDEN LIGHT UPON the WATER' vs. 'GOLDEN LIGHT UPON the WATER' with different spacing and clipping). Fourth, craft is lacking: the font choice is inconsistent (serif for 'GOLDEN LIGHT', sans-serif for 'the WATER'), spacing is irregular, and the overall composition feels unpolished. The green wavy line and particle effects are generic and do not contribute meaningfully to the scene. The frame difference metrics (mean 0.025, max 0.095) suggest minimal motion, which aligns with the static, poorly animated appearance. No critical defect cap is needed because the score is already below 95 due to fundamental failures in content, readability, and craft.",
+      "critical_issues": [
+        "Sample phrases are not rendered as specified: 'golden light upon the water' is rendered as 'GOLDEN LIGHT UPON the WATER', 'hold me close until the morning' as 'HOLD me CLOSE UNTIL the MORNING', and 'do not let go' as 'DO NOT LET GO'.",
+        "Severe text clipping at the left edge in all timeline frames and the portrait frame, making words like 'GOLDEN LIGHT', 'HOLD me CLOSE', and 'DO NOT LET GO' partially or fully illegible.",
+        "Poor contrast in the light-background frame, where the text is nearly invisible against the gray background.",
+        "Inconsistent font usage and spacing, with no clear typographic hierarchy or design intent.",
+        "No visible choreography or animation logic; the text appears static or poorly timed, with no clear entrance/exit transitions."
+      ],
+      "improvements": [
+        "Render the exact sample phrases as specified: 'golden light upon the water', 'hold me close until the morning', 'do not let go'.",
+        "Ensure all text is fully visible within the frame boundaries, with no clipping at the edges.",
+        "Improve contrast in the light-background frame by using darker text or a lighter background.",
+        "Use a consistent font family and size for all text, with clear hierarchy (e.g., larger for main phrases, smaller for secondary text).",
+        "Add clear choreography: define entrance/exit animations for each phrase, with smooth transitions and timing that matches the musical structure.",
+        "Enhance the visual design: use a more cohesive color palette, add subtle motion to the green wavy line and particles to create a sense of flow, and ensure the overall composition feels intentional and polished."
+      ],
+      "weighted_score": 42.15,
+      "score": 42.15,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.02534201595682406,
+        "maximum_frame_change": 0.09543946872730574,
+        "frame_rate": 12
+      }
+    },
+    "editorial": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 88,
+        "choreography": 68,
+        "craft": 72,
+        "originality": 35
+      },
+      "evidence": "The timeline shows a static, low-contrast fade-in/out of text on a near-black background (e.g., 0.30s\u20130.65s, 1.40s\u20132.65s). The held frames (landscape and portrait) confirm the text is legible but visually inert: no motion, depth, scale change, or transformation is visible in any frame. The light-background frame (last image) shows the same static layout with inverted colors, confirming no dynamic event occurs. Frame-difference metrics (mean 0.0013, max 0.0066) corroborate near-zero motion. The only visible \u2018choreography\u2019 is a simple opacity fade, which the rubric explicitly states is not spectacular. Readability is adequate in both orientations and backgrounds, with clear hierarchy (bold second line), but the lack of visual interest or impact prevents a high spectacle score. The design is clean but generic \u2014 no distinctive typographic, spatial, or color decisions that elevate it beyond a basic lyric display.",
+      "critical_issues": [
+        "No visual spectacle: the scene consists solely of static text fading in/out on a flat background. There is no motion, depth, transformation, or memorable payoff visible in any frame. The rubric requires 'a striking visual event and memorable payoff' for high spectacle scores, which is entirely absent here.",
+        "Choreography is minimal and unengaging: the only temporal element is a linear fade, with no anticipation, development, or purposeful finish. Word-to-word handoffs are not visible or meaningful in the provided frames."
+      ],
+      "improvements": [
+        "Introduce a single, well-timed visual event: e.g., a subtle parallax shift, a light sweep across the text, or a slow zoom that peaks at the emotional climax of the phrase. Even minimalism must have impact \u2014 consider a single particle effect or gradient pulse synchronized to the beat.",
+        "Add depth: layer the text with a soft shadow or reflection that animates subtly (e.g., the reflection ripples as if on water, matching the lyric 'upon the water'). This would tie the visual to the content and create a memorable payoff.",
+        "Enhance choreography: stagger the entrance of words with slight positional offsets (e.g., 'golden' slides in from left, 'light' from right) and use easing curves to create anticipation. Exit should mirror entrance for coherence.",
+        "Improve craft: introduce a subtle color temperature shift (e.g., warm gold tint on 'golden light', cool blue on 'water') to reinforce meaning. Use a more distinctive typeface pairing (e.g., a serif for 'golden', sans-serif for 'light') to create visual hierarchy beyond weight alone.",
+        "Add originality: incorporate a unique visual metaphor \u2014 e.g., the text appears to be written in light that reflects off a simulated water surface, with gentle ripples distorting the letters slightly. This would make the scene memorable and thematically resonant."
+      ],
+      "weighted_score": 60.55,
+      "score": 60.55,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.0013136219873896254,
+        "maximum_frame_change": 0.0065505174291939005,
+        "frame_rate": 12
+      }
+    },
+    "full-screen-type": {
+      "scores": {
+        "spectacle": 62,
+        "readability": 58,
+        "choreography": 60,
+        "craft": 65,
+        "originality": 55
+      },
+      "evidence": "The scene attempts a layered, thematic lyric treatment (ice/crystal for 'GOLDEN', green organic strokes for 'HOLD', bright green for 'MORNING'), but the execution is inconsistent and visually noisy. In the timeline, the first phrase 'GOLDEN LIGHT UPON THE WATER' is heavily overlaid with a faint repeated background text ('GOLDEN LIGHT UPON THE WATER') that collides with the primary text, reducing clarity. The word 'the' in 'UPON the WATER' is italicized and smaller, creating a hierarchy that feels arbitrary rather than intentional. In the large held frame, the ice texture on 'GOLDEN' is visually striking but the underlying text is partially obscured by the crystalline effect, making it less legible than it could be. The green stroke element in 'HOLD me CLOSE' appears as a random decorative flourish rather than a meaningful visual metaphor, and its placement overlaps awkwardly with the text. In the portrait frame, the vertical stacking of 'GOLDEN LIGHT UPON the WATER' is cramped, and the background text still bleeds through, creating visual clutter. The light-background frame shows a dramatic color shift to orange/brown for 'GOLDEN', but this feels disconnected from the rest of the scene and lacks a clear narrative or thematic justification. The transition between phrases is abrupt, with no clear anticipation or development. The overall composition lacks a cohesive visual language, appearing as a collection of disparate effects rather than a unified design. The frame-difference metrics (mean 0.028, max 0.085) suggest moderate motion, but the static frames reveal that the motion is not smooth or purposeful, often resulting in overlapping or misaligned elements.",
+      "critical_issues": [
+        "Background text repetition creates visual noise and reduces readability of the primary lyric text.",
+        "Decorative elements (ice, green strokes) are applied inconsistently and sometimes obscure the text rather than enhance it.",
+        "Lack of a cohesive visual theme or narrative progression across the three phrases.",
+        "Arbitrary typographic choices (e.g., italicized 'the', inconsistent sizing) undermine the professional finish."
+      ],
+      "improvements": [
+        "Remove or significantly reduce the opacity of the repeated background text to ensure the primary lyric text is the clear focal point.",
+        "Develop a consistent visual metaphor for each phrase (e.g., ice for 'GOLDEN', water ripples for 'UPON THE WATER', dawn light for 'MORNING') and apply it cohesively across all elements.",
+        "Refine the typographic hierarchy by using consistent sizing, weight, and style for all words, avoiding arbitrary changes like the italicized 'the'.",
+        "Introduce smoother, more purposeful transitions between phrases, using motion or color shifts that reinforce the thematic progression.",
+        "Ensure that decorative elements (ice, strokes) are integrated in a way that enhances rather than obscures the text, possibly by using them as subtle textures or accents rather than dominant overlays."
+      ],
+      "weighted_score": 60.9,
+      "score": 60.9,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.028264239271340242,
+        "maximum_frame_change": 0.08549765681735658,
+        "frame_rate": 12
+      }
+    },
+    "gallery-caption": {
+      "scores": {
+        "spectacle": 25,
+        "readability": 85,
+        "choreography": 40,
+        "craft": 70,
+        "originality": 30
+      },
+      "evidence": "The scene is a static text overlay on a flat, dark background with no visual movement, depth, or transformation. The frame-difference metrics (mean: 0.00035, max: 0.0044) confirm near-zero motion, meaning there is no choreography or spectacle beyond a simple fade-in/out of text. The text is legible and well-spaced in the held frames, with good contrast against the dark background. However, the light-background frame (image 4) shows the same text in a low-contrast, washed-out state that significantly reduces readability. The composition is minimal to the point of being empty\u2014no visual anchor, no scale, no payoff. The typeface is clean but generic, and the overall effect is that of a placeholder or draft rather than a finished lyric scene. There is no evidence of intentional word-by-word handoffs, anticipation, or purposeful timing beyond basic appearance/disappearance. The scene does not fail catastrophically, but it lacks the impact, polish, and intentionality required for a high score.",
+      "critical_issues": [
+        "No visual spectacle or memorable payoff; the scene is static and visually inert.",
+        "Light-background frame has poor contrast, making text hard to read.",
+        "No choreography beyond basic fade-in/out; no word-level timing or development.",
+        "Composition is empty and lacks visual hierarchy or focal point."
+      ],
+      "improvements": [
+        "Add subtle motion or depth (e.g., slow zoom, parallax, or particle effect) to create visual interest without distracting from the text.",
+        "Improve contrast in the light-background frame by darkening the text or adding a subtle shadow/outline.",
+        "Introduce word-by-word or phrase-by-phrase timing with slight stagger or easing to create a sense of rhythm and intentionality.",
+        "Add a visual anchor or focal point (e.g., a soft glow, a line, or a gradient shift) to give the composition structure and prevent it from feeling empty.",
+        "Consider a more distinctive typeface or weight variation to enhance hierarchy and visual appeal."
+      ],
+      "weighted_score": 47.0,
+      "score": 47.0,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.0003553275736566694,
+        "maximum_frame_change": 0.004467683369644154,
+        "frame_rate": 12
+      }
+    },
+    "golden-ornament": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 38,
+        "choreography": 45,
+        "craft": 40,
+        "originality": 55
+      },
+      "evidence": "The scene fails on multiple core requirements. 1. Readability: The primary lyric text is rendered in a highly decorative, ornamental font (visible in the 0.95s, 1.40s, and 2.00s frames) that is nearly illegible at the scale presented. The 'held' frames (Image 2 and 3) show the text is so stylized that it reads as texture rather than words. 2. Clipping/Collision: In the 5.45s frame, the word 'MORNING' (green) overlaps directly with the word 'CLOSE' (white), creating a messy collision. In the 6.75s frame, the text 'DO NOT' overlaps with the previous line's text 'ON THE WATER / CLOSE / MORNING' on the left side, creating a chaotic stack. 3. Choreography: The text entrance is a chaotic 'scatter' effect (0.20s-0.65s) where letters fly in from random positions, which looks like a rendering error rather than a designed effect. The transition between lines (e.g., 5.45s to 6.75s) is abrupt and messy, with old text lingering and new text overlapping it. 4. Craft: The color palette is inconsistent and jarring (gold, white, green, red/pink all competing). The background is a flat, dark void with a single static green line that does not interact with the text. The 'light background' frame (Image 4) shows the text has poor contrast against the grey background, making the gold text even harder to read. 5. Spectacle: There is no visual impact. The 'sparkle' effect is minimal and the overall composition is empty and unengaging. The frame difference metrics (mean 0.023) suggest low motion, consistent with the static, cluttered appearance of the held frames.",
+      "critical_issues": [
+        "Primary lyric text is illegible due to excessive ornamentation/font choice",
+        "Text collision and overlap between lines (e.g., 'MORNING' over 'CLOSE', 'DO NOT' over previous line)",
+        "Chaotic, uncontrolled text entrance animation (letters scattering)",
+        "Poor contrast in light-background mode",
+        "Inconsistent and clashing color palette"
+      ],
+      "improvements": [
+        "Replace the ornamental font with a clean, highly legible sans-serif or serif font for the main lyrics",
+        "Implement a clear text hierarchy: main lyrics large and clear, secondary elements (if any) smaller and distinct",
+        "Fix the text layout to prevent overlap; ensure lines are spaced correctly and do not collide",
+        "Redesign the text entrance animation to be smooth and controlled (e.g., fade-in, slide-in, or a simple reveal) rather than a chaotic scatter",
+        "Improve contrast in the light-background mode by adjusting text color or adding a subtle background shadow/box",
+        "Unify the color palette to create a cohesive visual style",
+        "Add more visual interest to the background (e.g., subtle gradients, particles, or animated elements) to increase spectacle"
+      ],
+      "weighted_score": 42.15,
+      "score": 42.15,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.023669736914106246,
+        "maximum_frame_change": 0.08897345338598402,
+        "frame_rate": 12
+      }
+    },
+    "halftone-bloom": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 58,
+        "choreography": 55,
+        "craft": 48,
+        "originality": 52
+      },
+      "evidence": "The timeline shows a dot-matrix reveal where words appear as scattered dots that coalesce into solid text, with a color accent (orange/gold) applied to specific words like 'WATER', 'UPON', 'THE', 'CLOSE', 'MORNING', 'NOT'. The held frames confirm the final state: white dot-matrix text with one word in solid orange sans-serif. The light-background frame (4th image) shows the same text but with significantly reduced contrast \u2014 the white dots become nearly invisible against the light gray background, making the text barely legible. The portrait frame (3rd image) shows the text is small and centered with large empty margins, reducing impact. The dot-matrix effect is consistent but visually noisy; the dots create a textured, almost pixelated appearance that competes with readability rather than enhancing it. The color accent is a nice touch but feels arbitrary \u2014 why 'WATER' and not 'GOLDEN'? The transition from dots to solid text is visible in the timeline but the held frames show the text is fully formed, suggesting the 'reveal' is complete by the time we see the settled state. The light-background version is a critical failure: the white dots on light gray are nearly invisible, violating basic contrast requirements. The overall effect is more 'tech demo' than 'lyric video' \u2014 it prioritizes the dot-matrix gimmick over emotional impact or readability.",
+      "critical_issues": [
+        "Light-background frame has critically low contrast: white dot-matrix text on light gray background is nearly illegible, failing basic readability requirements",
+        "Dot-matrix effect creates visual noise that competes with readability rather than enhancing it \u2014 the scattered dots make the text harder to read, not easier",
+        "Color accent application appears arbitrary without clear visual logic \u2014 'WATER' is highlighted but 'GOLDEN' is not, with no apparent reason",
+        "Portrait composition wastes significant vertical space with large empty margins, reducing visual impact and making the text feel small and lost",
+        "The 'reveal' effect (dots coalescing into text) is visible in the timeline but the held frames show fully formed text, suggesting the transition is either too fast or the effect is not sustained long enough to be appreciated"
+      ],
+      "improvements": [
+        "Fix the light-background contrast: use dark text or a darker background for the light-mode version, or ensure the dot-matrix effect uses a color that contrasts with the background",
+        "Reduce the dot-matrix noise: make the dots smaller, more uniform, or use a cleaner pixel-grid effect that doesn't create visual clutter",
+        "Establish a clear visual logic for the color accent: highlight the most emotionally significant word in each phrase consistently, or use the accent to create a visual rhythm across phrases",
+        "Improve the portrait composition: reduce the empty margins, increase the text size, or add visual elements (subtle gradients, textures) to fill the space and create a more balanced composition",
+        "Extend the 'reveal' effect duration or make it more gradual so the transition from dots to solid text is visible and appreciated, rather than appearing as a quick flash",
+        "Add subtle motion or animation to the held frames (e.g., gentle pulse, slow color shift) to create a sense of life and emotional resonance, rather than static text",
+        "Consider a more sophisticated color palette: the current white + orange combination feels basic; try complementary colors or a more nuanced gradient to create visual depth"
+      ],
+      "weighted_score": 49.2,
+      "score": 49.2,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.015191684652400245,
+        "maximum_frame_change": 0.05353309390885984,
+        "frame_rate": 12
+      }
+    },
+    "horizon-rise": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 58,
+        "choreography": 55,
+        "craft": 62,
+        "originality": 48
+      },
+      "evidence": "The timeline shows a severe readability defect: in the 0.95s frame, the word 'GOLDEN' is clipped at the baseline by the horizontal rule, with the lower halves of the letters cut off. This is not an intentional transition but a collision in a held state. The 3.60s frame shows a similar issue where the text is barely visible above the line, suggesting inconsistent vertical alignment. The 'light-background held frame' (4th image) is critically flawed: the text 'UPON THE' is rendered in a near-white color against a light gray background, resulting in almost zero contrast and making the words illegible. The choreography relies on a simple scale-up/scale-down effect with a static horizontal line, which lacks anticipation or a memorable payoff. The color shifts (orange, pink, blue) feel arbitrary rather than purposeful. The frame-difference metrics (mean 0.017) confirm minimal motion, consistent with a basic fade/scale effect rather than dynamic choreography.",
+      "critical_issues": [
+        "Text clipping: 'GOLDEN' is cut off at the bottom by the horizontal line in the 0.95s frame.",
+        "Illegibility: The light-background frame has near-zero contrast between text and background.",
+        "Inconsistent alignment: Vertical positioning of text relative to the line varies unpredictably between frames (e.g., 3.60s vs 4.15s)."
+      ],
+      "improvements": [
+        "Fix the vertical alignment of the text container so that the baseline never intersects the horizontal rule. Add padding-bottom to the text element.",
+        "Ensure high contrast in all background modes. For the light background, use a dark text color (e.g., #333 or #000) instead of white.",
+        "Standardize the vertical position of the text relative to the line across all frames to prevent jitter or inconsistent spacing.",
+        "Enhance the choreography by adding a subtle entrance animation (e.g., slide-up or fade-in with a slight delay) rather than just scaling, to create a more deliberate reveal.",
+        "Use a more cohesive color palette. The random color shifts (orange, pink, blue) dilute the visual impact. Consider a single accent color or a gradient that transitions smoothly."
+      ],
+      "weighted_score": 51.1,
+      "score": 51.1,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.017194563589324616,
+        "maximum_frame_change": 0.04598007443718228,
+        "frame_rate": 12
+      }
+    },
+    "lace-and-paper": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 38,
+        "choreography": 45,
+        "craft": 40,
+        "originality": 55
+      },
+      "evidence": "The timeline shows severe clipping and collision defects. At 0.35s-0.65s, the text 'GOLDEN LIGHT UPON' is partially obscured by a green wavy line and appears to be rendered with a dotted/stippled texture that reduces legibility. At 3.60s-5.45s, the phrase 'HOLD me CLOSE UNTIL the MORNING' exhibits critical layout failures: 'HOLD me' overlaps with 'CLOSE', and 'MORNING' is partially cut off or collides with the previous line. The word 'MORNING' at 5.45s is rendered in a bright green that clashes with the white text and the background. At 6.75s-8.70s, 'DO NOT LET GO' shows inconsistent coloring (rainbow gradient on 'DO NOT', solid green on 'LET', white on 'GO') which creates a disjointed visual hierarchy. The green wavy line element is arbitrary and often intersects with the text, causing occlusion (e.g., 0.35s, 4.15s, 6.75s). The 'dotted' texture on the text in early frames (0.35s-2.65s) makes the words difficult to read against the dark background. The light-background frame (4th image) shows the text is barely legible due to low contrast between the white/dotted text and the grey background. The choreography lacks clear anticipation or purposeful development; the text appears to pop in and out with inconsistent spacing. The frame difference metrics (mean 0.024, max 0.095) suggest low motion, consistent with the static, cluttered appearance rather than smooth animation.",
+      "critical_issues": [
+        "Text clipping and collision: 'HOLD me CLOSE' overlaps at 3.60s-4.70s; 'MORNING' is cut off/collides at 5.45s.",
+        "Occlusion: The green wavy line frequently intersects and obscures the text (e.g., 0.35s, 4.15s, 6.75s).",
+        "Legibility: The dotted/stippled texture on text in early frames (0.35s-2.65s) significantly reduces readability.",
+        "Contrast: The light-background frame shows poor contrast, making text hard to read.",
+        "Inconsistent styling: Mixed rainbow gradients, solid colors, and dotted textures create a disjointed visual hierarchy."
+      ],
+      "improvements": [
+        "Remove or reposition the green wavy line to prevent text occlusion.",
+        "Fix text layout to eliminate clipping and collisions, especially in the 'HOLD me CLOSE UNTIL the MORNING' phrase.",
+        "Replace the dotted/stippled text texture with solid, high-contrast text for better legibility.",
+        "Standardize text styling (color, weight) to create a clear visual hierarchy.",
+        "Improve contrast in the light-background frame by using darker text or a different background color.",
+        "Refine choreography to ensure smooth, purposeful transitions without arbitrary elements."
+      ],
+      "weighted_score": 42.15,
+      "score": 42.15,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.02408169770266189,
+        "maximum_frame_change": 0.09488448620188816,
+        "frame_rate": 12
+      }
+    },
+    "misregistration": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 38,
+        "choreography": 45,
+        "craft": 55,
+        "originality": 40
+      },
+      "evidence": "The timeline (0.20s\u20138.70s) shows severe, unintended clipping and collision on held text, not just transitions. At 0.95s, the word 'LIGHT' is rendered twice, overlapping itself with a magenta/cyan chromatic aberration effect that makes it nearly illegible. At 3.60s, 'HOLD' is similarly doubled and distorted. At 5.45s, 'MORNING' is overlaid with a second, offset copy, creating a messy, unreadable stack. At 6.75s, 'DO' is doubled and clipped. These are not stylistic choices but rendering failures that destroy legibility. The 'held' frames (2.65s, 7.35s) are clean, but the majority of the timeline is corrupted. The light-background frame (4th image) shows the text 'WATER' with a heavy, misaligned drop shadow that looks like a rendering artifact rather than a design choice, and the white text has very low contrast against the light gray background. The overall effect is of a broken or unstable render, not a polished lyric video. The frame-difference metrics (mean 0.033, max 0.187) are consistent with these abrupt, glitchy changes rather than smooth motion.",
+      "critical_issues": [
+        "Severe text duplication and clipping on multiple words ('LIGHT', 'HOLD', 'MORNING', 'DO') throughout the timeline, making them illegible.",
+        "Low contrast and misaligned drop shadow on the light-background frame, harming readability.",
+        "The visual effect is one of a broken render, not a deliberate artistic choice, due to the inconsistent and destructive nature of the text artifacts."
+      ],
+      "improvements": [
+        "Eliminate all text duplication and clipping. Ensure each word is rendered only once and fully visible during its hold time.",
+        "Fix the light-background frame: increase contrast (e.g., use dark text on light background) and correct or remove the misaligned drop shadow.",
+        "If a chromatic aberration or 'glitch' effect is intended, apply it consistently and subtly so it enhances rather than destroys legibility. Currently, it is applied destructively and inconsistently.",
+        "Ensure the text is stable and centered during its hold time, as seen in the clean frames (2.65s, 7.35s), and apply this stability to all frames."
+      ],
+      "weighted_score": 43.65,
+      "score": 43.65,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.03368647488741949,
+        "maximum_frame_change": 0.1874445068536674,
+        "frame_rate": 12
+      }
+    },
+    "panning-canvas": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 38,
+        "choreography": 45,
+        "craft": 40,
+        "originality": 55
+      },
+      "evidence": "The scene fails on multiple core requirements. 1. Readability: In the 0.65s frame, the word 'GOLDEN' is partially obscured by a white particle effect. In the 2.65s frame, the word 'WATER' is clipped by the left edge of the screen. In the 5.45s frame, the word 'MORNING' is clipped by the left edge. In the 6.75s frame, the word 'MORNING' is clipped by the left edge. In the 7.35s frame, the word 'MORNING' is clipped by the left edge. In the 8.10s frame, the word 'MORNING' is clipped by the left edge. In the 8.70s frame, the word 'MORNING' is clipped by the left edge. The light-background frame (4th image) has extremely low contrast, making the text nearly illegible. 2. Choreography: The text 'GOLDEN LIGHT UPON THE WATER' is displayed in a large, faded font in the background, but it is not synchronized with the sung words. The sung words are displayed in a smaller font in the foreground. This creates a confusing visual hierarchy. The text 'HOLD ME CLOSE UNTIL THE MORNING' is displayed in a large, faded font in the background, but it is not synchronized with the sung words. The sung words are displayed in a smaller font in the foreground. This creates a confusing visual hierarchy. The text 'DO NOT LET GO' is displayed in a large, faded font in the background, but it is not synchronized with the sung words. The sung words are displayed in a smaller font in the foreground. This creates a confusing visual hierarchy. 3. Craft: The use of a white particle effect to obscure the word 'GOLDEN' is a poor design choice. The use of a large, faded font in the background is a poor design choice. The use of a smaller font in the foreground is a poor design choice. The low contrast in the light-background frame is a poor design choice.",
+      "critical_issues": [
+        "Text clipping on the left edge of the screen in multiple frames (2.65s, 5.45s, 6.75s, 7.35s, 8.10s, 8.70s).",
+        "Low contrast in the light-background frame, making the text nearly illegible.",
+        "Confusing visual hierarchy with the sung words displayed in a smaller font in the foreground and the same words displayed in a larger, faded font in the background.",
+        "White particle effect obscuring the word 'GOLDEN' in the 0.65s frame."
+      ],
+      "improvements": [
+        "Ensure all text is fully visible within the screen boundaries.",
+        "Increase the contrast in the light-background frame to make the text legible.",
+        "Simplify the visual hierarchy by displaying the sung words in a single, clear font.",
+        "Remove the white particle effect that obscures the word 'GOLDEN'."
+      ],
+      "weighted_score": 42.15,
+      "score": 42.15,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.020306817367177047,
+        "maximum_frame_change": 0.03927231980755266,
+        "frame_rate": 12
+      }
+    },
+    "proportion-stack": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 58,
+        "choreography": 48,
+        "craft": 55,
+        "originality": 40
+      },
+      "evidence": "The timeline shows a severe readability defect in the first phrase: at 0.35s, the word 'LIGHT' is partially obscured by a solid orange rectangle, and at 0.50s, the words 'THE' and 'WATER' are similarly clipped by orange blocks. This is not a transition but a held state where text is illegible. The 'DO NOT LET GO' phrase (6.7s-8.7s) exhibits a critical layout failure where the words are stacked vertically ('DO NOT' over 'LET GO') with inconsistent sizing and alignment, breaking the horizontal flow expected of a lyric line. The 'HOLD ME CLOSE' phrase (3.6s-5.4s) shows a jarring color shift from pink to white mid-phrase without clear purpose. The light-background frame (4th image) reveals that the text has a heavy, hard-edged drop shadow that looks like a rendering artifact rather than a stylistic choice, and the white text on light grey has poor contrast. The overall effect is of a broken template rather than a designed sequence.",
+      "critical_issues": [
+        "Text is clipped by solid color blocks in the first phrase (0.35s-0.50s), making words like 'LIGHT', 'THE', and 'WATER' illegible.",
+        "The 'DO NOT LET GO' phrase is stacked vertically with inconsistent sizing, breaking the horizontal lyric flow and creating a disjointed layout.",
+        "The light-background frame shows poor contrast for white text and an artifact-like hard drop shadow that detracts from the design.",
+        "Color transitions in the 'HOLD ME CLOSE' phrase are abrupt and lack clear visual logic."
+      ],
+      "improvements": [
+        "Remove the solid color blocks that are clipping text in the first phrase; if they are meant to be highlights, they should be behind the text or used as a background wash, not obscuring it.",
+        "Reformat 'DO NOT LET GO' to flow horizontally or use a consistent vertical stack with uniform sizing and alignment.",
+        "Improve contrast in the light-background frame by darkening the text or using a different color scheme.",
+        "Refine the drop shadow to be softer and more integrated, or remove it entirely for a cleaner look.",
+        "Ensure color transitions are smooth and purposeful, avoiding abrupt shifts that distract from the lyrics."
+      ],
+      "weighted_score": 48.25,
+      "score": 48.25,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.030548782272514403,
+        "maximum_frame_change": 0.14413086646695716,
+        "frame_rate": 12
+      }
+    },
+    "receding-stack": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 38,
+        "choreography": 45,
+        "craft": 40,
+        "originality": 35
+      },
+      "evidence": "The rendered output exhibits severe, persistent readability failures that violate the core requirement of legible sung words. In the timeline (0.9s-2.6s), the word 'WATER' is rendered with a solid orange background box that is misaligned and clipped, causing the letters to appear cut off or merged with the background (e.g., the 'R' is partially obscured). In the 'HOLD ME CLOSE' sequence (3.6s-5.4s), the word 'CLOSE' is rendered with a pink background box that is rotated and misaligned, causing the text to collide with the box edges and become illegible. The 'DO NOT LET GO' sequence (6.7s-8.7s) shows similar issues with the 'NOT' and 'GO' words, where the background boxes are misaligned and the text is clipped. The large held frame (2.6s) and portrait frame (2.6s) confirm these are not transition artifacts but settled states with broken layout. The light-background frame (2.6s) shows the same misalignment, indicating a systemic layout bug rather than a contrast issue. The choreography is incoherent due to these layout errors; the 'entrances' are not smooth reveals but broken text boxes appearing over the words. The craft is rudimentary, with no evidence of professional spacing, type selection, or composition. The originality is low, as the visual style (colored boxes behind text) is a common, poorly executed trope. The frame-difference metrics (mean 0.0236, max 0.0905) suggest minimal motion, which is consistent with the static, broken layout observed in the frames. The scene fails to meet the 95/100 pass threshold due to critical readability defects.",
+      "critical_issues": [
+        "Severe text clipping and misalignment in all held frames (e.g., 'WATER', 'CLOSE', 'NOT', 'GO')",
+        "Background boxes are rotated and misaligned, causing text to be obscured or cut off",
+        "No clear hierarchy or legibility in any of the sample phrases",
+        "Layout errors persist across all orientations (landscape, portrait, light background)"
+      ],
+      "improvements": [
+        "Fix the layout engine to ensure text boxes are properly aligned and sized to contain the text without clipping",
+        "Remove or correct the rotation of background boxes to ensure text is horizontal and legible",
+        "Implement a proper text rendering pipeline that guarantees legibility and correct spacing",
+        "Add a validation step to check for text clipping and misalignment before rendering",
+        "Redesign the visual style to prioritize readability over decorative elements"
+      ],
+      "weighted_score": 41.15,
+      "score": 41.15,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.023645794890948764,
+        "maximum_frame_change": 0.09046794435366738,
+        "frame_rate": 12
+      }
+    },
+    "stamp-collage": {
+      "scores": {
+        "spectacle": 62,
+        "readability": 48,
+        "choreography": 55,
+        "craft": 60,
+        "originality": 58
+      },
+      "evidence": "The scene uses a stamp-style typeface with heavy texture and outline, which creates a strong visual identity but fails on legibility under several conditions. In the 0.65s frame, 'GOLDEN' is legible, but by 2.0s\u20132.6s, overlapping words ('UPON', 'GOLDEN', 'LIGHT', 'THE', 'WATER') collide and partially obscure each other, making the phrase 'golden light upon the water' difficult to parse in sequence. The 2.6s frame shows 'WATER' overlapping 'GOLDEN' and 'LIGHT' overlapping 'THE', with no clear hierarchy or spacing. In the 4.15s frame, 'CLOSE' is rendered in a very low-contrast gray against the dark background, nearly invisible compared to the pink 'HOLD' and 'ME'. The 5.45s frame shows 'THE', 'HOLD', 'ME', 'UNTIL', 'MORNING' all overlapping in a cluttered cluster, with 'UNTIL' and 'MORNING' colliding. The 8.10s\u20138.70s frames show 'LET', 'DO', 'NOT', 'GO' with 'GO' and 'DO' overlapping and 'NOT' partially obscured. The light-background frame (4th image) shows the same overlapping layout but with reduced contrast for the lighter-colored words ('UPON', 'GOLDEN', 'LIGHT', 'THE'), making them harder to read against the pale background. The portrait frame (3rd image) shows the same overlapping issue, with 'WATER' and 'GOLDEN' colliding and 'LIGHT' and 'THE' overlapping. The frame-difference metrics (mean 0.0198, max 0.0708) suggest minimal motion between frames, indicating the overlaps are static or near-static, not transitional. The choreography lacks clear word-by-word handoffs; words appear to pop in and overlap rather than sequence cleanly. The craft is undermined by inconsistent contrast (gray 'CLOSE' vs. pink 'HOLD'), poor spacing, and lack of visual hierarchy. The originality is moderate \u2014 the stamp aesthetic is distinctive but the execution is cluttered and not polished. No critical defect caps the score at 94, but the readability and choreography failures prevent a high score.",
+      "critical_issues": [
+        "Severe word overlap and collision in multiple frames (2.0s, 2.6s, 5.45s, 8.10s, 8.70s) making the sung phrases illegible in sequence.",
+        "Low-contrast rendering of 'CLOSE' in 4.15s frame, nearly invisible against dark background.",
+        "Poor spacing and lack of visual hierarchy in all held frames, with words overlapping rather than arranging cleanly.",
+        "Light-background frame shows reduced contrast for lighter-colored words, further impairing readability.",
+        "Choreography lacks clear word-by-word handoffs; words appear to pop in and overlap rather than sequence cleanly."
+      ],
+      "improvements": [
+        "Increase spacing between words to prevent overlap and collision, ensuring each word is fully legible in sequence.",
+        "Improve contrast for all words, especially 'CLOSE' in 4.15s frame, by using a brighter color or adding a subtle background glow.",
+        "Establish clear visual hierarchy by varying size, weight, or color to indicate the order of words in the phrase.",
+        "Refine choreography to ensure words appear in sequence with clear handoffs, rather than popping in and overlapping.",
+        "Test readability in both dark and light backgrounds, adjusting colors and contrast as needed to ensure legibility in all conditions.",
+        "Consider using a cleaner, less textured typeface for better legibility, or reducing the texture intensity to improve readability."
+      ],
+      "weighted_score": 57.3,
+      "score": 57.3,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.019821352300222618,
+        "maximum_frame_change": 0.07076078544843864,
+        "frame_rate": 12
+      }
+    },
+    "sweet-contrast": {
+      "scores": {
+        "spectacle": 58,
+        "readability": 42,
+        "choreography": 55,
+        "craft": 60,
+        "originality": 50
+      },
+      "evidence": "The timeline shows a fundamental layout failure: the text is not centered or contained within the frame. In the 0.9s frame, 'UPON' is clipped on the left edge. In the 6.7s frame, the words 'DO not' are pushed off-screen to the right, and the previous line is clipped on the left. The 'larger held frame' (2.0s) shows the text block is left-aligned and floating in the upper-left quadrant, leaving the majority of the canvas empty. The 'portrait held frame' (3.4s) is the most severe defect: the text 'UPON THE WATER' is split across three lines, with 'WATER' taking up a massive amount of vertical space, creating a broken, unbalanced composition. The 'light-background held frame' (4.7s) shows the text is still left-aligned and the green ribbon effect is barely visible against the grey background, reducing the intended visual impact. The 'golden' text has a heavy, dark drop shadow that makes it look muddy rather than glowing. The word 'MORNING' in the 5.4s frame is rotated 90 degrees and crammed into the left margin, which is a jarring and unreadable design choice. The overall effect is of a broken layout rather than a designed scene.",
+      "critical_issues": [
+        "Text is not centered and is frequently clipped at the frame edges (e.g., 0.9s, 6.7s).",
+        "The portrait composition is broken, with text wrapping awkwardly and occupying the wrong portion of the frame.",
+        "The light-background version has poor contrast and the visual effects are washed out.",
+        "The layout is inconsistent, jumping between left-aligned and center-aligned states without a clear design logic."
+      ],
+      "improvements": [
+        "Center the text block horizontally and vertically in all orientations (landscape and portrait).",
+        "Fix the text wrapping in the portrait mode so that 'UPON THE WATER' does not break into three lines.",
+        "Ensure the text has adequate padding from the frame edges to prevent clipping during any animation or layout shift.",
+        "Redesign the light-background version to ensure the text and effects have sufficient contrast and visual impact.",
+        "Remove the heavy drop shadow from the 'golden' text and replace it with a subtle glow or a lighter shadow to improve readability and aesthetics.",
+        "Fix the layout of the 'MORNING' word so it is not rotated and crammed into the margin."
+      ],
+      "weighted_score": 54.1,
+      "score": 54.1,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.021688289951234903,
+        "maximum_frame_change": 0.08449753199891068,
+        "frame_rate": 12
+      }
+    },
+    "title-grid": {
+      "scores": {
+        "spectacle": 62,
+        "readability": 78,
+        "choreography": 70,
+        "craft": 72,
+        "originality": 65
+      },
+      "evidence": "The scene uses a tilted grid with words appearing cell-by-cell, which is a coherent concept but visually modest. In the 0.65s and 2.65s frames, the highlighted word (e.g., 'GOLDEN', 'WATER') has a background fill that partially overlaps the grid lines and adjacent text, creating a slight visual collision. In the portrait frame (3rd image), the left edge of the grid and the word 'GOLDEN' are clipped by the frame boundary, which is a composition flaw for a held shot. The light-background frame (4th image) shows poor contrast for the non-highlighted white text ('GOLDEN', 'LIGHT', 'UPON'), making it nearly invisible against the light gray background. The choreography is functional but lacks a strong 'payoff' moment; the words simply fill in. The frame difference metrics (mean 0.039) suggest smooth transitions, but the static frames reveal the contrast and clipping issues.",
+      "critical_issues": [
+        "In the light-background held frame, the white text has insufficient contrast against the light gray background, severely hurting readability.",
+        "In the portrait held frame, the left side of the grid and the first word are clipped by the canvas edge, indicating a composition error for that aspect ratio."
+      ],
+      "improvements": [
+        "Adjust the color palette for the light-background variant: use dark text for non-highlighted words to ensure legibility.",
+        "Re-center the grid composition in the portrait frame so that no text or grid lines are cut off by the frame boundaries.",
+        "Refine the highlight effect so the colored background sits cleanly within the grid cell without awkwardly overlapping the grid lines or adjacent text.",
+        "Add a more dynamic entrance or exit animation (e.g., a subtle scale or blur) to increase the 'spectacle' factor beyond a simple fade-in."
+      ],
+      "weighted_score": 68.45,
+      "score": 68.45,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.03936033579449433,
+        "maximum_frame_change": 0.15775933868917938,
+        "frame_rate": 12
+      }
+    },
+    "tree-canopy": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 58,
+        "choreography": 55,
+        "craft": 60,
+        "originality": 50
+      },
+      "evidence": "The scene is a static lyric overlay with a decorative floral vine and a single star sparkle. There is no transformation, reveal, or dynamic event; the 'spectacle' is limited to the floral graphic, which is pleasant but not striking. Readability suffers from multiple issues: in the timeline frames (e.g., 5.45s, 6.75s), the text 'UNTIL the MORNING' and 'DO NOT LET GO' are partially clipped or obscured by the floral element and the left edge of the frame. The hierarchy is inconsistent, with some words in red, some in white, and some in green, without a clear visual logic. The light-background frame (4th image) shows the text and graphics have poor contrast against the grey background, making them appear washed out and less legible. Choreography is minimal; the text appears to fade in and out, but there is no anticipation, development, or purposeful finish. The transitions are simple fades, not a coherent sequence. Craft is average; the font choice is generic, and the color palette (red, white, green) feels arbitrary rather than designed. The floral graphic is a stock-like element that doesn't integrate seamlessly with the text. Originality is low; the combination of floral vines and lyric text is a common trope in music videos and lyric videos, with no distinctive twist.",
+      "critical_issues": [
+        "Text clipping and occlusion by the floral graphic in multiple frames (e.g., 5.45s, 6.75s).",
+        "Poor contrast and legibility in the light-background frame.",
+        "Inconsistent and arbitrary color hierarchy for the text."
+      ],
+      "improvements": [
+        "Reposition the floral graphic to ensure it does not overlap or clip the text. Consider placing it above or below the text line.",
+        "Adjust the text color and add a subtle drop shadow or outline to improve contrast against both dark and light backgrounds.",
+        "Establish a clear visual hierarchy for the text (e.g., one color for the main phrase, another for secondary words) and apply it consistently.",
+        "Add a simple animation to the floral graphic (e.g., a gentle sway or bloom) to create a sense of movement and life.",
+        "Introduce a more dynamic transition for the text, such as a word-by-word reveal or a subtle scale-up, to enhance the choreography."
+      ],
+      "weighted_score": 50.9,
+      "score": 50.9,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.03091396350423174,
+        "maximum_frame_change": 0.11829946781953522,
+        "frame_rate": 12
+      }
+    },
+    "type-drum": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 38,
+        "choreography": 45,
+        "craft": 55,
+        "originality": 40
+      },
+      "evidence": "The timeline (0.5s\u20138.7s) shows a persistent, unintended clipping defect: the top and bottom lines of every lyric block are partially cut off or obscured by the central highlighted word. For example, at 0.5s, 'TER' and 'UPON' are visibly truncated; at 2.0s, 'GOLDEN' and 'THE' are clipped; at 3.4s, 'NG' and 'NTIL' are cut off. This is not an intentional transition\u2014it persists across all held frames (large, portrait, and light-background). The central word ('WATER', 'ME', 'GO') is fully visible, but the surrounding context is illegible, violating the requirement for clear hierarchy and no unintended clipping. The light-background frame (4th image) confirms the same clipping occurs regardless of background, indicating a layout or masking error, not a contrast issue. The frame-difference metrics (mean 0.028, max 0.071) suggest minimal motion, consistent with static or near-static text blocks, but do not mitigate the persistent visual defect. The design lacks spectacle beyond a simple color highlight on one word; there is no transformation, depth, or memorable payoff. Choreography is rudimentary\u2014words appear and disappear without anticipation or development. Craft suffers from poor spacing and collision between text layers. Originality is low; the effect resembles a basic karaoke-style highlight with no distinctive combination of decisions.",
+      "critical_issues": [
+        "Persistent clipping of top and bottom lyric lines across all frames and orientations, rendering them illegible and violating the 'no unintended clipping' requirement.",
+        "Lack of visual spectacle or memorable payoff; the effect is a static highlight with no transformation or depth.",
+        "Poor choreography: no anticipation, development, or purposeful finish; transitions are abrupt and unrefined."
+      ],
+      "improvements": [
+        "Fix the layout to ensure all three lines of each lyric block are fully visible without clipping. Adjust vertical spacing or container height to accommodate the full text.",
+        "Introduce a subtle animation or transition (e.g., fade-in/out, slight scale, or color shift) to create a sense of motion and development, enhancing spectacle and choreography.",
+        "Improve hierarchy by making the central word more distinct (e.g., larger size, different font weight, or glow effect) while ensuring surrounding text remains legible and well-spaced.",
+        "Add a brief anticipation phase before each word appears and a smooth exit after, to create a more polished and intentional choreography.",
+        "Consider adding a subtle background element (e.g., gradient, texture, or particle effect) to increase visual depth and impact without compromising readability."
+      ],
+      "weighted_score": 43.65,
+      "score": 43.65,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.02831504303001921,
+        "maximum_frame_change": 0.071158990332244,
+        "frame_rate": 12
+      }
+    },
+    "type-mobile": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 58,
+        "choreography": 45,
+        "craft": 55,
+        "originality": 60
+      },
+      "evidence": "The scene uses a hanging-sign metaphor with words suspended from a top bar, which is a coherent concept but executed with significant visual defects. In the timeline (0.5s\u20138.7s), words like 'GOLDEN', 'LIGHT', 'UPON', and 'WATER' swing with exaggerated, uncontrolled rotation \u2014 e.g., at 1.4s 'UPON' is tilted ~30\u00b0 clockwise, at 2.6s 'WATER' is rotated ~25\u00b0 counterclockwise, and at 4.7s 'UNTIL' is similarly skewed. These are not subtle pendulum motions but chaotic, almost random rotations that undermine readability and suggest poor physics or animation control. The held frames confirm this: in the large settled frame, 'WATER' is heavily rotated (~20\u00b0) and overlaps the string visually, while 'THE' is also tilted. In the portrait frame, 'WATER' is rotated even more (~30\u00b0), and 'UPON' is nearly horizontal but misaligned. The light-background frame shows the same rotations, proving it\u2019s not a lighting artifact but a core animation flaw. Readability suffers: rotated text reduces legibility, especially for smaller words like 'THE' and 'UPON'. Hierarchy is inconsistent \u2014 some words are larger (e.g., 'GOLDEN', 'WATER') but not consistently emphasized; color coding (orange for 'GOLDEN'/'WATER', pink for 'HOLD'/'UNTIL', blue for 'DO'/'GO') is arbitrary and doesn\u2019t map to semantic or musical emphasis. Choreography lacks anticipation or resolution \u2014 words swing in and out without clear timing cues or narrative purpose. The frame-difference metrics (mean 0.053, max 0.165) indicate moderate motion, but the visual evidence shows erratic, non-smooth rotation rather than fluid movement. Craft is undermined by inconsistent spacing, misaligned strings (some appear detached or floating), and lack of typographic refinement (e.g., 'WATER' in the light frame has a visible drop shadow that clashes with the flat aesthetic). Originality is moderate \u2014 the hanging-sign idea is not novel, and the execution doesn\u2019t elevate it. No critical defect caps the score at 94, but the combination of poor readability, chaotic motion, and inconsistent design prevents any category from exceeding 60. The scene feels like a rough prototype, not a polished lyric visualization.",
+      "critical_issues": [
+        "Excessive, uncontrolled rotation of text elements (e.g., 'WATER', 'UPON', 'UNTIL') in all frames, severely impairing readability and suggesting broken animation logic.",
+        "Inconsistent visual hierarchy and arbitrary color coding that does not align with lyrical or musical emphasis.",
+        "Misaligned or floating strings in multiple frames, indicating poor spatial coherence and craft.",
+        "Lack of choreographic intent \u2014 swings appear random rather than timed to lyrics or rhythm, with no clear entrance/exit logic beyond basic fade-in/out."
+      ],
+      "improvements": [
+        "Replace chaotic rotation with controlled, subtle pendulum motion (\u00b15\u201310\u00b0 max) synchronized to beat or phrase boundaries.",
+        "Establish clear visual hierarchy: use size, weight, or color consistently to emphasize key words (e.g., 'WATER', 'MORNING', 'GO') based on lyrical importance.",
+        "Ensure all strings are visually anchored to the top bar and text boxes, with consistent spacing and alignment across frames.",
+        "Add intentional choreography: stagger word entrances/exits with easing, use directional movement (e.g., left-to-right for phrase flow), and include a clear 'settle' moment after each phrase.",
+        "Refine typography: use a single, well-chosen font family with consistent weights; remove inconsistent shadows or effects; ensure high contrast in both dark and light backgrounds."
+      ],
+      "weighted_score": 48.65,
+      "score": 48.65,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.05334987909472373,
+        "maximum_frame_change": 0.1651053070533769,
+        "frame_rate": 12
+      }
+    },
+    "type-ribbon": {
+      "scores": {
+        "spectacle": 62,
+        "readability": 48,
+        "choreography": 55,
+        "craft": 60,
+        "originality": 58
+      },
+      "evidence": "The timeline shows a continuous ribbon of text moving horizontally, but the 'held' frames reveal significant readability failures. In the large held frame (Image 2), the word 'WATER' is legible, but the surrounding text ('THE', 'GOLD') is heavily distorted and partially clipped by the ribbon's edges. The portrait held frame (Image 3) is a critical failure: the word 'THE' is broken into disjointed, unrecognizable fragments due to the extreme vertical scaling and perspective distortion of the ribbon. The light-background frame (Image 4) shows the same 'WATER' segment, but the contrast is poor, and the text still suffers from the same edge-clipping and distortion issues. The choreography lacks clear anticipation or purposeful handoffs; words appear to be continuously scrolling rather than being deliberately introduced and settled. The craft is undermined by the inconsistent text rendering, where some words are clear while others are mangled, and the color palette, while cohesive, does not compensate for the legibility issues. The originality is moderate, as the ribbon effect is a common motion graphics technique, but the execution here is flawed.",
+      "critical_issues": [
+        "Severe text distortion and clipping in the portrait orientation (Image 3), making the word 'THE' completely illegible.",
+        "Inconsistent text rendering across frames, with some words clear and others mangled or partially cut off (Images 2, 4).",
+        "Lack of clear choreography; words do not settle or hold in a legible state, instead continuously scrolling and distorting."
+      ],
+      "improvements": [
+        "Redesign the text rendering to ensure legibility in all orientations, especially portrait. Consider using a fixed text plane with subtle 3D effects rather than a continuously deforming ribbon.",
+        "Implement clear choreography where words enter, settle in a legible state, and then exit. Avoid continuous scrolling that causes constant distortion.",
+        "Improve contrast and ensure text is not clipped by the ribbon's edges. Use a consistent text size and spacing that remains legible throughout the animation.",
+        "Add more deliberate transitions and handoffs between words to create a sense of purpose and flow, rather than a continuous, undifferentiated scroll."
+      ],
+      "weighted_score": 57.3,
+      "score": 57.3,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.0204478368655787,
+        "maximum_frame_change": 0.05323550971314452,
+        "frame_rate": 12
+      }
+    },
+    "word-blink": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 38,
+        "choreography": 45,
+        "craft": 55,
+        "originality": 50
+      },
+      "evidence": "The rendered scene fails on core readability and choreography. In the timeline (0.9s\u20132.6s), the word 'UPON' is severely clipped by an overlapping beige bar, and 'LIGHT' is partially obscured, making the phrase 'golden light upon the water' illegible during its hold. The large held frame shows 'WATER' duplicated and overlapping with 'THE' in a chaotic, unreadable stack \u2014 this is not a transition but a settled state with collision. The portrait frame confirms the same collision: 'WATER' and 'THE' overlap with no clear hierarchy. The light-background frame (4th image) shows the same overlapping text with poor contrast against the pale background, and the pill-shaped caption at the bottom has inconsistent letter spacing and alignment. The choreography lacks anticipation or purposeful handoff \u2014 words appear to snap into place with abrupt clipping rather than smooth entrances. The frame-difference metrics (mean 0.064, max 0.228) suggest moderate motion, but the static frames reveal that the 'motion' results in persistent visual collisions, not clean transitions. The color palette (orange, beige, teal) is pleasant but poorly applied \u2014 bars overlap without z-order logic, and text is not consistently aligned to its background. The pill captions are a nice touch but suffer from inconsistent kerning and placement. No spectacle is achieved; the scene feels like a broken prototype rather than a designed lyric video. Critical defects: illegible held text, unintended clipping, and collision in all orientations. These cap the score well below the 95 threshold.",
+      "critical_issues": [
+        "Held text 'UPON' and 'LIGHT' are clipped and obscured by overlapping bars in the 0.9s\u20132.6s timeline frames",
+        "In the large and portrait held frames, 'WATER' and 'THE' are stacked and overlapping with no clear hierarchy or spacing",
+        "Light-background frame shows poor contrast and continued text collision, making the phrase unreadable",
+        "Pill-shaped captions have inconsistent letter spacing and alignment across frames",
+        "No visible anticipation or smooth handoff between words \u2014 transitions appear abrupt and result in persistent visual clutter"
+      ],
+      "improvements": [
+        "Redesign the layout to ensure each word has its own clear, non-overlapping background bar with proper z-ordering and spacing",
+        "Implement smooth, staggered entrances and exits for each word to avoid clipping during holds \u2014 use easing and timing to create anticipation",
+        "Ensure consistent alignment and kerning in the pill-shaped captions; consider using a monospaced or tightly tracked font for uniformity",
+        "Increase contrast between text and background in all orientations, especially in the light-background frame \u2014 use darker text or a subtle drop shadow",
+        "Add a clear visual hierarchy: primary words should be larger and more prominent, with secondary elements (like the pill captions) receding in size and weight",
+        "Test the scene in both landscape and portrait orientations to ensure no text is clipped or colliding in either mode",
+        "Consider adding a subtle background texture or gradient to enhance depth without distracting from the text"
+      ],
+      "weighted_score": 44.15,
+      "score": 44.15,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.06399900192964864,
+        "maximum_frame_change": 0.22850899827523602,
+        "frame_rate": 12
+      }
+    },
+    "word-seal": {
+      "scores": {
+        "spectacle": 62,
+        "readability": 88,
+        "choreography": 70,
+        "craft": 82,
+        "originality": 65
+      },
+      "evidence": "The scene uses a rotating circular badge with the sung word centered and the full phrase orbiting the rim. In the timeline, words like 'GOLDEN', 'LIGHT', 'UPON', 'THE', 'WATER' appear in sequence with the badge rotating, creating a continuous visual motif. The held frames (landscape, portrait, light background) show the word 'WATER' clearly centered with high contrast against the orange field and dark/light backgrounds. The rim text is legible but small and partially obscured by rotation in some timeline frames (e.g., 'GOLDEN' at 0.5s is tilted and partially cut at the edge). The light-background frame (4th image) shows the same badge with a subtle drop shadow, maintaining readability. However, the spectacle is limited: the rotation is mechanical and repetitive, with no dramatic scale change, depth, or transformation. The choreography is coherent but predictable\u2014each word enters via rotation and exits similarly, with no anticipation or payoff beyond the word swap. Craft is solid: consistent typography, color palette (orange, cream, dark blue), and spacing. Originality is moderate\u2014the rotating badge is a common design trope, and the execution doesn\u2019t significantly differentiate it from standard lyric animations. No critical clipping defects are visible in held frames; the rim text is intentionally dynamic and not meant to be fully static. Frame-difference metrics (mean 0.0387, max 0.0971) suggest smooth, low-amplitude motion, consistent with the observed rotation. The scene is polished but lacks the 'exceptional' impact required for a 95+ score, particularly in spectacle and originality.",
+      "critical_issues": [
+        "Spectacle is underwhelming: the rotating badge is visually static in impact, with no dramatic reveal, scale shift, or emotional payoff. The motion is functional but not memorable.",
+        "Choreography is mechanical: word transitions rely solely on rotation without anticipation, variation, or a purposeful finish. The sequence feels repetitive rather than developed."
+      ],
+      "improvements": [
+        "Introduce a dynamic entrance for the first word (e.g., scale-up or particle burst) to create a stronger opening impact.",
+        "Vary the rotation speed or direction between words to add visual interest and break the mechanical feel.",
+        "Add a subtle background shift or color pulse on word change to enhance the sense of progression and payoff.",
+        "Consider a brief pause or emphasis on the final word ('WATER') with a slight zoom or glow to create a memorable finish.",
+        "Increase the contrast or size of the rim text in held frames to improve legibility without sacrificing the dynamic effect."
+      ],
+      "weighted_score": 71.95,
+      "score": 71.95,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.03874617861487794,
+        "maximum_frame_change": 0.09713548474945534,
+        "frame_rate": 12
+      }
+    },
+    "word-search": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 38,
+        "choreography": 45,
+        "craft": 55,
+        "originality": 60
+      },
+      "evidence": "The core concept of highlighting lyrics within a word-search grid is strong, but the execution has critical flaws. In the 0.65s and 2.65s frames, the highlight bar is a thin, jagged line that fails to clearly mark the words, looking more like a rendering error than a design choice. The 2.00s frame shows the highlight bar completely obscuring the word 'THE', making it unreadable. The 4.15s frame shows the highlight bar cutting through the middle of the word 'CLOSE', again destroying legibility. The 8.10s frame shows the highlight bar covering the 'O' in 'GO'. The highlight bar's shape is inconsistent, sometimes a thin line, sometimes a thick block, and sometimes a jagged polygon. The background text is a random jumble of letters with no clear structure, making it difficult for the eye to find the highlighted words. The transition from the dark background to the light background (8.70s) is jarring and poorly integrated. The overall effect is cluttered and confusing rather than spectacular or readable.",
+      "critical_issues": [
+        "The highlight bar frequently obscures or clips the highlighted words, making them unreadable (e.g., 'THE' at 2.00s, 'CLOSE' at 4.15s, 'GO' at 8.10s).",
+        "The highlight bar's shape is inconsistent and often appears as a thin, jagged line rather than a clear, solid highlight (e.g., 0.65s, 2.65s).",
+        "The background word-search grid is too dense and random, making it difficult to distinguish the highlighted lyrics from the noise."
+      ],
+      "improvements": [
+        "Redesign the highlight bar to be a solid, consistent shape that clearly encompasses the highlighted words without obscuring them. It should be a background element for the text, not an overlay that cuts through it.",
+        "Reduce the density of the background word-search grid or increase the contrast between the background letters and the highlighted lyrics to improve legibility.",
+        "Ensure the highlight bar's animation is smooth and consistent in shape and size throughout the sequence.",
+        "Improve the transition to the light background to make it less jarring and more integrated with the overall design."
+      ],
+      "weighted_score": 44.65,
+      "score": 44.65,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.06798468057718934,
+        "maximum_frame_change": 0.14041701275417576,
+        "frame_rate": 12
+      }
+    },
+    "word-spiral": {
+      "scores": {
+        "spectacle": 72,
+        "readability": 88,
+        "choreography": 78,
+        "craft": 82,
+        "originality": 75
+      },
+      "evidence": "The scene uses a rotating circular text ring as a background element, with the sung word centered and scaled up. The color palette shifts per phrase (gold/orange, pink, blue-grey), which is a deliberate design choice. However, the spectacle is limited to a simple rotation and scale-up; there is no transformation, depth, or complex reveal. The readability is strong in the held frames: the central word is large, high-contrast, and unclipped. The background ring text is small and partially obscured by the central word, but this is a stylistic choice, not a defect. The choreography is functional: words enter, hold, and exit with a consistent rotation. The timing appears even, but the motion is repetitive and lacks anticipation or a purposeful finish. The craft is good: the typography is clean, the spacing is consistent, and the color relationships are harmonious. The originality is moderate; the rotating text ring is a common effect, and the overall composition feels like a standard lyric video template rather than a unique visual event. The frame-difference metrics (mean 0.043, max 0.094) suggest smooth, low-amplitude motion, which is consistent with the visual evidence of a steady rotation. There are no critical defects, but the scene lacks the exceptional quality required for a 95+ score. The main weakness is the lack of a memorable payoff or a striking visual event; it is competent but not compelling.",
+      "critical_issues": [
+        "The spectacle is limited to a simple rotation and scale-up, lacking a memorable payoff or a striking visual event.",
+        "The choreography is repetitive and lacks anticipation or a purposeful finish, making it feel like a standard lyric video template rather than a unique visual event."
+      ],
+      "improvements": [
+        "Introduce a more complex visual event, such as a transformation of the text ring, a depth effect, or a precise reveal that creates a memorable payoff.",
+        "Enhance the choreography by adding anticipation (e.g., a build-up before the word appears), a purposeful finish (e.g., a unique exit animation), and more varied transitions between words to create a sense of development and coherence.",
+        "Consider adding a subtle background element or a change in the environment to increase the visual impact and depth of the scene."
+      ],
+      "weighted_score": 78.05,
+      "score": 78.05,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.04277544848741677,
+        "maximum_frame_change": 0.0938928093228032,
+        "frame_rate": 12
+      }
+    },
+    "word-wall": {
+      "scores": {
+        "spectacle": 42,
+        "readability": 38,
+        "choreography": 45,
+        "craft": 40,
+        "originality": 55
+      },
+      "evidence": "The timeline shows the held word 'WATER' (pink band) is clipped on both the left and right edges in the 2.60s and 3.40s frames, and the 'WATER' text in the large settled frame is cut off on the right side. The background marquee text (e.g., 'GOLDEN', 'HOLD', 'DO') is also clipped at the frame edges, which is acceptable for a marquee, but the primary sung word being clipped is a readability defect. The light-background frame (4th image) shows the 'WATER' text with a dark shadow that is inconsistent with the dark-background frames, suggesting a lack of adaptive styling. The pill-shaped caption at the bottom ('GOLDEN LIGHT UPON THE WATER') has the word 'WATER' in a different, bolder weight and slightly misaligned baseline compared to the rest of the text, indicating a craft issue. The overall design is functional but lacks visual impact or a memorable payoff. The transitions appear to be simple horizontal slides, which are coherent but not particularly choreographed.",
+      "critical_issues": [
+        "The primary sung word 'WATER' is clipped on the right edge in the held frame and the large settled frame, violating the requirement for no unintended clipping on held text.",
+        "The background marquee text is clipped on both edges in the timeline frames, which, while common for marquees, contributes to a cluttered and less polished look when combined with the clipped main word."
+      ],
+      "improvements": [
+        "Adjust the width of the pink band containing 'WATER' or reduce the font size to ensure the entire word is visible within the frame boundaries in all orientations.",
+        "Implement adaptive text styling (e.g., shadow color, text color) for the light-background frame to ensure consistent contrast and readability.",
+        "Refine the typography in the bottom caption pill to ensure consistent font weight, size, and baseline alignment for all words.",
+        "Consider adding a subtle visual effect (e.g., a gentle glow, a slight scale-up) to the main sung word to increase its visual impact and create a stronger focal point."
+      ],
+      "weighted_score": 42.15,
+      "score": 42.15,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.066958710333822,
+        "maximum_frame_change": 0.1829900031771968,
+        "frame_rate": 12
+      }
+    }
+  },
+  "evidence_folder": "automation/scene-effects-lab/evidence/catalogue-r01",
+  "original_evidence_folder": "tmp/scene-effects-lab/catalogue-r01",
+  "review_video": "animation.mp4"
+}

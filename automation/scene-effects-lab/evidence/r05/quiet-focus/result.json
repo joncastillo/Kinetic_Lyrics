@@ -1,0 +1,29 @@
+{
+  "scores": {
+    "spectacle": 42,
+    "readability": 38,
+    "choreography": 45,
+    "craft": 68,
+    "originality": 55
+  },
+  "evidence": "The scene fails the pass threshold due to severe readability defects and a lack of visual impact. \n\n1. **Readability (38/100):** The primary failure is the aggressive, non-linear scaling of the 'sung word' (the large text). In Frame 1 (0.35s, 'light'), the word is so large it is cropped by the screen edges. In Frame 4 (1.40s, 'upon'), the word 'WATER' is similarly cropped. In Frame 8 (8.10s, 'go'), the word is cropped at the bottom. This makes the text illegible during the moments it is supposed to be the focus. Furthermore, the hierarchy is inconsistent; sometimes the small text is the sung word (Frame 2, 'golden'), sometimes the large text is (Frame 3, 'light'), creating confusion about what the viewer should read.\n\n2. **Spectacle (42/100):** The visual event is a simple text fade/scale on a dark background. There is no depth, transformation, or memorable payoff. It is a functional lyric display, not a spectacle. The 'soft focus' mentioned in the intent is barely perceptible and does not contribute to a striking visual experience.\n\n3. **Choreography (45/100):** The transitions are jarring. The text doesn't just fade; it scales up and down erratically. The handoff between words is not smooth; the large word often appears to 'pop' into a larger size rather than transitioning fluidly. The timing feels disjointed, with the large text often lingering or appearing abruptly.\n\n4. **Craft (68/100):** The type selection (a clean sans-serif) and the color palette (cream on dark blue) are professional and aesthetically pleasing. The spacing is generally good. However, the execution of the animation (the scaling) is poor, undermining the otherwise clean design.\n\n5. **Originality (55/100):** The concept of highlighting the sung word is common in music videos. The specific execution here (large/small text swap) is a standard technique, not a distinctive combination of decisions.\n\n**Actionable Corrections:**\n- **Fix Scaling:** The large text must fit within the safe area of the screen at all times. It should not be cropped.\n- **Clarify Hierarchy:** Decide on a consistent rule for which text is the 'sung word'. If the large text is the sung word, ensure it is always legible and fully visible. If the small text is the sung word, the large text should be a static background element or a previous line, not a competing element.\n- **Smooth Transitions:** Use easing functions for the scale and opacity changes to create a fluid, professional feel. Avoid abrupt 'pops'.\n- **Add Visual Interest:** To improve the spectacle score, consider adding subtle background motion (e.g., a slow gradient shift, a particle effect) or a more dynamic text reveal (e.g., a wipe, a blur-in) to create a more memorable visual event.",
+  "critical_issues": [
+    "The 'sung word' (large text) is frequently cropped by the screen edges, making it illegible (e.g., Frames 1, 4, 8).",
+    "The hierarchy between the small and large text is inconsistent, causing confusion about which word is currently being sung.",
+    "The scaling animation is jarring and unpolished, detracting from the overall quality."
+  ],
+  "improvements": [
+    "Ensure all text, especially the highlighted 'sung word', remains fully visible within the screen boundaries.",
+    "Establish a clear and consistent visual hierarchy for the lyrics.",
+    "Implement smooth, eased transitions for text scaling and opacity to improve the professional finish.",
+    "Consider adding subtle background dynamics to elevate the visual spectacle beyond a simple text display."
+  ],
+  "weighted_score": 46.35,
+  "score": 46.35,
+  "passed": false,
+  "metrics": {
+    "mean_frame_change": 0.01361068770573923,
+    "maximum_frame_change": 0.13011785130718956,
+    "frame_rate": 12
+  }
+}

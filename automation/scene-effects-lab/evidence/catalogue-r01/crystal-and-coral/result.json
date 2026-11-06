@@ -1,0 +1,33 @@
+{
+  "scores": {
+    "spectacle": 42,
+    "readability": 38,
+    "choreography": 45,
+    "craft": 40,
+    "originality": 55
+  },
+  "evidence": "The scene fails on multiple core requirements. First, the sample phrases are not rendered as specified: the timeline shows 'GOLDEN LIGHT UPON the WATER' (not 'golden light upon the water'), 'HOLD me CLOSE UNTIL the MORNING' (not 'hold me close until the morning'), and 'DO NOT LET GO' (not 'do not let go'). This is a fundamental mismatch between the requested content and the output. Second, readability is severely compromised: in the timeline frames, text is heavily clipped at the left edge (e.g., 'GOLDEN LIGHT' becomes 'GOLDEN LIGH', 'HOLD me CLOSE' becomes 'HOLD me CLO', 'DO NOT LET GO' becomes 'DO NOT LET'), and in the portrait frame, 'GOLDEN LIGHT' is cut off to 'GOLDEN LIGH'. The light-background frame shows the same text with poor contrast against the gray background, making it nearly illegible. Third, the choreography is incoherent: the text appears to be static or poorly animated, with no clear entrance/exit logic visible in the timeline; the 'held' frames show inconsistent text states (e.g., 'GOLDEN LIGHT UPON the WATER' vs. 'GOLDEN LIGHT UPON the WATER' with different spacing and clipping). Fourth, craft is lacking: the font choice is inconsistent (serif for 'GOLDEN LIGHT', sans-serif for 'the WATER'), spacing is irregular, and the overall composition feels unpolished. The green wavy line and particle effects are generic and do not contribute meaningfully to the scene. The frame difference metrics (mean 0.025, max 0.095) suggest minimal motion, which aligns with the static, poorly animated appearance. No critical defect cap is needed because the score is already below 95 due to fundamental failures in content, readability, and craft.",
+  "critical_issues": [
+    "Sample phrases are not rendered as specified: 'golden light upon the water' is rendered as 'GOLDEN LIGHT UPON the WATER', 'hold me close until the morning' as 'HOLD me CLOSE UNTIL the MORNING', and 'do not let go' as 'DO NOT LET GO'.",
+    "Severe text clipping at the left edge in all timeline frames and the portrait frame, making words like 'GOLDEN LIGHT', 'HOLD me CLOSE', and 'DO NOT LET GO' partially or fully illegible.",
+    "Poor contrast in the light-background frame, where the text is nearly invisible against the gray background.",
+    "Inconsistent font usage and spacing, with no clear typographic hierarchy or design intent.",
+    "No visible choreography or animation logic; the text appears static or poorly timed, with no clear entrance/exit transitions."
+  ],
+  "improvements": [
+    "Render the exact sample phrases as specified: 'golden light upon the water', 'hold me close until the morning', 'do not let go'.",
+    "Ensure all text is fully visible within the frame boundaries, with no clipping at the edges.",
+    "Improve contrast in the light-background frame by using darker text or a lighter background.",
+    "Use a consistent font family and size for all text, with clear hierarchy (e.g., larger for main phrases, smaller for secondary text).",
+    "Add clear choreography: define entrance/exit animations for each phrase, with smooth transitions and timing that matches the musical structure.",
+    "Enhance the visual design: use a more cohesive color palette, add subtle motion to the green wavy line and particles to create a sense of flow, and ensure the overall composition feels intentional and polished."
+  ],
+  "weighted_score": 42.15,
+  "score": 42.15,
+  "passed": false,
+  "metrics": {
+    "mean_frame_change": 0.02534201595682406,
+    "maximum_frame_change": 0.09543946872730574,
+    "frame_rate": 12
+  }
+}

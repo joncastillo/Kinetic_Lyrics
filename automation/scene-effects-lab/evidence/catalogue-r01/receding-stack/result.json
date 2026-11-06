@@ -1,0 +1,31 @@
+{
+  "scores": {
+    "spectacle": 42,
+    "readability": 38,
+    "choreography": 45,
+    "craft": 40,
+    "originality": 35
+  },
+  "evidence": "The rendered output exhibits severe, persistent readability failures that violate the core requirement of legible sung words. In the timeline (0.9s-2.6s), the word 'WATER' is rendered with a solid orange background box that is misaligned and clipped, causing the letters to appear cut off or merged with the background (e.g., the 'R' is partially obscured). In the 'HOLD ME CLOSE' sequence (3.6s-5.4s), the word 'CLOSE' is rendered with a pink background box that is rotated and misaligned, causing the text to collide with the box edges and become illegible. The 'DO NOT LET GO' sequence (6.7s-8.7s) shows similar issues with the 'NOT' and 'GO' words, where the background boxes are misaligned and the text is clipped. The large held frame (2.6s) and portrait frame (2.6s) confirm these are not transition artifacts but settled states with broken layout. The light-background frame (2.6s) shows the same misalignment, indicating a systemic layout bug rather than a contrast issue. The choreography is incoherent due to these layout errors; the 'entrances' are not smooth reveals but broken text boxes appearing over the words. The craft is rudimentary, with no evidence of professional spacing, type selection, or composition. The originality is low, as the visual style (colored boxes behind text) is a common, poorly executed trope. The frame-difference metrics (mean 0.0236, max 0.0905) suggest minimal motion, which is consistent with the static, broken layout observed in the frames. The scene fails to meet the 95/100 pass threshold due to critical readability defects.",
+  "critical_issues": [
+    "Severe text clipping and misalignment in all held frames (e.g., 'WATER', 'CLOSE', 'NOT', 'GO')",
+    "Background boxes are rotated and misaligned, causing text to be obscured or cut off",
+    "No clear hierarchy or legibility in any of the sample phrases",
+    "Layout errors persist across all orientations (landscape, portrait, light background)"
+  ],
+  "improvements": [
+    "Fix the layout engine to ensure text boxes are properly aligned and sized to contain the text without clipping",
+    "Remove or correct the rotation of background boxes to ensure text is horizontal and legible",
+    "Implement a proper text rendering pipeline that guarantees legibility and correct spacing",
+    "Add a validation step to check for text clipping and misalignment before rendering",
+    "Redesign the visual style to prioritize readability over decorative elements"
+  ],
+  "weighted_score": 41.15,
+  "score": 41.15,
+  "passed": false,
+  "metrics": {
+    "mean_frame_change": 0.023645794890948764,
+    "maximum_frame_change": 0.09046794435366738,
+    "frame_rate": 12
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "model": "qwen3.8:27b",
+  "rubric_sha256": "7a548261c0bcd7ebde32d7cd6b74f4f980e82d0767d9ae4b30f7c2699aa451fd",
+  "weights": {
+    "spectacle": 0.4,
+    "readability": 0.2,
+    "choreography": 0.2,
+    "craft": 0.15,
+    "originality": 0.05
+  },
+  "threshold": 95,
+  "evidence_folder": "automation/scene-effects-lab/evidence/candidate-condensed",
+  "source_snapshot": "source.zip",
+  "settings": {
+    "quiet-focus": {
+      "font": "condensed",
+      "size": 1.25,
+      "motion": 1.3
+    },
+    "plain-blocks": {
+      "font": "condensed",
+      "motion": 1.3,
+      "geometry": 0.0
+    }
+  },
+  "evidence_protocol": "v2-full-size-sequence-with-vocal-labels",
+  "source_sha256": "1c9bb11fc692f880f433bf5c4bf7917edda831ba178c89c44da3b46d88be83ed",
+  "results": {
+    "quiet-focus": {
+      "scores": {
+        "spectacle": 72,
+        "readability": 88,
+        "choreography": 78,
+        "craft": 85,
+        "originality": 70
+      },
+      "evidence": "The scene executes a consistent, high-contrast typographic system. The 'light sweep' effect is visible in frames 1, 4, and 7, where the sung word (LIGHT, WATER, MORNING) is rendered in a bright, warm tone against the dark background, creating a clear focal point. The oversized outline initial (e.g., the 'L' in frame 1, 'W' in frame 4) provides a strong compositional anchor and depth. The transition to the light background in frame 11 is handled correctly, with the text color inverting to dark for legibility. However, the spectacle is limited to this single, repeated effect. The choreography is functional but predictable; the words simply appear, sweep, and fade without a more dynamic or surprising sequence. The craft is high, with clean type, good spacing, and a professional finish, but the overall effect is more of a polished template than a unique, memorable visual event. The originality is moderate, as the combination of large text, outline letters, and a light sweep is a common trope in motion graphics.",
+      "critical_issues": [],
+      "improvements": [
+        "Introduce a more dynamic choreography. Instead of a simple sweep, consider having the letters assemble, break apart, or interact with the outline initial in a more complex way. For example, the sung word could 'pour' out of the outline letter or the outline letter could be 'carved' by the light sweep.",
+        "Add a subtle, evolving background element. A slow-moving gradient, a faint particle effect, or a subtle change in the background texture could add depth and a sense of progression to the scene, moving it beyond a static backdrop.",
+        "Vary the light sweep effect. Instead of a uniform sweep across all words, consider a more nuanced effect, such as a highlight that travels along the baseline of the text or a glow that emanates from the center of the word. This would make the effect feel more bespoke and less like a standard preset."
+      ],
+      "weighted_score": 78.25,
+      "score": 78.25,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.022682959739383723,
+        "maximum_frame_change": 0.1550845077614379,
+        "frame_rate": 12
+      }
+    },
+    "plain-blocks": {
+      "scores": {
+        "spectacle": 78,
+        "readability": 82,
+        "choreography": 75,
+        "craft": 80,
+        "originality": 70
+      },
+      "evidence": "The scene presents a clean, minimalist 3D lyric visualization with consistent studio lighting and a coherent color palette (off-white and gold on a dark blue background). The extruded text blocks have a solid, tactile quality, and the light-background hold (Image 11) successfully inverts the color scheme without losing legibility. However, the spectacle is limited to the basic 3D extrusion and lighting; there is no dynamic camera movement, particle effect, or significant transformation to create a memorable visual event. Choreography is functional but predictable: words appear sequentially with simple fades or slides, lacking anticipation or a powerful payoff. Readability is generally good, but the small font size in the landscape frames (e.g., Image 1, Image 8) reduces impact and requires closer viewing. The overall execution is polished and professional but feels like a standard template rather than a bespoke, high-impact experience.",
+      "critical_issues": [
+        "Lack of dynamic visual interest: The scene relies on static 3D text with minimal movement, failing to create a 'striking visual event' or 'memorable payoff' as required for a high spectacle score.",
+        "Predictable choreography: The word-by-word reveal is functional but lacks the 'anticipation, development and a purposeful finish' needed for exceptional choreography. Transitions are simple and do not feel purposefully designed."
+      ],
+      "improvements": [
+        "Introduce dynamic camera moves: Add subtle camera pans, zooms, or parallax effects during word reveals to create depth and movement.",
+        "Enhance the lighting: Implement a moving light source or specular highlights that sweep across the text to create a more dramatic and engaging visual effect.",
+        "Add transitional effects: Use more sophisticated transitions between words, such as morphing, particle dissolves, or staggered animations, to increase the sense of choreography and spectacle.",
+        "Increase scale and impact: Consider making the text larger or more prominent in the landscape frames to improve readability and visual impact."
+      ],
+      "weighted_score": 78.1,
+      "score": 78.1,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.013248799854491676,
+        "maximum_frame_change": 0.0861850887345679,
+        "frame_rate": 12
+      }
+    }
+  },
+  "original_evidence_folder": "tmp/scene-effects-lab/candidate-condensed",
+  "review_video": "animation.mp4"
+}

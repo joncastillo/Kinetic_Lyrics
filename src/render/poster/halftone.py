@@ -1,11 +1,11 @@
 """The halftone bloom: the line set big in halftone dots; each sung word's dots swell until they merge solid."""
 
-from functools import lru_cache
+from render.scene_fonts import font_cache as lru_cache
 
 import numpy as np
 from PIL import Image, ImageDraw
 
-from core.fonts import truetype
+from render.scene_fonts import truetype
 from effects.kinetic.easing import back_out, clamp, smoother
 from render.poster.common import FONTS, LEAVE, WALL_FONT, WHITE, paste, tint
 

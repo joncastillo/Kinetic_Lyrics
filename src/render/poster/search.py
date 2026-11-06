@@ -2,7 +2,7 @@
 
 import math
 import random
-from functools import lru_cache
+from render.scene_fonts import font_cache as lru_cache
 
 from PIL import Image, ImageDraw
 

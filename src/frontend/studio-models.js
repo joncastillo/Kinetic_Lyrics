@@ -1005,13 +1005,13 @@ function sceneSampleQuery(id){
  const value=key=>document.getElementById(key)?.value;
  const settings=kineticSettings(),overrides={...(settings.scene_settings?.[id]||{})};
  for(const key of ['pan_speed','backdrop_rate','geometry']){
-  if(document.querySelector(`[data-scene-id="${id}"][data-scene-setting="${key}"]`)&&overrides[key]===undefined)overrides[key]=settings[key];
+  if(document.querySelector(`[data-scene-id="${id}"][data-scene-setting="${key}"]:not([data-inherit="false"])`)&&overrides[key]===undefined)overrides[key]=settings[key];
  }
- const query={scene:id,v:'scene-controls-3',settings:JSON.stringify(overrides)};
+ const query={scene:id,v:'scene-preview-4',background:window.scenePreviewBackground?.(id)||'midnight',settings:JSON.stringify(overrides)};
  for(const [key,field] of [['font_family','fontFamily'],['font_style','fontStyle'],['font_scale','fontScale']])if(value(field))query[key]=value(field);
  return '/api/scene-preview?'+new URLSearchParams(query);
 }
-function refreshSceneSamples(){document.querySelectorAll('.scene-thumbnail').forEach(img=>{const src=sceneSampleQuery(img.dataset.scene);if(img.getAttribute('src')!==src)img.src=src})}
+function refreshSceneSamples(){document.querySelectorAll('.scene-thumbnail').forEach(img=>{const src=sceneSampleQuery(img.dataset.scene);if(window.queueSceneSample)window.queueSceneSample(img,src);else if(img.getAttribute('src')!==src)img.src=src})}
 window.refreshSceneSamples=refreshSceneSamples;
 
 document.addEventListener('DOMContentLoaded',()=>{

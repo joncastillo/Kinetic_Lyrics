@@ -1,0 +1,34 @@
+{
+  "scores": {
+    "spectacle": 42,
+    "readability": 38,
+    "choreography": 45,
+    "craft": 40,
+    "originality": 55
+  },
+  "evidence": "The scene fails on multiple core requirements. 1. Readability: The primary lyric text is rendered in a highly decorative, ornamental font (visible in the 0.95s, 1.40s, and 2.00s frames) that is nearly illegible at the scale presented. The 'held' frames (Image 2 and 3) show the text is so stylized that it reads as texture rather than words. 2. Clipping/Collision: In the 5.45s frame, the word 'MORNING' (green) overlaps directly with the word 'CLOSE' (white), creating a messy collision. In the 6.75s frame, the text 'DO NOT' overlaps with the previous line's text 'ON THE WATER / CLOSE / MORNING' on the left side, creating a chaotic stack. 3. Choreography: The text entrance is a chaotic 'scatter' effect (0.20s-0.65s) where letters fly in from random positions, which looks like a rendering error rather than a designed effect. The transition between lines (e.g., 5.45s to 6.75s) is abrupt and messy, with old text lingering and new text overlapping it. 4. Craft: The color palette is inconsistent and jarring (gold, white, green, red/pink all competing). The background is a flat, dark void with a single static green line that does not interact with the text. The 'light background' frame (Image 4) shows the text has poor contrast against the grey background, making the gold text even harder to read. 5. Spectacle: There is no visual impact. The 'sparkle' effect is minimal and the overall composition is empty and unengaging. The frame difference metrics (mean 0.023) suggest low motion, consistent with the static, cluttered appearance of the held frames.",
+  "critical_issues": [
+    "Primary lyric text is illegible due to excessive ornamentation/font choice",
+    "Text collision and overlap between lines (e.g., 'MORNING' over 'CLOSE', 'DO NOT' over previous line)",
+    "Chaotic, uncontrolled text entrance animation (letters scattering)",
+    "Poor contrast in light-background mode",
+    "Inconsistent and clashing color palette"
+  ],
+  "improvements": [
+    "Replace the ornamental font with a clean, highly legible sans-serif or serif font for the main lyrics",
+    "Implement a clear text hierarchy: main lyrics large and clear, secondary elements (if any) smaller and distinct",
+    "Fix the text layout to prevent overlap; ensure lines are spaced correctly and do not collide",
+    "Redesign the text entrance animation to be smooth and controlled (e.g., fade-in, slide-in, or a simple reveal) rather than a chaotic scatter",
+    "Improve contrast in the light-background mode by adjusting text color or adding a subtle background shadow/box",
+    "Unify the color palette to create a cohesive visual style",
+    "Add more visual interest to the background (e.g., subtle gradients, particles, or animated elements) to increase spectacle"
+  ],
+  "weighted_score": 42.15,
+  "score": 42.15,
+  "passed": false,
+  "metrics": {
+    "mean_frame_change": 0.023669736914106246,
+    "maximum_frame_change": 0.08897345338598402,
+    "frame_rate": 12
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "model": "qwen3.8:27b",
+  "rubric_sha256": "7a548261c0bcd7ebde32d7cd6b74f4f980e82d0767d9ae4b30f7c2699aa451fd",
+  "weights": {
+    "spectacle": 0.4,
+    "readability": 0.2,
+    "choreography": 0.2,
+    "craft": 0.15,
+    "originality": 0.05
+  },
+  "threshold": 95,
+  "evidence_protocol": "v2-full-size-sequence-with-vocal-labels",
+  "source_sha256": "ef568ef2a0ac8ace52f592625e2e393463097f7984420a73bca279f807305de8",
+  "results": {
+    "quiet-focus": {
+      "scores": {
+        "spectacle": 72,
+        "readability": 88,
+        "choreography": 78,
+        "craft": 85,
+        "originality": 70
+      },
+      "evidence": "The scene executes a clean, minimalist lyric display with strong typographic hierarchy (small preposition/verb line above a large keyword) and a consistent dark-navy palette that supports the 'golden light' mood. The large outlined letter behind the text (L, W, C, M, G) is a deliberate design device that adds depth and identity without clutter. Readability is generally strong: in settled frames (e.g., 0.65s 'golden', 2.25s 'water', 4.15s 'close', 8.10s 'go') the sung word is high-contrast, centered, and unclipped. The light-background hold (image 11) inverts cleanly to dark-on-light with no loss of legibility. However, several transition frames show the large keyword partially obscured or distorted by the soft-focus/defocus effect: at 0.35s ('light') the word is heavily blurred and the 'T' is cut off at the right edge; at 1.40s ('upon') the word 'WATER' is mid-reveal with letters fragmented and overlapping the outline; at 4.70s ('until') 'MORNING' is similarly fragmented and low-contrast against the dark background, making it the weakest readability moment. The defocus-into-artwork transition (10.55s) is intentional but leaves the text nearly invisible, which is acceptable as an exit but reduces the 'payoff' impact. Choreography is coherent\u2014each phrase resolves from blur, holds, then defocuses\u2014but the handoffs between phrases (e.g., 'water' to 'close') lack a distinct visual event; the push-in is subtle and the defocus is uniform, so the sequence feels more like a series of fades than a choreographed progression. Craft is high: consistent letter-spacing, clean sans-serif pairing, balanced centering, and the outlined-letter motif are well-executed. Originality is moderate\u2014the outlined-letter-behind-text device is a known motion-graphics trope, and the overall look is polished but not distinctive enough to stand out from typical lyric-video templates. No critical defects (no illegible held words, no broken layout), but the transition blur and the uniform defocus keep the spectacle and choreography below the 95 threshold.",
+      "critical_issues": [],
+      "improvements": [
+        "Increase the contrast of the large keyword during defocus transitions (e.g., at 4.70s 'MORNING') so the sung word remains legible even as it softens; consider a slight brightness lift or a subtle glow on the active word during the blur phase.",
+        "Add a more distinct visual event at phrase boundaries (e.g., a brief scale-up, a color shift, or a parallax shift of the outlined letter) to make the handoffs feel choreographed rather than a uniform fade.",
+        "Refine the exit defocus (10.55s) so the final word lingers slightly longer in focus before dissolving, giving the viewer a clearer 'payoff' moment before the artwork takes over.",
+        "Consider a subtle depth cue (e.g., the outlined letter moving at a different rate than the text) to enhance the sense of scale and transformation without adding clutter.",
+        "In the light-background hold, add a faint warm tint or gradient to echo the 'golden' theme, strengthening the color relationship between the two orientations."
+      ],
+      "weighted_score": 78.25,
+      "score": 78.25,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.013377438887828719,
+        "maximum_frame_change": 0.1041974741285403,
+        "frame_rate": 12
+      }
+    },
+    "plain-blocks": {
+      "scores": {
+        "spectacle": 62,
+        "readability": 88,
+        "choreography": 70,
+        "craft": 75,
+        "originality": 55
+      },
+      "evidence": "The scene relies on a simple 3D extrusion of text against a flat dark background. While the 'golden' color accent on specific words (e.g., 'GOLDEN' in frame 2, 'WATER' in frame 5) provides a nice visual anchor, the overall visual event is minimal. The camera movement is a basic pan/zoom that lacks the 'striking visual event' or 'powerful scale' required for a high spectacle score. Readability is generally good, with high contrast between the white/gold text and the dark blue background. However, in frame 4 ('UPON'), the word 'THE' is extremely small and partially obscured by the transition, making it difficult to read as a held word. The choreography is functional but predictable; words simply appear and disappear without complex anticipation or development. The craft is clean, with consistent font and spacing, but the 3D effect feels like a standard preset rather than a custom-designed element. Originality is low as it follows a very common 'karaoke 3D text' trope without significant deviation.",
+      "critical_issues": [
+        "The word 'THE' in frame 4 (sung word: UPON) is rendered at a significantly smaller scale than the surrounding words and is partially clipped/obscured, creating a readability defect during what appears to be a held moment rather than a pure transition."
+      ],
+      "improvements": [
+        "Increase the scale of the word 'THE' in frame 4 to match the surrounding text or ensure it is fully revealed before the camera moves away.",
+        "Add more dynamic camera movement or lighting effects to increase the spectacle score, such as a parallax effect or a light sweep across the text.",
+        "Introduce more complex choreography, such as words entering from different depths or angles, to create a more engaging visual narrative.",
+        "Enhance the 3D effect with more realistic lighting and shadows to improve the craft and make the text feel more integrated into the space."
+      ],
+      "weighted_score": 70.4,
+      "score": 70.4,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.016631162362045385,
+        "maximum_frame_change": 0.11032240037218592,
+        "frame_rate": 12
+      }
+    }
+  },
+  "evidence_folder": "automation/scene-effects-lab/evidence/r06",
+  "original_evidence_folder": "tmp/scene-effects-lab/r06",
+  "review_video": "animation.mp4"
+}

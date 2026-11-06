@@ -1,0 +1,31 @@
+{
+  "scores": {
+    "spectacle": 25,
+    "readability": 85,
+    "choreography": 40,
+    "craft": 70,
+    "originality": 30
+  },
+  "evidence": "The scene is a static text overlay on a flat, dark background with no visual movement, depth, or transformation. The frame-difference metrics (mean: 0.00035, max: 0.0044) confirm near-zero motion, meaning there is no choreography or spectacle beyond a simple fade-in/out of text. The text is legible and well-spaced in the held frames, with good contrast against the dark background. However, the light-background frame (image 4) shows the same text in a low-contrast, washed-out state that significantly reduces readability. The composition is minimal to the point of being empty\u2014no visual anchor, no scale, no payoff. The typeface is clean but generic, and the overall effect is that of a placeholder or draft rather than a finished lyric scene. There is no evidence of intentional word-by-word handoffs, anticipation, or purposeful timing beyond basic appearance/disappearance. The scene does not fail catastrophically, but it lacks the impact, polish, and intentionality required for a high score.",
+  "critical_issues": [
+    "No visual spectacle or memorable payoff; the scene is static and visually inert.",
+    "Light-background frame has poor contrast, making text hard to read.",
+    "No choreography beyond basic fade-in/out; no word-level timing or development.",
+    "Composition is empty and lacks visual hierarchy or focal point."
+  ],
+  "improvements": [
+    "Add subtle motion or depth (e.g., slow zoom, parallax, or particle effect) to create visual interest without distracting from the text.",
+    "Improve contrast in the light-background frame by darkening the text or adding a subtle shadow/outline.",
+    "Introduce word-by-word or phrase-by-phrase timing with slight stagger or easing to create a sense of rhythm and intentionality.",
+    "Add a visual anchor or focal point (e.g., a soft glow, a line, or a gradient shift) to give the composition structure and prevent it from feeling empty.",
+    "Consider a more distinctive typeface or weight variation to enhance hierarchy and visual appeal."
+  ],
+  "weighted_score": 47.0,
+  "score": 47.0,
+  "passed": false,
+  "metrics": {
+    "mean_frame_change": 0.0003553275736566694,
+    "maximum_frame_change": 0.004467683369644154,
+    "frame_rate": 12
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "model": "qwen3.8:27b",
+  "rubric_sha256": "7a548261c0bcd7ebde32d7cd6b74f4f980e82d0767d9ae4b30f7c2699aa451fd",
+  "weights": {
+    "spectacle": 0.4,
+    "readability": 0.2,
+    "choreography": 0.2,
+    "craft": 0.15,
+    "originality": 0.05
+  },
+  "threshold": 95,
+  "evidence_folder": "automation/scene-effects-lab/evidence/candidate-serif",
+  "source_snapshot": "source.zip",
+  "settings": {
+    "quiet-focus": {
+      "font": "serif",
+      "size": 1.2,
+      "motion": 1.35
+    },
+    "plain-blocks": {
+      "font": "serif",
+      "motion": 1.35,
+      "geometry": 0.0
+    }
+  },
+  "evidence_protocol": "v2-full-size-sequence-with-vocal-labels",
+  "source_sha256": "7f405ee74ef2a7712e427594dd4fdf52360924d8a4730b17a273ca64de76a2f0",
+  "results": {
+    "quiet-focus": {
+      "scores": {
+        "spectacle": 88,
+        "readability": 92,
+        "choreography": 85,
+        "craft": 90,
+        "originality": 82
+      },
+      "evidence": "The scene demonstrates a sophisticated typographic treatment with a clear hierarchy between the small sung words and the large focal words. The oversized outline initial (e.g., 'L' in frame 1, 'W' in frame 4) provides a strong visual anchor and depth. The light sweep effect (visible in frames 2, 5, 8) adds a dynamic quality to the static text. The transition to the light background (frame 11) is handled well, maintaining legibility. However, the overall effect, while polished, relies on a relatively common 'kinetic typography' style. The 'spectacle' is more about elegant execution than a truly surprising or memorable visual event. The choreography is smooth but predictable. The craft is high, with good spacing and color choices, but the combination of elements feels like a very well-executed version of a standard lyric video format rather than a unique artistic statement. The readability is excellent throughout, with no clipping or collision issues in the held frames.",
+      "critical_issues": [],
+      "improvements": [
+        "Introduce a more distinct visual transformation or 'payoff' moment to elevate the spectacle beyond elegant text animation. For example, the outline initial could subtly morph or interact with the light sweep in a more dramatic way.",
+        "Consider a more unique typographic pairing or a less common layout structure to increase originality. The current serif-on-serif with a large initial is a classic but somewhat expected choice.",
+        "Add a subtle, non-distracting background element (like a very faint texture or a slow-moving gradient) to give the scene a bit more depth and atmosphere, moving it away from a flat dark background."
+      ],
+      "weighted_score": 88.2,
+      "score": 88.2,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.016416018720613417,
+        "maximum_frame_change": 0.09496460829702251,
+        "frame_rate": 12
+      }
+    },
+    "plain-blocks": {
+      "scores": {
+        "spectacle": 88,
+        "readability": 92,
+        "choreography": 85,
+        "craft": 87,
+        "originality": 78
+      },
+      "evidence": "The scene demonstrates a strong, cohesive visual identity. The 3D extrusion and the moving specular highlight (visible as the bright band sweeping across the letters in frames 2, 3, and 5) create a tangible, sculpted feel that elevates the simple text. The color palette\u2014deep blue background, silver-white text, and a warm gold accent for the sung word\u2014is consistent and effective. The camera movement, which appears to be a slow dolly-in or push, adds a subtle sense of progression. However, the spectacle is limited by the repetitive nature of the effect; it is a single, well-executed trick rather than a dynamic sequence of events. The choreography is functional but lacks surprise; the words simply appear and the camera moves. The transition between phrases (e.g., from 'water' to 'hold') is a hard cut or quick fade, which is clean but not particularly engaging. The light-background hold (frame 11) is a significant weakness; the dark text on the light background loses the depth and shadow cues that made the dark background work, making the text look flatter and less integrated. The gold accent color also shifts to a muddy brown in this light mode, breaking the color harmony. While the craft is high, the overall experience is more 'polished demo' than 'memorable event'.",
+      "critical_issues": [
+        "The light-background hold (frame 11) significantly degrades the visual quality. The 3D effect is lost, the text appears flat, and the accent color becomes muddy and less legible against the light background. This breaks the visual consistency established in the main sequence."
+      ],
+      "improvements": [
+        "Redesign the light-background hold to maintain the 3D depth. This could be achieved by adding a stronger drop shadow or a different lighting setup that works on a light background, rather than just inverting the colors.",
+        "Introduce more dynamic camera moves or lighting changes between phrases to increase the spectacle. For example, a slight camera roll or a change in the angle of the light source could make the transitions more interesting.",
+        "Consider a more dramatic reveal for the final phrase 'do not let go'. The current treatment is the same as the others, missing an opportunity for a stronger payoff.",
+        "Refine the choreography of the word entrances. Currently, they seem to just pop in. A slight scale-up or a more complex 3D rotation could make the entrances feel more deliberate and impactful."
+      ],
+      "weighted_score": 87.55,
+      "score": 87.55,
+      "passed": false,
+      "metrics": {
+        "mean_frame_change": 0.015099678420638328,
+        "maximum_frame_change": 0.08528809799382717,
+        "frame_rate": 12
+      }
+    }
+  },
+  "original_evidence_folder": "tmp/scene-effects-lab/candidate-serif",
+  "review_video": "animation.mp4"
+}
