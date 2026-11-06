@@ -63,7 +63,12 @@ class HalftoneScene:
         leave = clamp((t - (line['end'] - LEAVE)) / LEAVE)
         if leave >= 0.999 or arrive <= 0:
             return
-        layout, pitch = halftone_layout(words, W, H, line['index'] % 3)
+        layout, pitch = halftone_layout(
+            words,
+            W,
+            H,
+            {'center': 0, 'left': 1, 'stepped': 2}.get(self.setting(line, 'alignment', 'auto'), line['index'] % 3),
+        )
         if len(layout) != len(words):
             return
         draw = ImageDraw.Draw(screen)
@@ -89,7 +94,7 @@ class HalftoneScene:
                 grow = np.clip((arrive * 1.6 - delay) / 0.4, 0, 1)
                 shrink = np.clip((leave * 1.6 - delay) / 0.4, 0, 1)
                 dist = np.hypot(xs - cx, ys - cy)
-                ripple = 0.28 * fade * np.exp(-(((dist - ring) / (pitch * 3)) ** 2))
+                ripple = 0.28 * self.setting(line, 'motion') * fade * np.exp(-(((dist - ring) / (pitch * 3)) ** 2))
                 radius = (
                     pitch
                     * np.sqrt(cover)

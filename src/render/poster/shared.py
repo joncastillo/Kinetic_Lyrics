@@ -7,6 +7,10 @@ from render.poster.common import CAPTION_FONT, FONTS, LEAD
 
 
 class PosterShared:
+    @staticmethod
+    def setting(line, key, default=1.0):
+        return line.get('config', {}).get(key, default)
+
     def sung_word(self, line, t):
         words = line['words']
         k = 0
@@ -34,6 +38,14 @@ class PosterShared:
         widths = [face.getlength(w) for w in words]
         total = sum(widths) + space * (len(words) - 1)
         pad = size * 0.7
+        # Reserve room for the opening overshoot, including on narrow portrait frames.
+        while size > 5 and total + pad * 2 > W * 0.86:
+            size = max(5, min(size - 1, int(size * W * 0.86 / (total + pad * 2))))
+            face = truetype(str(FONTS / CAPTION_FONT), size)
+            space = face.getlength(' ')
+            widths = [face.getlength(w) for w in words]
+            total = sum(widths) + space * (len(words) - 1)
+            pad = size * 0.7
         cx, cy = W / 2, H * 0.885
         open_ = back_out(clamp(arrive * 1.2), 1.6) * (1 - smoother(leave))
         if open_ <= 0.01:

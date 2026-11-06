@@ -39,7 +39,9 @@ class SpiralScene:
         reach = r0 + gap * 4
         grow = r0 + (reach - r0) * arrive * (1 - leave)
         b = gap / (2 * math.pi)
-        turn = ((t - line['start']) * 0.22 + leave * leave * 2.0) * (1 if line['index'] % 2 == 0 else -1)
+        turn = ((t - line['start']) * 0.22 * self.setting(line, 'motion') + leave * leave * 2.0) * (
+            1 if line['index'] % 2 == 0 else -1
+        )
         flow = (t - line['start']) * gap * 1.6  # text streams inward along the spiral
         unit = ' • '.join(words) + ' • '
         owner = []
@@ -85,7 +87,7 @@ class SpiralScene:
         stamp = keyframes(clamp((t - since) / 0.2), [(0, 1.06), (0.5, 0.98), (1, 1.0)])
         drop = 0.0  # the word stamps in place, inside the ring
         squash = 0.22 * pulse(window(clamp((t - since) / 0.36), 0.4, 0.9))
-        width = min(r0 * 1.55, mask.width * r0 * 1.0 / mask.height)
+        width = min(W * 0.70, r0 * 1.55, mask.width * r0 * 1.0 / mask.height)
         tall = width * mask.height / mask.width
         appear = (1 - leave) * smoother(clamp((t - line['start']) / 0.2))
         if appear > 0.02:

@@ -71,7 +71,7 @@ class TourScene:
             if t < when:
                 break
             f = smoother(
-                clamp((t - when) / 0.42)
+                clamp((t - when) * self.setting(line, 'travel_speed') / 0.42)
             )  # an unhurried flight; a new one blends from wherever the last has got to
             previous = current
             # zoom eases in log space so the camera never swings past the word it is heading for

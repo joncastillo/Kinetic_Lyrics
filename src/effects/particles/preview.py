@@ -13,44 +13,64 @@ _RENDER_SLOTS = Semaphore(1)
 SAMPLE_FPS = 20
 
 
-def _effect_frames(effect, phase, intensity=1.0, speed=1.0, font_family="auto", font_style="auto", font_scale=1.25,
-                   part=0, parts=1):
+def _effect_frames(
+    effect, phase, intensity=1.0, speed=1.0, font_family="auto", font_style="auto", font_scale=1.25, part=0, parts=1
+):
     """Frames part, part + parts, part + 2 * parts, ... of an effect sample, as (index, size, RGB bytes). Every frame
     is a pure function of its time, so a sample can be split across worker processes and stitched back together."""
     with _RENDER_SLOTS:
-        growing=effect.trajectory=='grow'
-        detailed=growing or effect.family in ('cinematic','material')
-        garden=effect.id=='succulent-garden-lettering'
-        canvas=(1200,675) if garden else (800,450) if detailed else (480,240)
+        growing = effect.trajectory == 'grow'
+        detailed = growing or effect.family in ('cinematic', 'material')
+        garden = effect.id == 'succulent-garden-lettering'
+        canvas = (1200, 675) if garden else (800, 450) if detailed else (480, 240)
         from render.typography_settings import selected_font, typography_options
-        typography_options(dict(font_family=font_family,font_style=font_style,font_scale=font_scale))
-        font_path=str(selected_font(font_family,font_style) or 'C:/Windows/Fonts/seguisb.ttf')
-        font=truetype(font_path,round((144 if garden else 96 if detailed else 62)*font_scale))
+
+        typography_options(dict(font_family=font_family, font_style=font_style, font_scale=font_scale))
+        font_path = str(selected_font(font_family, font_style) or 'C:/Windows/Fonts/seguisb.ttf')
+        font = truetype(font_path, round((144 if garden else 96 if detailed else 62) * font_scale))
         small = truetype("C:/Windows/Fonts/segoeui.ttf", 14)
-        label = {'prismatic-helix':'PRISM','prismatic-singularity':'PRISM','liquid-chrome-assembly':'CHROME','liquid-chrome-collapse':'CHROME','ember-forge':'EMBER','ember-ash-drift':'EMBER','old-oak-lettering':'OAK','autumn-maple-lettering':'MAPLE','clockwork-lettering':'GEARS','folded-paper-lettering':'PAPER','succulent-garden-lettering':'SUCCULENT','obsidian-lattice-lettering':'VOID','gold-filigree-lettering':'GILDED','pearl-lace-lettering':'LACE','jeweled-brocade-lettering':'JEWEL','luminous-coral-lettering':'CORAL','frost-crystal-lettering':'FROST','ink-bloom-lettering':'INK','thread-stitch-lettering':'STITCH'}.get(effect.id,'BLOOM' if effect.family=='petals' else effect.name.split()[0].upper() if effect.family=='material' else effect.family.upper())
-        while font.getlength(label) > canvas[0]-80:
+        label = {
+            'prismatic-helix': 'PRISM',
+            'prismatic-singularity': 'PRISM',
+            'liquid-chrome-assembly': 'CHROME',
+            'liquid-chrome-collapse': 'CHROME',
+            'ember-forge': 'EMBER',
+            'ember-ash-drift': 'EMBER',
+            'old-oak-lettering': 'OAK',
+            'autumn-maple-lettering': 'MAPLE',
+            'clockwork-lettering': 'GEARS',
+            'folded-paper-lettering': 'PAPER',
+            'succulent-garden-lettering': 'SUCCULENT',
+            'obsidian-lattice-lettering': 'VOID',
+            'gold-filigree-lettering': 'GILDED',
+            'pearl-lace-lettering': 'LACE',
+            'jeweled-brocade-lettering': 'JEWEL',
+            'luminous-coral-lettering': 'CORAL',
+            'frost-crystal-lettering': 'FROST',
+            'ink-bloom-lettering': 'INK',
+            'thread-stitch-lettering': 'STITCH',
+        }.get(
+            effect.id,
+            'BLOOM'
+            if effect.family == 'petals'
+            else effect.name.split()[0].upper()
+            if effect.family == 'material'
+            else effect.family.upper(),
+        )
+        while font.getlength(label) > canvas[0] - 80:
             font = truetype(font_path, font.size - 2)
         bounds = font.getbbox(label)
-        sprite = Image.new(
-            "RGBA", (bounds[2] - bounds[0] + 24, bounds[3] - bounds[1] + 24)
-        )
-        ImageDraw.Draw(sprite).text(
-            (12 - bounds[0], 12 - bounds[1]), label, font=font, fill="#edf1f5"
-        )
+        sprite = Image.new("RGBA", (bounds[2] - bounds[0] + 24, bounds[3] - bounds[1] + 24))
+        ImageDraw.Draw(sprite).text((12 - bounds[0], 12 - bounds[1]), label, font=font, fill="#edf1f5")
         x, y = (canvas[0] - sprite.width) // 2, (canvas[1] - sprite.height) // 2
         catalog = {"entrance": {}, "exit": {}}
         catalog[phase][effect.id] = effect
         glyph_bounds = (
-            [0]
-            + [
-                round(12 + font.getlength(label[:index]))
-                for index in range(1, len(label))
-            ]
-            + [sprite.width]
+            [0] + [round(12 + font.getlength(label[:index])) for index in range(1, len(label))] + [sprite.width]
         )
         spans = list(zip(glyph_bounds, glyph_bounds[1:]))
         cache, frames = {}, []
-        transition = (1.8 if detailed else .8) / speed
+        transition = (1.8 if detailed else 0.8) / speed
         duration = 0.7 + transition + 0.35
         for number in range(part, round(duration * SAMPLE_FPS), parts):
             t = number / SAMPLE_FPS
@@ -91,25 +111,27 @@ def _gif(frames, fps):
     """Stitch (index, size, RGB bytes) frames, in any order, into a looping GIF."""
     images = [Image.frombytes("RGB", size, data) for _, size, data in sorted(frames, key=lambda f: f[0])]
     result = BytesIO()
-    images[0].save(result, format="GIF", append_images=images[1:], save_all=True, duration=round(1000 / fps),
-                   loop=0, disposal=2)
+    images[0].save(
+        result, format="GIF", append_images=images[1:], save_all=True, duration=round(1000 / fps), loop=0, disposal=2
+    )
     return result.getvalue()
 
 
-def _render_effect(effect, phase, intensity=1.0, speed=1.0,font_family="auto",font_style="auto",font_scale=1.25):
+def _render_effect(effect, phase, intensity=1.0, speed=1.0, font_family="auto", font_style="auto", font_scale=1.25):
     """A whole effect sample in this process."""
     return _gif(_effect_frames(effect, phase, intensity, speed, font_family, font_style, font_scale), SAMPLE_FPS)
 
 
-def _render_text(animation,font_family="auto",font_style="auto",font_scale=1.25,speed=1.):
-    from render.compositor import Compositor; from direction.typography import rules_plan
+def _render_text(animation, font_family="auto", font_style="auto", font_scale=1.25, speed=1.0):
+    from render.compositor import Compositor
+    from direction.typography import rules_plan
     from direction.theme import theme_for
 
     data = [
         dict(
             text="Move with time",
             words=[
-                dict(text="Move", start=2., end=2.8),
+                dict(text="Move", start=2.0, end=2.8),
                 dict(text="with", start=2.8, end=3.5),
                 dict(text="time", start=3.5, end=4.6),
             ],
@@ -123,7 +145,11 @@ def _render_text(animation,font_family="auto",font_style="auto",font_scale=1.25,
         480,
         240,
         6.1,
-        text_animation=animation,font_family=font_family,font_style=font_style,font_scale=font_scale,particle_speed=speed,
+        text_animation=animation,
+        font_family=font_family,
+        font_style=font_style,
+        font_scale=font_scale,
+        particle_speed=speed,
         entrance_effect="none",
         exit_effect="none",
         kinetic=dict(fade=False),
@@ -143,54 +169,80 @@ def _render_text(animation,font_family="auto",font_style="auto",font_scale=1.25,
         return result.getvalue()
 
 
-
-SCENE_SAMPLE = ((.4, 'golden light upon the water'), (3.3, 'hold me close until the morning'))
+SCENE_SAMPLE = ((0.4, 'golden light upon the water'), (3.3, 'hold me close until the morning'))
 SCENE_SIZE, SCENE_SECONDS, SCENE_FPS = (480, 270), 6.6, 12
 
 
 def scene_backdrop(folder, size):
     """A neutral dusk painting for scene samples: deep blue above, a warm glow low on the horizon."""
     import numpy as np
-    path = folder/f'scene-backdrop-{size[0]}x{size[1]}.png'
+
+    path = folder / f'scene-backdrop-{size[0]}x{size[1]}.png'
     if not path.is_file():
         w, h = size
-        y, x = np.mgrid[0:h, 0:w]/np.array((h, w))[:, None, None]
+        y, x = np.mgrid[0:h, 0:w] / np.array((h, w))[:, None, None]
         top, low, glow = np.array((22, 34, 58)), np.array((58, 78, 104)), np.array((214, 150, 110))
-        sky = top+(low-top)*(y**1.3)[..., None]
-        halo = np.exp(-(((x-.62)/.38)**2+((y-.78)/.22)**2))[..., None]
-        image = np.clip(sky+(glow-sky)*halo*.55, 0, 255).astype('uint8')
+        sky = top + (low - top) * (y**1.3)[..., None]
+        halo = np.exp(-(((x - 0.62) / 0.38) ** 2 + ((y - 0.78) / 0.22) ** 2))[..., None]
+        image = np.clip(sky + (glow - sky) * halo * 0.55, 0, 255).astype('uint8')
         folder.mkdir(exist_ok=True)
         Image.fromarray(image, 'RGB').filter(ImageFilter.GaussianBlur(2)).save(path)
     return path
 
 
-def _render_scene(scene_id, font_family="auto", font_style="auto", font_scale=1.25):
+def _render_scene(scene_id, font_family="auto", font_style="auto", font_scale=1.25, settings="{}"):
     """A few seconds of two sample lines filmed in one scene effect, over a neutral dusk backdrop."""
+    import json
     from render.compositor import Compositor
     from direction.typography import rules_plan
     from direction.theme import theme_for
     from core.paths import PROJECT_ROOT
+
     data = []
     for start, text in SCENE_SAMPLE:
-        words = [dict(text=word, start=round(start+i*.36, 3), end=round(start+i*.36+.32, 3)) for i, word in enumerate(text.split())]
+        words = [
+            dict(text=word, start=round(start + i * 0.36, 3), end=round(start + i * 0.36 + 0.32, 3))
+            for i, word in enumerate(text.split())
+        ]
         data.append(dict(text=text, words=words, section_id=0, section_label='Chorus'))
     plan = dict(rules_plan(data, theme_for('bright')), scene_flows=[dict(start=0, end=len(data), scene=scene_id)])
     width, height = SCENE_SIZE
-    art = scene_backdrop(PROJECT_ROOT/'.preview-cache', SCENE_SIZE)
+    art = scene_backdrop(PROJECT_ROOT / '.preview-cache', SCENE_SIZE)
     with _RENDER_SLOTS:
-        compositor = Compositor(data, plan, width, height, SCENE_SECONDS, illustrations=[str(art)],
-                                illustration_lines=len(data), artwork_mode='fullscreen',
-                                reading_flow='mixed', entrance_effect='mixed', exit_effect='mixed', font_family=font_family,
-                                font_style=font_style, font_scale=font_scale, kinetic=dict(scenes=[scene_id], fade=False))
+        compositor = Compositor(
+            data,
+            plan,
+            width,
+            height,
+            SCENE_SECONDS,
+            illustrations=[str(art)],
+            illustration_lines=len(data),
+            artwork_mode='fullscreen',
+            reading_flow='mixed',
+            entrance_effect='mixed',
+            exit_effect='mixed',
+            font_family=font_family,
+            font_style=font_style,
+            font_scale=font_scale,
+            kinetic=dict(scenes=[scene_id], fade=False, scene_settings={scene_id: json.loads(settings)}),
+        )
         try:
-            frames = [compositor.frame(index/SCENE_FPS) for index in range(round(SCENE_SECONDS*SCENE_FPS))]
+            frames = [compositor.frame(index / SCENE_FPS) for index in range(round(SCENE_SECONDS * SCENE_FPS))]
         finally:
             if getattr(compositor.realtime, 'stage', None) is not None:
                 from render.stage_3d import close_stage
+
                 close_stage()
         result = BytesIO()
-        frames[0].save(result, format="GIF", append_images=frames[1:], save_all=True, duration=round(1000/SCENE_FPS),
-                       loop=0, disposal=2)
+        frames[0].save(
+            result,
+            format="GIF",
+            append_images=frames[1:],
+            save_all=True,
+            duration=round(1000 / SCENE_FPS),
+            loop=0,
+            disposal=2,
+        )
         return result.getvalue()
 
 
@@ -211,6 +263,7 @@ def _pool(version):
     if _POOL is None:
         import multiprocessing
         from concurrent.futures import ProcessPoolExecutor
+
         for name in ('OPENBLAS_NUM_THREADS', 'OMP_NUM_THREADS', 'MKL_NUM_THREADS', 'NUMEXPR_NUM_THREADS'):
             os.environ[name] = '1'
         _POOL = ProcessPoolExecutor(max_workers=WORKERS, mp_context=multiprocessing.get_context('spawn'))
@@ -221,20 +274,37 @@ def _pool(version):
 # The storyline, image, video and studio code changes many times a day; none of it draws a sample. Only the
 # drawing code (render, effects, core) and the direction modules it imports count, so a commit elsewhere no longer
 # throws every cached sample away.
-DIRECTION_FILES = ('scene_catalog', 'theme', 'typography', 'song_structure', 'effects', 'instructions', 'ornaments')
+DIRECTION_FILES = (
+    'scene_catalog',
+    'scene_controls',
+    'theme',
+    'typography',
+    'song_structure',
+    'effects',
+    'instructions',
+    'ornaments',
+)
 
 
 def _version_paths():
     from core.paths import ASSET_ROOT, SRC_ROOT
-    return [*(SRC_ROOT/'render').rglob('*.py'), *(SRC_ROOT/'effects').rglob('*.py'), *(SRC_ROOT/'core').rglob('*.py'),
-            *(SRC_ROOT/'direction'/f'{name}.py' for name in DIRECTION_FILES), SRC_ROOT/'audio'/'rhythm.py',
-            *(ASSET_ROOT/'particles').rglob('*.json'), *(ASSET_ROOT/'scenes').glob('*.json'),
-            *(ASSET_ROOT/'fonts').glob('*')]
+
+    return [
+        *(SRC_ROOT / 'render').rglob('*.py'),
+        *(SRC_ROOT / 'effects').rglob('*.py'),
+        *(SRC_ROOT / 'core').rglob('*.py'),
+        *(SRC_ROOT / 'direction' / f'{name}.py' for name in DIRECTION_FILES),
+        SRC_ROOT / 'audio' / 'rhythm.py',
+        *(ASSET_ROOT / 'particles').rglob('*.json'),
+        *(ASSET_ROOT / 'scenes').glob('*.json'),
+        *(ASSET_ROOT / 'fonts').glob('*'),
+    ]
 
 
 def _source_version():
     """Fingerprint the code and recipes behind a sample, even if another file has a newer mtime."""
     import hashlib
+
     paths = _version_paths()
     digest = hashlib.sha256()
     for path in sorted(p for p in paths if p.is_file()):
@@ -251,12 +321,13 @@ def _cached(kind, args, renderer):
     """A sample from memory or the disk cache, redrawn whenever the renderer or recipes change."""
     import hashlib
     from core.paths import PROJECT_ROOT
+
     version = _source_version()
     key = hashlib.sha256(repr((kind, args, version)).encode()).hexdigest()[:32]
     if key in _SAMPLES:
         return _SAMPLES[key]
-    folder = PROJECT_ROOT/'.preview-cache'
-    target = folder/f'{key}.gif'
+    folder = PROJECT_ROOT / '.preview-cache'
+    target = folder / f'{key}.gif'
     try:
         data = target.read_bytes()
     except OSError:
@@ -280,11 +351,11 @@ def render_preview(effect, phase, intensity=1.0, speed=1.0, font_family="auto", 
     return _cached('effect', (effect, phase, intensity, speed, font_family, font_style, font_scale), _render_effect)
 
 
-def render_scene_preview(scene_id, font_family="auto", font_style="auto", font_scale=1.25):
-    return _cached('scene', (scene_id, font_family, font_style, font_scale), _render_scene)
+def render_scene_preview(scene_id, font_family="auto", font_style="auto", font_scale=1.25, settings="{}"):
+    return _cached('scene', (scene_id, font_family, font_style, font_scale, settings), _render_scene)
 
 
-def render_text_preview(animation, font_family="auto", font_style="auto", font_scale=1.25, speed=1.):
+def render_text_preview(animation, font_family="auto", font_style="auto", font_scale=1.25, speed=1.0):
     return _cached('text', (animation, font_family, font_style, font_scale, speed), _render_text)
 
 
@@ -293,24 +364,34 @@ def render_text_preview(animation, font_family="auto", font_style="auto", font_s
 # one at a time so a sample asked for by the page is never far behind, and never while a job is running. The
 # studio starts it with the defaults; every settings the page then asks a sample for is queued whole, so the rest of
 # that list is ready by the time it scrolls into view.
-UNDRAWABLE_TEXT = ('ai', 'mixed')   # chosen by the text model per song: no sample of their own
+UNDRAWABLE_TEXT = ('ai', 'mixed')  # chosen by the text model per song: no sample of their own
 _WARM_QUEUE = None
 _WARMED = set()
 
 
-def prerender(font_family='auto', font_style='auto', font_scale=1.25, intensity=1., speed=1., busy=lambda: False, wait=None):
+def prerender(
+    font_family='auto', font_style='auto', font_scale=1.25, intensity=1.0, speed=1.0, busy=lambda: False, wait=None
+):
     """Draw (or find cached) every sample for these settings: word animations, scenes, entrances and exits. `busy`
     true pauses between samples (a job has the computer); `wait` is how to pause (sleep by default)."""
     import time
     from effects.particles.catalog import discover_effects
     from render.text_effects import TEXT_ANIMATIONS
     from direction.scene_catalog import scene_catalog
+
     wait = wait or (lambda: time.sleep(5))
     catalog = discover_effects()
-    jobs = [lambda a=a: render_text_preview(a, font_family, font_style, font_scale, speed) for a in TEXT_ANIMATIONS if a not in UNDRAWABLE_TEXT]
+    jobs = [
+        lambda a=a: render_text_preview(a, font_family, font_style, font_scale, speed)
+        for a in TEXT_ANIMATIONS
+        if a not in UNDRAWABLE_TEXT
+    ]
     jobs += [lambda s=s: render_scene_preview(s, font_family, font_style, font_scale) for s in scene_catalog()]
-    jobs += [lambda e=e, p=p: render_preview(e, p, intensity, speed, font_family, font_style, font_scale)
-             for p in ('entrance', 'exit') for e in catalog.get(p, {}).values()]
+    jobs += [
+        lambda e=e, p=p: render_preview(e, p, intensity, speed, font_family, font_style, font_scale)
+        for p in ('entrance', 'exit')
+        for e in catalog.get(p, {}).values()
+    ]
     drawn = 0
     for job in jobs:
         while busy():
@@ -323,7 +404,7 @@ def prerender(font_family='auto', font_style='auto', font_scale=1.25, intensity=
     return drawn
 
 
-def request_prerender(font_family='auto', font_style='auto', font_scale=1.25, intensity=1., speed=1.):
+def request_prerender(font_family='auto', font_style='auto', font_scale=1.25, intensity=1.0, speed=1.0):
     """Queue every sample for these settings, once per settings while the studio runs."""
     key = (str(font_family), str(font_style), float(font_scale), float(intensity), float(speed))
     if _WARM_QUEUE is None or key in _WARMED:
@@ -340,6 +421,7 @@ def start_prerender(busy=lambda: False):
         return
     import queue
     import threading
+
     _WARM_QUEUE = queue.Queue()
 
     def run():
@@ -349,5 +431,6 @@ def start_prerender(busy=lambda: False):
                 prerender(*key, busy=busy)
             except Exception as exc:  # noqa: BLE001
                 print(f'Preview warm-up stopped for {key}: {exc}', flush=True)
+
     threading.Thread(target=run, name='preview-warm-up', daemon=True).start()
     request_prerender()

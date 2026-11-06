@@ -12,7 +12,7 @@ from render.poster.common import LEAVE, WALL_FONT, WHITE, paste, tint, word_mask
 
 
 @lru_cache(maxsize=128)
-def stamp_mask(text, seed):
+def stamp_mask(text, seed, wear=1.0):
     """`text` as a rubber stamp: the word inside a double-ruled border, with the speckled gaps of real ink."""
     word = word_mask(text, WALL_FONT, 160)
     pad = round(word.height * 0.45)
@@ -28,7 +28,7 @@ def stamp_mask(text, seed):
         (inner, inner, mask.width - inner, mask.height - inner), radius=pad * 0.4, outline=255, width=max(1, rule // 2)
     )
     rng = np.random.default_rng(seed)
-    speckle = rng.random((mask.height // 3 + 1, mask.width // 3 + 1)) > 0.12  # gaps where the ink did not take
+    speckle = rng.random((mask.height // 3 + 1, mask.width // 3 + 1)) > 0.12 * wear  # gaps where the ink did not take
     speckle = np.repeat(np.repeat(speckle, 3, 0), 3, 1)[: mask.height, : mask.width]
     return Image.fromarray((np.asarray(mask) * speckle).astype('uint8'), 'L')
 
@@ -94,8 +94,11 @@ class StampScene:
             start = since if i == k else line['words'][i]['start'] - 0.06
             age = t - start
             x, y, tilt = spots[i]
-            mask = stamp_mask(words[i], line['index'] * 31 + i)
-            size = min(W * 0.42 / mask.width, H * 0.3 / mask.height)  # the newest stamp is big whatever the word
+            tilt *= self.setting(line, 'imperfection')
+            mask = stamp_mask(words[i], line['index'] * 31 + i, self.setting(line, 'imperfection'))
+            size = min(W * 0.42 / mask.width, H * 0.3 / mask.height) * self.setting(
+                line, 'size'
+            )  # the newest stamp is big whatever the word
             press = keyframes(clamp(age / 0.32), [(0, 1.4), (0.35, 0.9), (0.55, 1.04), (1, 1.0)])  # down, hit, settle
             squash = 1 + 0.12 * (1 - abs(clamp(age / 0.32) - 0.38) / 0.2) if 0.18 < clamp(age / 0.32) < 0.58 else 1.0
             lift = (1 - smoother(clamp(age / 0.11))) * H * 0.04  # lifted on its shadow until it hits
@@ -127,7 +130,12 @@ class StampScene:
             dx = -sweep * W * 0.9 * (1 if i % 2 else -1)
             come = smoother(clamp(age / 0.07))  # it comes down out of the air over a couple of frames, not in one
             if lift > 0.5:
-                paste(screen, tint(body, shade, 0.45 * come), x - body.width / 2 + lift * 0.6 + dx, y - body.height / 2 + lift)
+                paste(
+                    screen,
+                    tint(body, shade, 0.45 * come),
+                    x - body.width / 2 + lift * 0.6 + dx,
+                    y - body.height / 2 + lift,
+                )
             paste(screen, tint(body, ink, come), x - body.width / 2 + dx, y - body.height / 2 - lift * 0.4)
             burst = clamp((age - 0.1) / 0.3)
             if fresh and 0 < burst < 1:  # a ring of ink splatter thrown out on impact

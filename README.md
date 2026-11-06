@@ -203,12 +203,43 @@ file name is the scene's ID, and `camera` picks how the scene is filmed:
 | Field | What it controls |
 |---|---|
 | `name`, `description` | What Studio shows, and what the model reads when it picks scenes |
-| `camera` | `pan` for the panning canvas, `still` for framed lines, `blocks` for the 3D stage, or `cinema` for spotlight |
-| `particles` | For a `blocks` scene, preferred particle effects. The AI may choose any selected entrance except in **Tree canopy**, where it is limited to maple, oak and bamboo. Pan, still and cinema scenes keep the per-line entrance effects, so this is `null` for them |
-| `layout` | Optional, and only for a `blocks` scene. `justified` (the default) gives rows of equal width. `contrast`, used by **Sweet contrast**, mixes thin and heavy words, gives every letter of one heavy word its own moving texture (marble, warped stripes, ripples, a rolling sweep or glinting grain) in tones close to the accent, and runs the last word vertically, close beside the rows. Every letter springs in with an elastic bounce, and the camera zooms in and rolls into a tilt. The side, the reading direction of the vertical word, the font pairing, the tilt and the zoom vary from block to block |
+| `camera` | `pan` for the panning canvas, `still` for framed lines, `blocks` for the 3D stage, `cinema` for Spotlight, or `poster` for an individual typographic composition |
+| `particles` | For a `blocks` scene, preferred particle effects. The AI may choose any selected entrance except in **Tree canopy**, where it is limited to the listed tree effects. Other camera types leave this `null`; Spotlight and posters supply their own motion |
+| `layout` | For `poster`, selects a registered painter (including `editorial`, `focus`, `baseline` and `caption`). For `blocks`, `justified` (the default) gives rows of equal width. `contrast`, used by **Sweet contrast**, mixes thin and heavy words, gives every letter of one heavy word its own moving texture (marble, warped stripes, ripples, a rolling sweep or glinting grain) in tones close to the accent, and runs the last word vertically, close beside the rows. Every letter springs in with an elastic bounce, and the camera zooms in and rolls into a tilt. The side, the reading direction of the vertical word, the font pairing, the tilt and the zoom vary from block to block |
 
-The panning canvas and framed lines keep all their effects, including the flowing
-bands, the drifting shapes, the highlighting and the backdrops.
+Studio's Scenes tab lists 32 scenes with searchable style tags. **Minimalist** and
+**Professional** include Spotlight, Editorial, Quiet focus, Baseline reveal and
+Gallery caption. Other tags distinguish bold, playful, geometric, organic,
+ornamental and textured treatments. Filtering never changes the scenes selected
+for the AI director.
+
+Each card describes its actual **Entry** and **Exit** behavior and has a separate
+**Configure** panel. Controls match the renderer: for example marquee speed,
+badge shape, perspective tilt, camera travel, font size, color, stamp wear or
+plate misalignment. Reset restores that scene's defaults. Overrides are saved in
+`kinetic.scene_settings`, alongside the selected scene IDs, so profiles, sessions,
+render history and animated previews carry the same settings.
+
+Spotlight and poster scenes use built-in motion, independent of the global entrance
+and exit selectors. Camera tour uses its six listed kinetic entrances. Stage scenes
+use selected entrance particles on their top row (Tree canopy restricts this to its
+tree effects); earlier blocks dim as the camera moves away. Panning scenes use
+selected entrances and drift finished lines away. Still-camera scenes use both
+selected entrances and exits.
+
+The catalogue uses bundled, openly licensed fonts with an original mix of condensed
+display type, broad grotesques, serif accents and muted mineral colors. The four quiet
+scenes use distinct layouts: a two-level editorial phrase, centered serif focus,
+baseline-masked capitals and a lower-left gallery caption. Film and motion-design
+references inform pacing and restraint; no reference frames, assets or shot sequences
+are reproduced.
+
+For a render audit of every scene in landscape and portrait, including a check that
+each exposed control changes the output:
+
+```powershell
+python automation/review_scenes.py --output tmp/scene-review --check-controls
+```
 
 ## Development
 

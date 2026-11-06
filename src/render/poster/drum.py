@@ -65,7 +65,9 @@ class DrumScene:
             if r == middle:
                 spin = spin_middle
             else:
-                spin = (t - line['start']) * (0.5 if r % 2 else -0.42) * (1 + 0.2 * abs(r - middle)) + r * 1.3
+                spin = (t - line['start']) * self.setting(line, 'motion') * (0.5 if r % 2 else -0.42) * (
+                    1 + 0.2 * abs(r - middle)
+                ) + r * 1.3
             distance = 0.0
             for n in range(len(unit) * repeats):
                 char = unit[n % len(unit)]
@@ -87,7 +89,7 @@ class DrumScene:
                         for c in (WHITE if r == middle else SECOND_INK)
                     )
                 )
-                glyph = drum_glyph(char, round(size * (1.5 if sung else 1.0)), color)
+                glyph = drum_glyph(char, max(6, round(size * min(1.0, scale) * (1.5 if sung else 1.0))), color)
                 squeezed = max(1, round(glyph.width * max(0.7, depth)))
                 if squeezed < 2:
                     continue
@@ -107,7 +109,7 @@ class DrumScene:
                     grow = grown or keyframes(
                         clamp((t - since) / 0.32), [(0, 0.78), (0.45, 1.08), (0.75, 0.98), (1, 1.0)]
                     )
-                    tall = size * 1.6 * grow
+                    tall = min(size * 1.6 * grow, max(1.0, W * 0.84 - size * 0.6) * mask.height / mask.width)
                     tile = mask.resize(
                         (max(1, round(mask.width * tall / mask.height)), max(1, round(tall))), Image.Resampling.BICUBIC
                     )

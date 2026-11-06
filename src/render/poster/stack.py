@@ -21,7 +21,7 @@ class StackScene:
         rows = line['rows']
 
         def weights(active):
-            return [2.6 if k == active else 1.0 for k in range(len(rows))]
+            return [self.setting(line, 'swelling', 2.6) if k == active else 1.0 for k in range(len(rows))]
 
         active, since = self.active_row(line, t)
         previous = None
@@ -44,7 +44,7 @@ class StackScene:
         accent, shade, _ = line['palette']
         portrait = H > W
         block_w = W * (0.78 if portrait else 0.46)
-        block_h = H * (0.62 if portrait else 0.74)
+        block_h = H * (0.62 if portrait else 0.74) * self.setting(line, 'size')
         left = (W - block_w) / 2 + (0 if portrait else line['side'] * W * 0.16)
         top = (H - block_h) / 2
         heights = self.stack_heights(line, t)

@@ -165,3 +165,16 @@ form#jobForm fieldset{min-inline-size:0;min-width:0;width:100%;margin:0}
 .lyrics-mark.in{background:hsl(var(--split-hue) 60% 50% / .2)}
 .lyrics-mark.first{border-top-left-radius:6px;border-top-right-radius:6px}.lyrics-mark.last{border-bottom-left-radius:6px;border-bottom-right-radius:6px}
 .lyrics-mark-number{position:absolute;left:8px;top:.15em;min-width:22px;height:1.2em;line-height:1.2em;padding:0 5px;border-radius:999px;text-align:center;font-size:10px;font-weight:600;font-style:normal;letter-spacing:.04em;color:hsl(var(--split-hue) 80% 88%);background:hsl(var(--split-hue) 55% 20%)}
+
+/* Scene controls remain separate from scene selection, including under tag filters. */
+.scene-choices{grid-template-columns:repeat(auto-fill,minmax(240px,1fr));align-items:start}
+.scene-choice[hidden]{display:none}
+.scene-choice{padding:12px;border:1px solid var(--line);border-radius:10px;gap:8px}
+.scene-filters{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.scene-filters input{flex:1;min-width:160px}.scene-filters small{width:100%;color:var(--muted)}
+.scene-tags{display:flex;flex-wrap:wrap;gap:4px}.scene-tags span{font-size:10px;border:1px solid var(--line);border-radius:20px;padding:2px 7px;color:var(--muted)}
+.scene-description,.scene-uses p{margin:0 0 5px;font-size:11px;line-height:1.5}
+.scene-config{border-top:1px solid var(--line);padding-top:8px}.scene-config summary{cursor:pointer;font-weight:600}
+.scene-config-fields{display:grid;gap:12px;padding-top:12px}.scene-config-fields label{display:grid;gap:5px;font-size:11px}
+.scene-config-fields output{font-variant-numeric:tabular-nums;color:var(--muted)}
+.scene-config-fields input{width:100%;min-width:0}

@@ -82,7 +82,7 @@ class DiveScene:
             scale *= 0.5 + 0.5 * back_out(clamp((t - line['start']) / 0.3), 1.5)
         end = 1.8 * max(W, H) / max(4.0, hole)
         zoom = (
-            scale * (1 + 0.4 * u) * (end / (scale * 1.4)) ** (u**3)
+            scale * (1 + 0.4 * u) * (end / (scale * 1.4)) ** (u ** self.setting(line, 'dive_curve', 3.0))
         )  # a steady push the whole word long, then the dive takes off
         mix = smoother(clamp(u * 1.6))
         px = mask.width / 2 + (fx - mask.width / 2) * mix

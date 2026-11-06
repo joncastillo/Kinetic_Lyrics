@@ -54,7 +54,9 @@ class RegisterScene:
         ink = Image.new('RGB', (W, H))
         crisp = []
         printed = []
-        rest = max(2.0, H * 0.003)  # at rest a hairline misregistration, like a real print run
+        rest = max(2.0, H * 0.003) * self.setting(
+            line, 'imperfection'
+        )  # at rest a hairline misregistration, like a real print run
         opens = line['start']  # gathers as the last line's final words drop away
         settled = opens + len(words) * 0.04 + 0.12
         split_at = max(since, settled) if k == 0 else since  # the first word splits once its line has settled

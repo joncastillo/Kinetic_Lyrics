@@ -15,7 +15,7 @@ class HorizonScene:
         k, since = self.sung_word(line, t)
         words = [w['text'].strip().upper() or '~' for w in line['words']]
         leave = clamp((t - (line['end'] - LEAVE)) / LEAVE)
-        horizon = H * (0.66, 0.6, 0.7)[line['index'] % 3]
+        horizon = H * self.setting(line, 'horizon', (0.66, 0.6, 0.7)[line['index'] % 3])
         rule = smoother(clamp((t - line['start']) / 0.5)) * (1 - smoother(leave))
         draw = ImageDraw.Draw(screen)
         weight = max(3, round(H * 0.012))

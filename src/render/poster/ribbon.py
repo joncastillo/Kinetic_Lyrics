@@ -63,7 +63,7 @@ class RibbonScene:
         )  # the ribbon slides in, then glides to each sung word
         xs = np.arange(W, dtype=np.float32)
         middle = np.exp(-(((xs - W / 2) / (W * 0.13)) ** 2))
-        span = W * (0.92 + 0.08 * math.sin((t - line['start']) * 0.9))
+        span = W * (0.92 + 0.08 * math.sin((t - line['start']) * 0.9 * self.setting(line, 'motion')))
         phi = 2 * math.pi * (xs - W / 2) / span + leave * 1.4
         stamp = pulse(clamp((t - since) / 0.3))
         swell = 1 + 0.75 * middle * (1 + 0.25 * stamp)

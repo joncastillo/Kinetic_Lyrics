@@ -29,10 +29,14 @@ class BlinkScene:
 
     def blink_band(self, screen, line, words, k, enter, hit, band_h, t, since):
         W, H = screen.size
-        field = FIELDS[(line['index'] * 5 + k * 2) % len(FIELDS)]
+        field = (
+            line['palette'][0]
+            if line.get('config', {}).get('accent')
+            else FIELDS[(line['index'] * 5 + k * 2) % len(FIELDS)]
+        )
         slot = (line['index'] * 3 + k) % 4
         centre = H * (0.3, 0.52, 0.38, 0.6)[slot]
-        tilt = (-3, 2, 3, -2)[slot]
+        tilt = (-3, 2, 3, -2)[slot] * self.setting(line, 'motion')
         side = 1 if k % 2 else -1
         strip = Image.new('RGBA', (round(W * 1.3), max(1, round(band_h))), (*field, 255))
         condensed = k % 2 == 1

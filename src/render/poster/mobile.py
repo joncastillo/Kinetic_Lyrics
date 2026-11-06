@@ -58,9 +58,8 @@ class MobileScene:
             sway = 3.0 * math.sin(t * 1.3 + i * 1.7)  # the whole mobile breathes
             inward = 1 if anchor < W / 2 else -1  # a sung word swings toward the middle first, never out of frame
             kick = swing(t, line['words'][i]['start'] - 0.06, 20.0 * inward) if i <= k else 0.0  # each on its own clock
-            angle = math.radians(sway + kick)
+            angle = math.radians((sway + kick) * self.setting(line, 'motion'))
             bx, by = anchor + math.sin(angle) * length, rail + math.cos(angle) * length
-            draw.line((anchor, rail, bx, by), fill=(*pill, 255), width=max(1, round(H * 0.004)))
             size = (
                 scale + (max(scale * 1.56, W * 0.22 / widths[i]) - scale) * longer
             )  # the sung tile is big at any line length
@@ -76,6 +75,11 @@ class MobileScene:
             shadow = shadow.rotate(turn, Image.Resampling.BICUBIC, expand=True)
             # the tile hangs from its top centre, at the end of the thread
             cx, cy = bx + math.sin(angle) * (h + pad * 2) / 2, by + math.cos(angle) * (h + pad * 2) / 2
+            margin = tile.width / 2 + W * 0.025
+            safe_x = min(max(cx, margin), max(margin, W - margin))
+            bx += safe_x - cx
+            cx = safe_x
+            draw.line((anchor, rail, bx, by), fill=(*pill, 255), width=max(1, round(H * 0.004)))
             off = h * 0.12
             paste(screen, shadow, cx - shadow.width / 2 + off, cy - shadow.height / 2 + off)
             paste(screen, tile, cx - tile.width / 2, cy - tile.height / 2)

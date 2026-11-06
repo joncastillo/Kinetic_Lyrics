@@ -25,10 +25,12 @@ class SealScene:
         if grow <= 0.02:
             return
         cx, cy = W / 2, H * 0.47
-        radius = min(W, H) * 0.34 * grow * (1 + 0.12 * pulse(window(t, since, since + 0.45)))
+        radius = (
+            min(W, H) * 0.34 * self.setting(line, 'size') * grow * (1 + 0.12 * pulse(window(t, since, since + 0.45)))
+        )
         band = radius * 0.2
         spin = (
-            (t - line['start']) * 0.3
+            (t - line['start']) * 0.3 * self.setting(line, 'motion')
             + (1 - arrive) ** 2 * 2.2
             + leave * leave * 3.0
             + line['seed'] * math.tau
@@ -41,7 +43,9 @@ class SealScene:
         scale = 2 * math.pi * mid / max(1.0, total)
         draw = ImageDraw.Draw(screen)
         off = band * 0.18
-        lobes = (0, 18, 12)[line['index'] % 3]  # a round badge, a scalloped seal or a sawtooth stamp, by line
+        lobes = {'round': 0, 'scalloped': 18, 'sawtooth': 12}.get(
+            self.setting(line, 'shape', 'auto'), (0, 18, 12)[line['index'] % 3]
+        )  # a round badge, a scalloped seal or a sawtooth stamp, by line
 
         def outline(r, dx=0.0):
             if not lobes:

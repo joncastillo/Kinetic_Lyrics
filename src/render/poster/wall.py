@@ -51,7 +51,9 @@ class WallScene:
             height = round(row_h * fold)
             if height < 2:
                 continue
-            field = FIELDS[(line['index'] * 3 + shown) % len(FIELDS)]
+            field = (
+                accent if line.get('config', {}).get('accent') else FIELDS[(line['index'] * 3 + shown) % len(FIELDS)]
+            )
             strip = Image.new('RGBA', (W, round(row_h)), (*field, 255))
             turning = fold < 0.999
             if r == middle:
@@ -65,7 +67,7 @@ class WallScene:
             )
             spacing = tile.width + row_h * 0.5
             speed = (1 if r % 2 else -1) * W * 0.07 * (1 + 0.3 * (r % 3))
-            phase = (t * speed + line['seed'] * spacing + r * spacing * 0.37) % spacing
+            phase = (t * speed * self.setting(line, 'motion') + line['seed'] * spacing + r * spacing * 0.37) % spacing
             if r == middle:  # the sung word locks dead centre while the rows around it run
                 phase = ((W - tile.width) / 2) % spacing
             ink = WHITE if r == middle else WALL_INK

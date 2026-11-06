@@ -9,22 +9,22 @@ from core.fonts import truetype
 from core.paths import ASSET_ROOT
 
 FONTS = ASSET_ROOT / 'fonts'
-STACK_FONT = 'Anton-Regular.ttf'
-WALL_FONT = 'DelaGothicOne-Regular.ttf'
-CAPTION_FONT = 'ArchivoBlack-Regular.ttf'
+STACK_FONT = 'BigShouldersDisplay[wght].ttf'
+WALL_FONT = 'BricolageGrotesque[opsz,wdth,wght].ttf'
+CAPTION_FONT = 'Syne[wght].ttf'
 LEAD, ENTRY, LEAVE, SWAP, UNROLL = 0.35, 0.4, 0.3, 0.22, 0.11
 SECOND_INK = (226, 232, 242)
-FIELDS = ((255, 74, 46), (122, 92, 255), (198, 255, 26), (16, 168, 150), (255, 150, 200), (255, 196, 40))
+FIELDS = ((219, 151, 100), (135, 162, 188), (191, 193, 150), (99, 166, 157), (196, 148, 166), (224, 194, 133))
 WALL_INK = (22, 18, 30)
 FLIP = (
     0.12  # seconds a wall row takes to flip over  # the stack's other rows alternate off-white and this cool grey-blue
 )
 PALETTES = (  # (accent, extrusion/shade, pill)
-    ((255, 74, 46), (24, 18, 30), (198, 255, 26)),
-    ((198, 255, 26), (20, 24, 18), (255, 150, 200)),
-    ((255, 196, 40), (28, 20, 12), (122, 92, 255)),
-    ((255, 150, 200), (30, 14, 26), (90, 230, 210)),
-    ((90, 230, 210), (10, 26, 30), (255, 96, 28)),
+    ((219, 151, 100), (26, 32, 44), (220, 213, 192)),
+    ((135, 162, 188), (20, 31, 43), (228, 197, 156)),
+    ((191, 193, 150), (28, 34, 30), (225, 208, 187)),
+    ((196, 148, 166), (35, 27, 39), (187, 202, 211)),
+    ((99, 166, 157), (16, 32, 37), (232, 204, 158)),
 )
 WHITE = (248, 246, 240)
 
@@ -72,7 +72,7 @@ def letter_edges(text, font_name=STACK_FONT):
     return tuple([0.0] + [face.getlength(text[:i]) / total for i in range(1, len(text))] + [1.0])
 
 
-TOUR_FONT = 'ArchivoBlack-Regular.ttf'
+TOUR_FONT = 'Syne[wght].ttf'
 
 
 @lru_cache(maxsize=256)

@@ -268,17 +268,26 @@ class SceneMix:
         self.flows = [dict(f, camera=catalog[f['scene']]['camera'] if f['scene'] in catalog else 'pan') for f in flows]
         lines = {}
         for flow in self.flows:
-            lines.setdefault(flow['camera'], []).extend(range(flow['start'], flow['end']))
+            configured = options['scene_settings'].get(flow['scene'], {})
+            flow['engine'] = flow['scene'] if configured else flow['camera']
+        for flow in self.flows:
+            lines.setdefault(flow['engine'], []).extend(range(flow['start'], flow['end']))
         self.engines = {}
-        for camera, only in lines.items():
+        for key, only in lines.items():
+            flow = next(f for f in self.flows if f['engine'] == key)
+            camera = flow['camera']
+            config = options['scene_settings'].get(flow['scene'], {})
+            local_options = dict(
+                options, **{k: config[k] for k in ('pan_speed', 'backdrop_rate', 'geometry') if k in config}
+            )
             if camera == 'blocks':
                 staged = [
                     (i, catalog[f['scene']])
                     for f in self.flows
-                    if f['camera'] == 'blocks'
+                    if f['engine'] == key
                     for i in range(f['start'], f['end'])
                 ]
-                self.engines[camera] = Stage3D(
+                self.engines[key] = Stage3D(
                     c,
                     melody,
                     rhythm,
@@ -290,17 +299,19 @@ class SceneMix:
             elif camera == 'cinema':
                 from render.cinema import CinemaTypography
 
-                self.engines[camera] = CinemaTypography(c, melody, speed, rhythm, options, only=only)
+                self.engines[key] = CinemaTypography(
+                    c, melody, speed * config.get('speed', 1.0), rhythm, local_options, only=only
+                )
             elif camera == 'poster':
                 from render.poster import PosterTypography
 
                 layouts = {
                     i: catalog[f['scene']]['layout']
                     for f in self.flows
-                    if f['camera'] == 'poster'
+                    if f['engine'] == key
                     for i in range(f['start'], f['end'])
                 }
-                self.engines[camera] = PosterTypography(c, melody, speed, rhythm, options, only=only, layouts=layouts)
+                self.engines[key] = PosterTypography(c, melody, speed, rhythm, options, only=only, layouts=layouts)
             else:
                 large = {
                     i
@@ -308,11 +319,29 @@ class SceneMix:
                     if f['camera'] == camera and f['scene'] == 'full-screen-type'
                     for i in range(f['start'], f['end'])
                 }
-                self.engines[camera] = RealtimeTypography(
-                    c, melody, speed, rhythm, dict(options, camera=camera), only=only, large=large
+                self.engines[key] = RealtimeTypography(
+                    c,
+                    melody,
+                    speed * config.get('speed', 1.0),
+                    rhythm,
+                    dict(local_options, camera=camera),
+                    only=only,
+                    large=large,
                 )
-        self.stage = self.engines.get('blocks')
-        self.canvas_engine = self.engines.get('pan') or self.engines.get('still')
+            self.engines[key].scene_config = config
+            if camera == 'poster':
+                # Keep palette/side variations stable when overrides partition one renderer into several.
+                poster_lines = dict.fromkeys(
+                    i for f in self.flows if f['camera'] == 'poster' for i in range(f['start'], f['end'])
+                )
+                self.engines[key].sequence_numbers = {i: n for n, i in enumerate(poster_lines)}
+            if camera == 'blocks':
+                self.engines[key].options = local_options
+                self.engines[key].seed += config.get('variant', 0)
+        self.stage = next((self.engines[f['engine']] for f in self.flows if f['camera'] == 'blocks'), None)
+        self.canvas_engine = next(
+            (self.engines[f['engine']] for f in self.flows if f['camera'] in ('pan', 'still')), None
+        )
         self.switches = []
         for flow in self.flows[1:]:
             first = c.data[flow['start']]['words'][0]['start']
@@ -325,7 +354,7 @@ class SceneMix:
         self.handovers()
 
     def engine(self, number):
-        return self.engines[self.flows[number]['camera']]
+        return self.engines[self.flows[number]['engine']]
 
     def handovers(self):
         """For each change of scene: the glide's times and the wisp runs the mix carries the wisp between.

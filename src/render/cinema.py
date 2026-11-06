@@ -8,6 +8,7 @@ from grey, some flip in mirrored, and the odd last word stands on end. While a c
 slowly; it leaves by flipping, sliding or blurring away just before the next one. The artwork behind it
 pushes in too. Every frame is a pure function of time.
 """
+
 import bisect
 import math
 import random
@@ -19,16 +20,16 @@ from core.paths import PROJECT_ROOT
 from core.fonts import first_font, truetype
 from core.easing import cubic_out as ease, smoothstep as smooth  # shared curves, under this module's own names
 
-FONT = PROJECT_ROOT/'assets'/'fonts'/'Montserrat-Variable.ttf'
+FONT = PROJECT_ROOT / 'assets' / 'fonts' / 'Montserrat-Variable.ttf'
 FALLBACK = {'thin': ('segoeuil.ttf', 'arial.ttf'), 'heavy': ('seguibl.ttf', 'ariblk.ttf', 'arialbd.ttf')}
-WEIGHT = {'thin': 200, 'heavy': 900}
-TRACKING = {'thin': .1, 'heavy': .0}  # extra space between letters, as a share of the size
+WEIGHT = {'thin': 350, 'heavy': 750}
+TRACKING = {'thin': 0.075, 'heavy': 0.015}  # extra space between letters, as a share of the size
 WHITE, GREY = (246, 246, 244), (150, 152, 156)
-ANCHOR_Y = .46  # where a chunk is centred, as a share of the frame height
-CHUNK_GAP = .32  # a pause this long (seconds) always starts a new chunk
-LEAD, ENTRY, EXIT, HOLD = .06, .42, .3, .9
-PUSH = .05  # how much a holding chunk grows over its time on screen
-ART_PUSH = .06
+ANCHOR_Y = 0.46  # where a chunk is centred, as a share of the frame height
+CHUNK_GAP = 0.32  # a pause this long (seconds) always starts a new chunk
+LEAD, ENTRY, EXIT, HOLD = 0.06, 0.42, 0.3, 0.9
+PUSH = 0.05  # how much a holding chunk grows over its time on screen
+ART_PUSH = 0.06
 EDGE_EASE = 1.5  # seconds over which the push eases in and out at a scene mix's section edges
 
 
@@ -49,39 +50,42 @@ def font(weight, size):
 def word_mask(text, weight, size):
     """The word as a white-on-black 'L' mask, tracked out, with a little room around it for blur."""
     face = font(weight, size)
-    spacing = size*TRACKING[weight]
+    spacing = size * TRACKING[weight]
     widths = [face.getlength(ch) for ch in text]
-    width = sum(widths)+spacing*max(0, len(text)-1)
+    width = sum(widths) + spacing * max(0, len(text) - 1)
     ascent, descent = face.getmetrics()
-    pad = round(size*.12)
-    mask = Image.new('L', (max(1, math.ceil(width)+2*pad), ascent+descent+2*pad))
+    pad = round(size * 0.12)
+    mask = Image.new('L', (max(1, math.ceil(width) + 2 * pad), ascent + descent + 2 * pad))
     draw = ImageDraw.Draw(mask)
     x = pad
     for ch, w in zip(text, widths):
         draw.text((x, pad), ch, font=face, fill=255)
-        x += w+spacing
+        x += w + spacing
     box = mask.getbbox() or (0, 0, mask.width, mask.height)
     # Keep the full line height so rows of one chunk share a baseline rhythm, but trim the sides.
-    return mask.crop((max(0, box[0]-pad), max(0, box[1]-pad), min(mask.width, box[2]+pad), min(mask.height, box[3]+pad)))
+    return mask.crop(
+        (max(0, box[0] - pad), max(0, box[1] - pad), min(mask.width, box[2] + pad), min(mask.height, box[3] + pad))
+    )
 
 
 def fit_size(text, weight, width, height_cap):
     """The size at which `text` spans `width` pixels, no taller than `height_cap`."""
     probe = 100
     measured = word_mask(text, weight, probe).width or 1
-    return max(8, min(height_cap, probe*width/measured))
+    return max(8, min(height_cap, probe * width / measured))
 
 
 def is_function(word):
     from render.realtime import FUNCTION_WORDS, bare
+
     return bare(word) in FUNCTION_WORDS
 
 
 class CinemaTypography:
-    def __init__(self, compositor, melody=None, speed=1., rhythm=None, options=None, only=None):
+    def __init__(self, compositor, melody=None, speed=1.0, rhythm=None, options=None, only=None):
         self.c = compositor
         self.only = frozenset(only) if only is not None else None
-        self.speed = max(.2, speed)
+        self.speed = max(0.2, speed)
         self.chunks = None
 
     # ---------------------------------------------------------------- planning
@@ -90,7 +94,7 @@ class CinemaTypography:
         if self.chunks is not None:
             return self.chunks
         c = self.c
-        scale = c.typography.get('font_scale', 1.25)/1.25
+        scale = c.typography.get('font_scale', 1.25) / 1.25 * getattr(self, 'scene_config', {}).get('size', 1.0)
         chunks = []
         for index, line in enumerate(c.data):
             if self.only is not None and index not in self.only:
@@ -101,12 +105,12 @@ class CinemaTypography:
         chunks.sort(key=lambda chunk: chunk['start'])
         # A chunk appears early enough for its first word's whole entrance (ENTRY), where there is room: never before
         # the chunk ahead of it has landed its last word, so only one chunk is ever on screen.
-        for before, chunk in zip([None]+chunks, chunks):
-            landed = before['words'][-1]['start']+ENTRY if before else 0.
-            chunk['start'] = min(chunk['start'], max(chunk['words'][0]['start']-ENTRY/self.speed, landed))
+        for before, chunk in zip([None] + chunks, chunks):
+            landed = before['words'][-1]['start'] + ENTRY if before else 0.0
+            chunk['start'] = min(chunk['start'], max(chunk['words'][0]['start'] - ENTRY / self.speed, landed))
         for k, chunk in enumerate(chunks):
-            following = chunks[k+1]['start'] if k+1 < len(chunks) else c.duration
-            chunk['end'] = max(chunk['words'][-1]['start']+ENTRY, min(following-.02, chunk['last']+HOLD))
+            following = chunks[k + 1]['start'] if k + 1 < len(chunks) else c.duration
+            chunk['end'] = max(chunk['words'][-1]['start'] + ENTRY, min(following - 0.02, chunk['last'] + HOLD))
         self.chunks = chunks
         self.starts = [chunk['start'] for chunk in chunks]
         return chunks
@@ -117,8 +121,8 @@ class CinemaTypography:
         groups, current = [], []
         for word in words:
             if current:
-                pause = word['start']-current[-1]['end']
-                small = all(is_function(w['text']) for w in current+[word])
+                pause = word['start'] - current[-1]['end']
+                small = all(is_function(w['text']) for w in current + [word])
                 full = len(current) >= (3 if small else 2)
                 if pause > CHUNK_GAP or full:
                     groups.append(current)
@@ -130,68 +134,93 @@ class CinemaTypography:
         merged = []
         for group in groups:
             if merged and len(merged[-1]) == 1 and is_function(merged[-1][0]['text']) and len(group) == 1:
-                merged[-1] = merged[-1]+group
+                merged[-1] = merged[-1] + group
             else:
                 merged.append(group)
         return merged
 
     def layout(self, line, group, number, scale):
         c = self.c
-        rng = random.Random(number*7919+line*131+len(group))
+        rng = random.Random(number * 7919 + line * 131 + len(group))
         texts = [w['text'].strip().upper() for w in group]
         content = [k for k, text in enumerate(texts) if not is_function(text)]
         # The heavy word is the chunk's last content word ("black HOLE", "the RAIN"); a lone word is heavy about half the time.
-        heavy = content[-1] if content else len(texts)-1
-        if len(group) == 1 and rng.random() < .45:
+        heavy = content[-1] if content else len(texts) - 1
+        if len(group) == 1 and rng.random() < 0.45:
             heavy = None
         W, H = c.width, c.height
         portrait = H > W
         words = []
         heavy_width = None
         if heavy is not None:
-            size = fit_size(texts[heavy], 'heavy', W*(.82 if portrait else .5), H*(.16 if portrait else .2)*scale)
+            size = fit_size(
+                texts[heavy], 'heavy', W * (0.82 if portrait else 0.5), H * (0.16 if portrait else 0.2) * scale
+            )
             heavy_width = word_mask(texts[heavy], 'heavy', size).width
         for k, (word, text) in enumerate(zip(group, texts)):
             weight = 'heavy' if k == heavy else 'thin'
-            vertical = len(group) == 1 and weight == 'heavy' and len(text) >= 4 and rng.random() < .22
+            vertical = len(group) == 1 and weight == 'heavy' and len(text) >= 4 and rng.random() < 0.22
             if weight == 'heavy':
-                span = W*(.82 if portrait else .5)
-                size = fit_size(text, 'heavy', span, H*(.16 if portrait else .2)*scale)
+                span = W * (0.82 if portrait else 0.5)
+                size = fit_size(text, 'heavy', span, H * (0.16 if portrait else 0.2) * scale)
                 if vertical:
-                    size = fit_size(text, 'heavy', H*.42, W*.12*scale)
+                    size = fit_size(text, 'heavy', H * 0.42, W * 0.12 * scale)
                 motion = rng.choice(('slide', 'slide', 'zoom', 'flip'))
             else:
-                wide = len(group) == 1 and len(text) >= 3 and rng.random() < .5
+                wide = len(group) == 1 and len(text) >= 3 and rng.random() < 0.5
                 if heavy_width:  # a hairline above or below a heavy word matches most of its width
-                    span = heavy_width*(.85 if len(text) >= 3 else .45)
+                    span = heavy_width * (0.85 if len(text) >= 3 else 0.45)
                 else:
-                    span = W*(.88 if wide else .55)*(1 if portrait else .62)
-                size = fit_size(text, 'thin', span, H*(.11 if wide else .075)*scale*(1.4 if not portrait else 1))
+                    span = W * (0.88 if wide else 0.55) * (1 if portrait else 0.62)
+                size = fit_size(
+                    text, 'thin', span, H * (0.11 if wide else 0.075) * scale * (1.4 if not portrait else 1)
+                )
                 motion = rng.choice(('settle', 'settle', 'flip'))
-            words.append(dict(text=text, weight=weight, size=size, start=word['start'], end=word['end'],
-                              vertical=vertical, motion=motion, side=rng.choice((-1, 1)), axis=rng.choice(('x', 'y'))))
+            words.append(
+                dict(
+                    text=text,
+                    weight=weight,
+                    size=size,
+                    start=word['start'],
+                    end=word['end'],
+                    vertical=vertical,
+                    motion=motion,
+                    side=rng.choice((-1, 1)),
+                    axis=rng.choice(('x', 'y')),
+                )
+            )
         # Stack the rows, centred on the anchor; a heavy row under a thin one tucks in close.
-        heights = [word_mask(w['text'], w['weight'], w['size']).width if w['vertical']
-                   else word_mask(w['text'], w['weight'], w['size']).height for w in words]
-        gap = -min(w['size'] for w in words)*.08
-        total = sum(heights)+gap*(len(words)-1)
-        y = H*ANCHOR_Y-total/2
+        heights = [
+            word_mask(w['text'], w['weight'], w['size']).width
+            if w['vertical']
+            else word_mask(w['text'], w['weight'], w['size']).height
+            for w in words
+        ]
+        gap = -min(w['size'] for w in words) * 0.08
+        total = sum(heights) + gap * (len(words) - 1)
+        y = H * ANCHOR_Y - total / 2
         for w, h in zip(words, heights):
-            w['y'] = y+h/2
-            y += h+gap
-        return dict(line=line, words=words, start=group[0]['start']-LEAD, last=group[-1]['end'],
-                    exit=rng.choice(('blur', 'flip', 'slide')), side=rng.choice((-1, 1)))
+            w['y'] = y + h / 2
+            y += h + gap
+        return dict(
+            line=line,
+            words=words,
+            start=group[0]['start'] - LEAD,
+            last=group[-1]['end'],
+            exit=rng.choice(('blur', 'flip', 'slide')),
+            side=rng.choice((-1, 1)),
+        )
 
     # ---------------------------------------------------------------- drawing
 
     def frame(self, t):
         c = self.c
         self.plan()
-        index = max(0, sum(1 for line in c.data if line['words'][0]['start'] <= t)-1)
+        index = max(0, sum(1 for line in c.data if line['words'][0]['start'] <= t) - 1)
         screen = self.backdrop(index, t)
         c.illustration(screen, index, t)
-        k = bisect.bisect_right(self.starts, t)-1
-        for number in (k-1, k):
+        k = bisect.bisect_right(self.starts, t) - 1
+        for number in (k - 1, k):
             if 0 <= number < len(self.chunks) and self.chunks[number]['start'] <= t < self.chunks[number]['end']:
                 self.paint_chunk(screen, self.chunks[number], t)
         return screen.convert('RGB')
@@ -202,9 +231,13 @@ class CinemaTypography:
             data, runs = self.c.data, []
             lines = sorted(self.only) if self.only is not None else list(range(len(data)))
             for i in lines:
-                if runs and runs[-1][1] == i-1:runs[-1][1] = i
-                else:runs.append([i, i])
-            self._sections = [(data[a]['words'][0]['start'], data[b]['words'][-1]['end']) for a, b in runs] or [(0., self.c.duration)]
+                if runs and runs[-1][1] == i - 1:
+                    runs[-1][1] = i
+                else:
+                    runs.append([i, i])
+            self._sections = [(data[a]['words'][0]['start'], data[b]['words'][-1]['end']) for a, b in runs] or [
+                (0.0, self.c.duration)
+            ]
         return self._sections
 
     def push(self, number, t):
@@ -212,17 +245,18 @@ class CinemaTypography:
         a crossing does not snap back; it eases to none at the edges of this engine's sections, so a scene mix hands
         the painting to the next scene at exactly the same size."""
         c = self.c
-        starts = list(getattr(c, 'art_starts', None) or [0.])
-        span = (starts[number+1] if number+1 < len(starts) else c.duration)-starts[number]
-        grow = max(0., min(1., (t-starts[number])/max(1., span)))
+        starts = list(getattr(c, 'art_starts', None) or [0.0])
+        span = (starts[number + 1] if number + 1 < len(starts) else c.duration) - starts[number]
+        grow = max(0.0, min(1.0, (t - starts[number]) / max(1.0, span)))
         if self.only is not None:
             # A scene mix's change of scene glides for TRAVEL around a switch that falls at most half a glide
             # inside the section's first and last words: hold the push at none for the whole glide.
             from render.scene_mix import TRAVEL
-            pad = TRAVEL/2
-            edge = max((min(t-first-pad, last-pad-t) for first, last in self.sections()), default=0.)
-            grow *= smooth(edge/EDGE_EASE)
-        return 1+ART_PUSH*grow
+
+            pad = TRAVEL / 2
+            edge = max((min(t - first - pad, last - pad - t) for first, last in self.sections()), default=0.0)
+            grow *= smooth(edge / EDGE_EASE)
+        return 1 + ART_PUSH * grow
 
     def backdrop(self, index, t):
         """The artwork, pushing in slowly from the moment it appears."""
@@ -230,50 +264,55 @@ class CinemaTypography:
 
     def paint_chunk(self, screen, chunk, t):
         W = self.c.width
-        hold = (t-chunk['start'])/max(.5, chunk['end']-chunk['start'])
-        push = 1+PUSH*smooth(hold)
-        leaving = (t-(chunk['end']-EXIT))/EXIT
+        hold = (t - chunk['start']) / max(0.5, chunk['end'] - chunk['start'])
+        push = 1 + PUSH * smooth(hold) * getattr(self, 'scene_config', {}).get('push', 1.0)
+        leaving = (t - (chunk['end'] - EXIT)) / EXIT
         for word in chunk['words']:
-            entry = ENTRY/self.speed
-            arrive = (t-word['start']+entry)/entry
+            entry = ENTRY / self.speed
+            arrive = (t - word['start'] + entry) / entry
             if arrive <= 0:
                 continue
             p = ease(arrive)
-            state = dict(scale=push, alpha=1., flip=1., shift=0., blur=0., grey=0.)
+            state = dict(scale=push, alpha=1.0, flip=1.0, shift=0.0, blur=0.0, grey=0.0)
             motion = word['motion']
             if motion == 'settle':  # hairlines come in oversized and faint, then sharpen into place
-                state.update(scale=push*(1+.7*(1-p)), alpha=p**1.5, blur=(1-p)*word['size']*.08)
+                state.update(scale=push * (1 + 0.7 * (1 - p)), alpha=p**1.5, blur=(1 - p) * word['size'] * 0.08)
             elif motion == 'slide':  # heavy words sweep in sideways, blurred by their speed, grey to white
-                speed = 3*(1-min(1., arrive))**2
-                state.update(shift=-word['side']*W*.45*(1-p), blur=speed*word['size']*.18, grey=1-p, alpha=min(1., arrive*3))
+                speed = 3 * (1 - min(1.0, arrive)) ** 2
+                state.update(
+                    shift=-word['side'] * W * 0.45 * (1 - p),
+                    blur=speed * word['size'] * 0.18,
+                    grey=1 - p,
+                    alpha=min(1.0, arrive * 3),
+                )
             elif motion == 'zoom':  # in huge and grey, settling down to size
-                state.update(scale=push*(1+1.2*(1-p)), grey=1-p, alpha=.35+.65*p)
+                state.update(scale=push * (1 + 1.2 * (1 - p)), grey=1 - p, alpha=0.35 + 0.65 * p)
             else:  # flip: turns over from its mirror image like a card
-                state.update(flip=-math.cos(math.pi*min(1., arrive)), alpha=min(1., arrive*2), grey=(1-p)*.6)
+                state.update(flip=-math.cos(math.pi * min(1.0, arrive)), alpha=min(1.0, arrive * 2), grey=(1 - p) * 0.6)
             if leaving > 0:
                 q = smooth(leaving)
                 if chunk['exit'] == 'flip':
-                    state['flip'] *= math.cos(math.pi*q)
-                    state['alpha'] *= 1-q*.85
+                    state['flip'] *= math.cos(math.pi * q)
+                    state['alpha'] *= 1 - q * 0.85
                 elif chunk['exit'] == 'slide':
-                    speed = 3*q**2
-                    state['shift'] += chunk['side']*W*.5*q**2
-                    state['blur'] += speed*word['size']*.18
-                    state['alpha'] *= 1-q
+                    speed = 3 * q**2
+                    state['shift'] += chunk['side'] * W * 0.5 * q**2
+                    state['blur'] += speed * word['size'] * 0.18
+                    state['alpha'] *= 1 - q
                 else:
-                    state['scale'] *= 1+.25*q
-                    state['blur'] += q*word['size']*.15
-                    state['alpha'] *= 1-q
+                    state['scale'] *= 1 + 0.25 * q
+                    state['blur'] += q * word['size'] * 0.15
+                    state['alpha'] *= 1 - q
             self.paint_word(screen, word, state)
 
     def paint_word(self, screen, word, state):
-        if state['alpha'] <= .01:
+        if state['alpha'] <= 0.01:
             return
         mask = word_mask(word['text'], word['weight'], word['size'])
-        sx = state['scale']*state['flip'] if word['axis'] == 'x' else state['scale']
-        sy = state['scale']*state['flip'] if word['axis'] == 'y' else state['scale']
-        width, height = max(1, round(mask.width*abs(sx))), max(1, round(mask.height*abs(sy)))
-        if width > self.c.width*4 or height > self.c.height*4:
+        sx = state['scale'] * state['flip'] if word['axis'] == 'x' else state['scale']
+        sy = state['scale'] * state['flip'] if word['axis'] == 'y' else state['scale']
+        width, height = max(1, round(mask.width * abs(sx))), max(1, round(mask.height * abs(sy)))
+        if width > self.c.width * 4 or height > self.c.height * 4:
             return
         image = mask.resize((width, height), Image.Resampling.BICUBIC)
         if sx < 0:
@@ -283,26 +322,29 @@ class CinemaTypography:
         if word['vertical']:
             image = image.rotate(90, expand=True)
         blur = state['blur']
-        if blur > .6:
+        if blur > 0.6:
             # Motion blur along the slide; otherwise a soft defocus.
             if state['shift'] or word['motion'] == 'slide':
-                steps = max(2, min(9, round(blur/2)))
-                streak = Image.new('L', (image.width+round(blur*2), image.height))
+                steps = max(2, min(9, round(blur / 2)))
+                streak = Image.new('L', (image.width + round(blur * 2), image.height))
                 for s in range(steps):
                     layer = Image.new('L', streak.size)
-                    layer.paste(image, (round(blur*2*s/(steps-1)), 0))
-                    streak = Image.blend(streak, layer, 1/(s+1)) if s else layer
+                    layer.paste(image, (round(blur * 2 * s / (steps - 1)), 0))
+                    streak = Image.blend(streak, layer, 1 / (s + 1)) if s else layer
                 image = streak
             else:
                 image = image.filter(ImageFilter.GaussianBlur(blur))
-        image = image.point(lambda v: round(v*min(1., state['alpha'])))
+        image = image.point(lambda v: round(v * min(1.0, state['alpha'])))
         # A song-wide lettering colour from the special instructions replaces white; its dimmed tone replaces grey.
-        light = getattr(self.c, 'ink_override', None)
-        light, dim = (light, tuple(round(v*.61) for v in light)) if light else (WHITE, GREY)
-        colour = tuple(round(a+(b-a)*state['grey']) for a, b in zip(light, dim))
-        x = self.c.width/2+state['shift']-image.width/2
-        y = word['y']-image.height/2
+        from core.color import hex_rgb
+
+        color = getattr(self, 'scene_config', {}).get('accent')
+        light = hex_rgb(color) if color else getattr(self.c, 'ink_override', None)
+        light, dim = (light, tuple(round(v * 0.61) for v in light)) if light else (WHITE, GREY)
+        colour = tuple(round(a + (b - a) * state['grey']) for a, b in zip(light, dim))
+        x = self.c.width / 2 + state['shift'] - image.width / 2
+        y = word['y'] - image.height / 2
         # A faint shadow keeps white hairlines readable over a pale sky.
-        shade = image.filter(ImageFilter.GaussianBlur(max(1., word['size']*.06))).point(lambda v: round(v*.35))
-        screen.paste((0, 0, 0, 255), (round(x), round(y+word['size']*.03)), shade)
-        screen.paste(colour+(255,), (round(x), round(y)), image)
+        shade = image.filter(ImageFilter.GaussianBlur(max(1.0, word['size'] * 0.06))).point(lambda v: round(v * 0.35))
+        screen.paste((0, 0, 0, 255), (round(x), round(y + word['size'] * 0.03)), shade)
+        screen.paste(colour + (255,), (round(x), round(y)), image)

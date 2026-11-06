@@ -38,6 +38,7 @@ from render.poster.mobile import MobileScene
 from render.poster.stamp import StampScene
 from render.poster.register import RegisterScene
 from render.poster.drop import DropScene
+from render.poster.minimal import MinimalScenes
 
 PAINTERS = {
     'stack': 'paint_stack',
@@ -59,6 +60,7 @@ PAINTERS = {
     'stamp': 'paint_stamp',
     'register': 'paint_register',
     'drop': 'paint_drop',
+    **dict.fromkeys(('editorial', 'focus', 'baseline', 'caption'), 'paint_minimal'),
 }  # anything else uses paint_stack
 
 
@@ -83,6 +85,7 @@ class PosterTypography(
     StampScene,
     RegisterScene,
     DropScene,
+    MinimalScenes,
 ):
     def __init__(self, compositor, melody=None, speed=1.0, rhythm=None, options=None, only=None, layouts=None):
         self.c = compositor
@@ -95,9 +98,11 @@ class PosterTypography(
         if self.lines is not None:
             return self.lines
         c = self.c
+        config = getattr(self, 'scene_config', {})
         lines = []
         indices = [i for i in range(len(c.data)) if self.only is None or i in self.only]
         for n, index in enumerate(indices):
+            n = getattr(self, 'sequence_numbers', {}).get(index, n)
             line = c.data[index]
             words = [w for w in line['words'] if w['text'].strip()]
             if not words:
@@ -114,14 +119,15 @@ class PosterTypography(
                 end += linger
             lines.append(
                 dict(
-                    index=index,
+                    index=index + config.get('variant', 0),
+                    config=config,
                     words=words,
                     rows=rows_of(words),
                     start=start,
                     end=end,
                     layout=self.layouts.get(index, 'stack'),
-                    palette=PALETTES[(index * 2 + n) % len(PALETTES)],
-                    side=1 if n % 2 else -1,
+                    palette=self.palette(index, n, config),
+                    side=1 if (n + config.get('variant', 0)) % 2 else -1,
                     seed=rng.random(),
                     linger=linger,
                 )
@@ -129,6 +135,13 @@ class PosterTypography(
         self.lines = lines
         self.starts = [line['start'] for line in lines]
         return lines
+
+    @staticmethod
+    def palette(index, number, config):
+        from core.color import hex_rgb
+
+        palette = PALETTES[(index * 2 + number + config.get('variant', 0)) % len(PALETTES)]
+        return (hex_rgb(config['accent']), *palette[1:]) if config.get('accent') else palette
 
     def wisp_runs(self):
         return []

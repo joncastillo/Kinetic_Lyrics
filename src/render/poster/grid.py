@@ -79,6 +79,16 @@ class GridScene:
                 canvas.alpha_composite(dark)
         # A building face in perspective: shear and a vertical skew so the grid reads as a tilted plane.
         canvas = canvas.transform(
-            (W, H), Image.Transform.AFFINE, (1, -0.32, 0.32 * H / 2, 0.16, 1, -0.16 * W / 2), Image.Resampling.BICUBIC
+            (W, H),
+            Image.Transform.AFFINE,
+            (
+                1,
+                -0.32 * self.setting(line, 'motion'),
+                0.32 * H / 2 * self.setting(line, 'motion'),
+                0.16 * self.setting(line, 'motion'),
+                1,
+                -0.16 * W / 2 * self.setting(line, 'motion'),
+            ),
+            Image.Resampling.BICUBIC,
         )
         screen.alpha_composite(canvas)

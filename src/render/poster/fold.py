@@ -37,7 +37,9 @@ class FoldScene:
         text_h = tall * 0.4
         masks = [word_mask(w, STACK_FONT, 200) for w in words]
         widths = [max(tall * 0.5, m.width * text_h / m.height + tall * 0.3) for m in masks]
-        base = math.radians(89 - 43 * arrive * (1 - leave))  # rests at about 46 degrees: every pleat stays readable
+        base = math.radians(
+            89 - (89 - self.setting(line, 'fold_angle', 46.0)) * arrive * (1 - leave)
+        )  # rests at about 46 degrees: every pleat stays readable
         flat = [0.0] * n
         flat[k] = back_out(clamp((t - since) / 0.3), 1.8) * (1 - leave)
         if k > 0:

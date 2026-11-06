@@ -91,7 +91,9 @@ class SearchScene:
             if i < k:
                 capsule(spot, shade)
             else:
-                sweep = smoother(clamp((t - since) / 0.45))  # the marker glides along the word
+                sweep = smoother(
+                    clamp((t - since) * self.setting(line, 'marker_speed') / 0.45)
+                )  # the marker glides along the word
                 if sweep > 0.02:
                     capsule(spot, accent, sweep)
             found.update((r + m * dr, c + m * dc, i) for m in range(n))

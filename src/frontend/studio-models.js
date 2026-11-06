@@ -934,6 +934,7 @@ function syncKineticControls(){
  document.querySelectorAll('[data-kinetic-choice]').forEach(select=>select.value=settings[select.dataset.kineticChoice]);
  document.querySelectorAll('[data-kinetic-radio]').forEach(radio=>radio.checked=String(settings[radio.dataset.kineticRadio])===radio.value);
  syncBeatControls(settings);
+ window.syncSceneControls?.();
  syncCameraMode();
 }
 window.sceneLyricsEnabled=()=>!!kineticSettings().scene_text;
@@ -968,14 +969,14 @@ function syncCameraMode(){
   preview:{flow:'This flow uses entrance and exit effects and letter effects. Kinetic effects are not used.',
            words:'Entrance and exit effects play on every line in the Preview flow. Letter effects apply.',
            kinetic:'Not used by the Preview flow. Choose Real-time or Scene mix on the Scenes tab to use kinetic effects.',scenes:'Scene effects are used by the Scene mix flow only.'},
-  stage:{flow:'This flow uses the small animated pictures and the 3D stage\u2019s own particles. Entrance, exit and kinetic effects are not used.',
-         words:'Not used by the 3D stage flow, whose scenes bring their own particles. Choose Real-time, Preview, Scene mix or Spotlight on the Scenes tab.',
+  stage:{flow:'This flow uses selected entrance particles, small animated pictures and built-in camera motion. Global exit effects are not used.',
+         words:'Selected entrances can decorate the top row of 3D blocks. Global exit effects are not used; earlier blocks dim in the world.',
          kinetic:'Not used by the 3D stage flow. Choose Real-time or Scene mix on the Scenes tab to use kinetic effects.',scenes:'Scene effects are used by the Scene mix flow only; the 3D stage flow films the whole song on its stage.'},
-  mixed:{flow:'Each section\u2019s scene decides: panning canvas and framed lines use kinetic, entrance and exit effects; Spotlight uses entrance and exit effects; 3D stage and poster scenes bring their own motion.',
-         words:'In Scene mix, entrance and exit effects play in sections filmed as a panning canvas, framed lines or Spotlight. 3D stage and poster scenes bring their own motion.',
+  mixed:{flow:'Each section\u2019s scene decides: panning canvas uses entrances; framed lines use entrances and exits; Spotlight uses its own phrase motion; 3D stage and poster scenes bring their own motion.',
+         words:'In Scene mix, panning scenes use entrances; still scenes use entrances and exits. 3D scenes use selected entrances on their top rows. Spotlight and poster scenes use built-in motion.',
          kinetic:'In Scene mix, kinetic effects shape the sections filmed as a panning canvas or framed lines.',scenes:''},
-  cinema:{flow:'This flow uses entrance and exit effects on each phrase. Kinetic effects are not used.',
-          words:'Entrance and exit effects play on each phrase in the Spotlight flow. Letter effects apply.',
+  cinema:{flow:'This flow uses built-in settle, slide, zoom and flip entrances, and blur, flip or slide exits.',
+          words:'Spotlight uses its own phrase motion. Global entrance and exit selections are not used.',
           kinetic:'Not used by the Spotlight flow. Choose Real-time or Scene mix on the Scenes tab to use kinetic effects.',scenes:'Scene effects are used by the Scene mix flow only.'}}[flow]||{};
  for(const [id,key] of [['flowUses','flow'],['wordUses','words'],['kineticUses','kinetic'],['scenesUnused','scenes']]){const el=document.getElementById(id);if(el)el.textContent=uses[key]||'';}
  const pan=document.querySelector('[data-kinetic="pan_speed"]');if(pan)pan.disabled=flow==='realtime'&&camera==='still';
@@ -985,7 +986,7 @@ function showKineticValue(input){
  if(out)out.value=input.dataset.unit==='%'?Math.round(+input.value*100)+'%':(+input.value).toFixed(3);
 }
 function storeKineticControls(){
- const settings={};
+ const settings={scene_settings:kineticSettings().scene_settings||{}};
  document.querySelectorAll('[data-kinetic]').forEach(input=>{settings[input.dataset.kinetic]=+input.value;showKineticValue(input)});
  document.querySelectorAll('[data-kinetic-flag]').forEach(box=>settings[box.dataset.kineticFlag]=box.checked);
  document.querySelectorAll('[data-kinetic-choice]').forEach(select=>settings[select.dataset.kineticChoice]=select.value);
@@ -995,44 +996,24 @@ function storeKineticControls(){
  const scenes=[...document.querySelectorAll('[data-kinetic-list="scenes"]')];
  if(scenes.length)settings.scenes=scenes.filter(b=>b.checked).map(b=>b.value);
  const hidden=document.getElementById('kinetic');if(hidden)hidden.value=JSON.stringify(settings);
+ window.syncSceneControls?.();
  syncCameraMode();
  renderProductionStages(typeof state==='undefined'?null:state);
 }
 window.syncKineticControls=syncKineticControls;
 function sceneSampleQuery(id){
  const value=key=>document.getElementById(key)?.value;
- const query={scene:id,v:'scene-samples-1'};
+ const settings=kineticSettings(),overrides={...(settings.scene_settings?.[id]||{})};
+ for(const key of ['pan_speed','backdrop_rate','geometry']){
+  if(document.querySelector(`[data-scene-id="${id}"][data-scene-setting="${key}"]`)&&overrides[key]===undefined)overrides[key]=settings[key];
+ }
+ const query={scene:id,v:'scene-controls-3',settings:JSON.stringify(overrides)};
  for(const [key,field] of [['font_family','fontFamily'],['font_style','fontStyle'],['font_scale','fontScale']])if(value(field))query[key]=value(field);
  return '/api/scene-preview?'+new URLSearchParams(query);
 }
-function renderSceneEffects(scenes){
- const group=document.getElementById('sceneEffects');if(!group||!Array.isArray(scenes))return;
- group.classList.add('scene-choices');
- group.replaceChildren(...scenes.map(scene=>{
-  const card=document.createElement('div');card.className='scene-choice';
-  const label=document.createElement('label');label.className='check-toggle';label.title=scene.description||'';
-  const box=document.createElement('input');box.type='checkbox';box.value=scene.id;box.dataset.kineticList='scenes';
-  box.addEventListener('input',()=>{if(!group.querySelector('input:checked'))box.checked=true;storeKineticControls()});
-  label.append(box,scene.name);
-  // What moves the words in this scene: the user's entrance and exit effects, or the scene's own particles.
-  const uses=document.createElement('small');uses.className='scene-uses';
-  const camera={pan:'<b>Panning canvas</b> \u00b7 kinetic, entrance and exit effects',still:'<b>Framed lines</b> \u00b7 kinetic, entrance and exit effects',cinema:'<b>Spotlight</b> \u00b7 entrance and exit effects',blocks:'<b>3D stage</b> \u00b7 its own particles',poster:'<b>Poster</b> \u00b7 its own motion'}[scene.camera]||'';
-  const effects=scene.camera==='poster'?'Built-in motion · entrance and exit selections are not used':
-   scene.camera==='blocks'?(scene.id==='tree-canopy'?'Tree entrances only · built-in exit':'Uses selected entrance effects · built-in exit'):
-   scene.camera==='pan'?'Uses entrance effects · panning flow keeps words on the canvas':'Uses entrance and exit effects';
-  uses.innerHTML=camera.split(' \u00b7 ')[0]+'<br>'+effects;
-  card.dataset.effectUsage=scene.camera==='poster'?'built-in':scene.camera==='blocks'?'mixed':'selected';
-  // An animated sample of the scene, rendered (and cached) on first view.
-  const sample=document.createElement('img');sample.className='scene-thumbnail';sample.loading='lazy';
-  sample.alt=scene.name+' animated sample';sample.title=scene.description||'';sample.dataset.scene=scene.id;sample.src=sceneSampleQuery(scene.id);
-  sample.addEventListener('click',()=>{box.checked=!box.checked;box.dispatchEvent(new Event('input'))});
-  card.append(label,uses,sample);return card;
- }));
- syncKineticControls();
-}
-function refreshSceneSamples(){document.querySelectorAll('.scene-thumbnail').forEach(img=>{img.src=sceneSampleQuery(img.dataset.scene)})}
+function refreshSceneSamples(){document.querySelectorAll('.scene-thumbnail').forEach(img=>{const src=sceneSampleQuery(img.dataset.scene);if(img.getAttribute('src')!==src)img.src=src})}
 window.refreshSceneSamples=refreshSceneSamples;
-window.renderSceneEffects=renderSceneEffects;
+
 document.addEventListener('DOMContentLoaded',()=>{
  document.querySelectorAll('[data-kinetic],[data-kinetic-flag],[data-kinetic-list],[data-kinetic-choice],[data-kinetic-radio]').forEach(input=>input.addEventListener('input',storeKineticControls));
  document.getElementById('readingFlow')?.addEventListener('change',syncCameraMode);

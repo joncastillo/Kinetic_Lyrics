@@ -85,7 +85,14 @@ class DropScene:
         impact = t - starts[landed] if landed >= 0 else -1.0
         give = 0.08 * math.exp(-max(0.0, impact) * 9) * math.sin(max(0.0, impact) * 30) if impact > 0 else 0.0
         if impact > 0:  # the whole frame dips with the hit
-            cam = tall * 0.08 * zoom * math.exp(-impact * 10) * math.sin(min(math.pi, impact * 24))
+            cam = (
+                tall
+                * 0.08
+                * self.setting(line, 'motion')
+                * zoom
+                * math.exp(-impact * 10)
+                * math.sin(min(math.pi, impact * 24))
+            )
         drawn = []
         for i in range(last + 1):
             mask, w, h, x, y0, tilt = blocks[i]

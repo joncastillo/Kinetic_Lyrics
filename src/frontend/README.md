@@ -27,6 +27,7 @@ work is running or queued. A stage with no compatible saved output shows
 |---|---|
 | `studio-boot.js` | Loaded in the head: restores the theme, backdrop and panel colour from the active profile before the first paint. |
 | `studio-models.js` | Model catalogue, GPU-fit, the header's GPU map, stage rail, downloads and reference-regeneration dialogs. |
+| `studio-scenes.js` | Scene cards, entry/exit descriptions, tag and text filters, and individual configuration panels. Overrides live in `kinetic.scene_settings`; reset affects only one scene. |
 | `studio-fx-sim.js` | Canvas previews for the will-o'-wisp and beat effects. |
 | `studio-story.js` | Storyline dialog. |
 | `studio-particles.js` | Effect browser, previews, the changes-since-render panel (video tools), video history, sidebar label captions. |

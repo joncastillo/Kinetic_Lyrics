@@ -20,7 +20,7 @@ class RecedeScene:
         push = smoother(clamp((t - since) / 0.45))
         handover = smoother(clamp((t - since) / 0.32))  # the plate passes from the last word to the new one
         slam = keyframes(clamp((t - since) / 0.38), [(0, 1.1), (0.45, 0.97), (0.75, 1.01), (1, 1.0)])
-        base_w = W * 0.62
+        base_w = W * 0.62 * self.setting(line, 'size')
         vanish = (W * 0.5, -H * 0.3)
         front = (W * 0.5, H * 0.66)
         for depth_index in range(0, k + 1):  # farthest first, so nearer words cover them
@@ -34,7 +34,7 @@ class RecedeScene:
                 continue
             word = words[depth_index] or '~'
             mask = word_mask(word, WALL_FONT, 200)
-            width = min(base_w, mask.width * H * 0.2 / mask.height) * scale
+            width = min(base_w, mask.width * H * 0.2 * self.setting(line, 'size') / mask.height) * scale
             hero = handover if depth_index == k else 1 - handover if depth_index == k - 1 else 0.0
             if depth_index == k:
                 width *= slam * (0.35 + 0.65 * back_out(handover, 1.15))  # it scales in, never pops
