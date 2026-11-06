@@ -25,7 +25,7 @@ flowchart TD
     C --> D["#nbsp;#nbsp;Plan the scenes#nbsp;#nbsp;<br/>(LLM)"]
     D --> E["#nbsp;#nbsp;Paint illustrations#nbsp;#nbsp;<br/>(Image Gen Model)"]
     S(["#nbsp;#nbsp;Style images#nbsp;#nbsp;"]) -.-> E
-    E --> F["#nbsp;#nbsp;Cut out subjects#nbsp;#nbsp;<br/>(BiRefNet)"]
+    E --> F["#nbsp;#nbsp;Cutout artwork only#nbsp;#nbsp;<br/>(BiRefNet)"]
     F --> R["#nbsp;#nbsp;Check the artwork#nbsp;#nbsp;<br/>(Vision Model)"]
     R -- rejected --> E
     R --> G{"#nbsp;#nbsp;User reviews artwork#nbsp;#nbsp;"}
@@ -50,7 +50,7 @@ flowchart TD
 | **Demucs** | `htdemucs`, which splits the vocals from the instruments | Fixed |
 | **LLM** | An Ollama text model that plans scenes, writes image prompts and directs the typography | Prompting and Revisions (Text Model) |
 | **Image Gen Model** | Qwen Image 2.1, Qwen Image Edit 2511 or FLUX.2-klein, which all take reference pictures, for the illustrations and small typography pictures | Image Generation Model |
-| **BiRefNet** | `birefnet-general`, which cuts subjects out of their backgrounds | Fixed |
+| **BiRefNet** | `birefnet-general`, which removes illustration backgrounds | Cutout artwork only |
 | **Vision Model** | An Ollama vision model that scores each image for anatomy, limbs, facial hair on women and stray lettering, and rejects failures for repainting | Image Quality Scoring (VL Model) |
 
 If no lyrics are supplied, Kinetic Lyrics will:
@@ -141,68 +141,6 @@ Some [Hugging Face](https://huggingface.co) repositories require an account, acc
 of their terms, and `HF_TOKEN`. Model licence information is shown in Studio; review
 the selected model's terms before using its output commercially.
 
-## User Interface
-
-Kinetic Studio is the browser interface. From the repository folder, run:
-
-```powershell
-.\kinetic-studio.cmd
-```
-
-It opens http://127.0.0.1:8765. Use `--port 8766` to run a second instance with a
-separate output folder.
-
-### Reference editing
-
-Use the **↻** button on a recurring reference to edit its saved description and
-generation prompt. The panel shows the current image and lets you attach other
-recurring references, project pictures, built-in art-style references, or uploaded
-inputs. Each picture can guide identity, style, or specific details.
-
-**Save and regenerate** stores the recipe in the project, removes superseded
-artwork from active use, rebuilds derived references, and regenerates dependent
-illustrations. The old output remains in a recovery archive. **Edit** retains the
-separate in-image editor and its prewritten "Do not change anything else…" prompt.
-
-Clicking a history thumbnail previews it. **Use as reference** selects that version
-and rebuilds dependent artwork. **Discard** on the current version restores the
-previous reference; discarding another version leaves the current selection alone.
-
-### Image Maker
-
-Image Maker generates standalone pictures and edits attached reference images.
-It saves prompts, queued requests and result history. Qwen Image 2.1 supports
-numbered region guides; **Keep everything outside selected regions unchanged**
-requires PNG and preserves the source dimensions and pixels outside the selections.
-
-### Pipeline history
-
-Each stage in the pipeline graph has a version dropdown. Choosing an earlier
-version selects the newest saved versions of later stages that used those exact
-upstream versions. A stage with no compatible output shows **Needs regeneration**.
-Versions made from different inputs remain in the list, disabled until their
-upstream versions are selected. Stop running work and clear queued actions before
-switching versions.
-
-The **Pipeline** dropdown restores an entire saved selection. These are two
-separate version numbers: pipeline v7 might select timing v2, prompts v4, and
-images v3. Every change saves a new selection; older selections remain available.
-For an existing project, **Save current pipeline** imports its current outputs.
-Old outputs already removed before history was enabled cannot be recovered.
-
-The project's `pipeline.json` stores the active selection, the history of complete
-node-version selections, and each node version's upstream dependencies. Immutable
-node manifests live in `pipeline/<node>/v<number>/manifest.json`. File contents
-are stored once under `pipeline/objects/<sha256>` and shared across versions.
-The existing project files are the working copy used by Studio and the renderer.
-Completed stage outputs are archived automatically; incomplete work is never
-published as a completed version. Switching versions restores saved outputs and
-their stage settings without running the AI models. A restore journal lets Studio
-recover the previous working copy if a restore is interrupted.
-Unfinished or manually edited working files are retained in
-`pipeline/working-copies/` before a switch; their manifests are listed in
-`pipeline.json`. They are kept separately from completed node versions.
-
 ## Command line
 
 A video can also be made without opening Studio:
@@ -219,7 +157,7 @@ Some useful options:
 - `--illustration-lines N` sets how many lyric lines share each illustration;
   `--illustration-lines auto` asks the local text model after alignment.
 - `--artwork-mode cutout|fullscreen|verse|matte` chooses the artwork layout. `matte`
-  is greenscreen scenery (see below).
+  uses greenscreen scenery with lyrics behind the keyed skyline.
 - `--audio-mode karaoke` exports the instrumental mix while retaining the original
   audio for timing and stem analysis.
 - `--language tl` sets the lyric language.
@@ -234,17 +172,6 @@ Some useful options:
 - `--resume` continues an interrupted run from its last completed step.
 
 Run `.\kinetic-lyrics.cmd --help` to see every option.
-
-## Greenscreen scenery
-
-The `matte` artwork layout ("Greenscreen scenery with lyrics in the sky" in Studio) builds
-each scene from two generated images: a scenery painting with a horizon or skyline and no
-main character, painted flat chroma-key green above the skyline, and a plain painting of
-the sky that belongs above it. The green is keyed out into a matte. When the video
-renders, the sky goes down first, the kinetic typography is drawn on it, and the keyed
-scenery is laid over both, so a word that runs past the skyline disappears behind the
-land. If a scenery has too little green sky, it is retried with a new seed and then
-flagged for review.
 
 ## Appearance
 
