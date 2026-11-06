@@ -1,0 +1,11 @@
+{
+  "name": "Glass cascade",
+  "family": "glass",
+  "trajectory": "down",
+  "spread": 1.9,
+  "gravity": 0.85,
+  "spin": 1.675,
+  "twist": 0.0,
+  "stagger": 0.5,
+  "density": 1.3
+}

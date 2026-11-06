@@ -1,0 +1,340 @@
+/* Floating glass header: top bar with tabs, production deck, pipeline stage rail and the video-tools dock. */
+body>header#studioHeader{position:sticky;top:12px;z-index:30;display:grid;margin:12px 18px 0;padding:0;
+ background:var(--frost),linear-gradient(160deg,var(--glass-2),var(--glass) 60%),var(--s1);border:1px solid var(--glass-line);border-radius:var(--r-xl);
+ backdrop-filter:blur(var(--blur)) saturate(140%);-webkit-backdrop-filter:blur(var(--blur)) saturate(140%);box-shadow:var(--shadow)}
+/* brand on the left, tools on the right, the status strip on the bar's centre line: the side columns always match,
+   so the job picker gives way (it truncates) when the window is tight; under 1440px the strip takes its own line */
+.topbar{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:14px;padding:10px 14px 10px 16px;min-height:62px}
+.brand{grid-column:1;justify-self:start;display:flex;align-items:center;gap:12px;min-width:0}
+.mark{width:38px;height:38px;flex:none;border-radius:13px;background:var(--grad);border:1px solid var(--accent-line);color:var(--accent-ink);box-shadow:0 1px 0 var(--accent-rim) inset,0 12px 26px -14px rgba(var(--accent-rgb),.8);display:grid;place-items:center}
+.mark svg{width:28px;height:28px}
+.brand h1{white-space:nowrap}
+
+/* Scrolled panels fade out under the header instead of sliding beneath it: a strip of the backdrop, fixed to the
+   viewport exactly like the scene behind the page, masked to fade over its last 44px. The tab bar sits above it. */
+.header-veil{position:fixed;top:0;left:0;right:0;z-index:28;height:calc(var(--studio-header-offset,120px) + 26px);pointer-events:none;
+ background:var(--vignette),var(--scene,none) center/cover no-repeat,var(--bg);background-attachment:fixed;
+ -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 44px),transparent);mask-image:linear-gradient(to bottom,#000 calc(100% - 44px),transparent)}
+/* Live backdrops must remain visible here; a second poster would freeze the sky above the tabs. */
+:root[data-animated-backdrop=true] .header-veil,
+:root[data-backdrop-transition=true] .header-veil{background:none}
+
+/* tabs */
+.tabbar{position:sticky;top:calc(var(--studio-header-offset) - 12px);z-index:29;display:flex;justify-content:center;margin:12px 18px 0;pointer-events:none}
+.workspace-nav{pointer-events:auto;display:flex;align-items:center;gap:2px;padding:5px;border:1px solid var(--glass-line);border-radius:999px;background:var(--frost),linear-gradient(160deg,var(--glass-2),var(--glass) 60%),var(--s1);backdrop-filter:blur(var(--blur)) saturate(140%);-webkit-backdrop-filter:blur(var(--blur)) saturate(140%);box-shadow:var(--shadow);overflow:auto;max-width:calc(100vw - 36px);scrollbar-width:none}
+.workspace-nav::-webkit-scrollbar{display:none}
+.workspace-nav a,.workspace-nav button{display:inline-flex;align-items:center;gap:7px;min-height:36px;padding:7px 18px;border:0;border-radius:999px;background:transparent;box-shadow:none;font-size:12.5px;font-weight:650;color:var(--muted);white-space:nowrap;transition:background .18s,color .18s,box-shadow .18s;cursor:pointer}
+.workspace-nav a:hover,.workspace-nav button:hover:not(:disabled){color:var(--ink);text-decoration:none;background:var(--glass-2);transform:none}
+.workspace-nav [aria-current=true],.workspace-nav [aria-selected=true]{color:var(--accent-ink);background:var(--grad);box-shadow:0 1px 0 var(--accent-rim) inset,0 0 0 1px var(--accent-line) inset,0 10px 22px -14px rgba(var(--accent-rgb),.8)}
+.workspace-nav .count{font-size:10px;font-weight:800;padding:1px 7px;border-radius:999px;background:rgba(var(--fg-rgb),.12)}
+.workspace-nav [aria-selected=true] .count{background:rgba(var(--accent-rgb),.25);color:inherit}
+.workspace-nav .count:empty{display:none}
+.workspace-nav [hidden]{display:none}
+.topbar-tools{grid-column:3;justify-self:end;display:flex;align-items:center;gap:8px;min-width:0;max-width:100%}
+.icon-button{display:inline-grid;place-items:center;width:34px;min-height:34px;padding:0}
+#openSettings svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.job-picker{max-width:260px;font-size:12px}
+/* the session and profile pickers: a pill that opens a list, each row with its own delete button */
+.song-picker{position:relative;flex:1 1 280px;min-width:0;max-width:280px;border:0;padding:0;margin:0}
+.song-picker>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:36px;padding:7px 12px 7px 13px;border:1px solid var(--glass-line-2);border-radius:999px;background:var(--well);color:var(--ink);cursor:pointer;font-size:12.5px;font-weight:650;transition:border-color .15s,background .15s}
+.song-picker>summary:hover{border-color:var(--line-3)}
+.song-picker>summary::-webkit-details-marker{display:none}
+.song-picker>summary::after{content:"";width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg) translateY(-2px);flex:none;margin-left:auto}
+.song-picker-label{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.song-menu{position:absolute;right:0;top:calc(100% + 10px);width:min(440px,88vw);max-height:380px;overflow:auto;padding:8px;border-radius:var(--r-lg);background:var(--pop);box-shadow:var(--shadow-pop);z-index:40}
+.song-row{display:flex;align-items:center;border-radius:10px}
+.song-row:hover,.song-row:focus-within{background:var(--glass-2)}
+.song-row[aria-current=true]{background:var(--accent-soft)}
+.song-row[aria-current=true] .song-choice{color:var(--accent)}
+.song-choice{flex:1;min-width:0;justify-content:flex-start;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:550;min-height:38px;border-radius:10px}
+.song-row button{border:0;background:transparent;box-shadow:none;transform:none!important}
+.song-remove{opacity:0;padding:6px 12px;font-size:18px;line-height:1;color:var(--muted)}
+.song-row:hover .song-remove,.song-row:focus-within .song-remove{opacity:1}
+.song-remove:hover{background:rgba(var(--rose-rgb),.16)!important;color:var(--rose)}
+@media(hover:none){.song-remove{opacity:1}}
+
+/* production deck: only while a session is open */
+/* three sections, a full-width line between each: the top bar, this middle section and the bottom bar */
+#headerProduction{display:grid;grid-template-columns:minmax(0,1fr);border-top:1px solid var(--glass-line)}
+/* One wrapping row: the pipeline pills, then the status pill and percent right after the last step; the start
+   button is pinned to the right edge. */
+/* two lines: the pipeline rail on its own (scrolling sideways only when wider than the header), then the status strip left and the start button right */
+/* one line: the pipeline rail scrolls sideways when it overflows; the run option and start button keep their room at the right */
+.deck-top{display:flex;align-items:stretch;gap:12px;min-width:0;padding:10px 16px}
+.header-bottom{display:grid;gap:5px;align-content:center;min-width:0;min-height:30px;padding:6px 16px;border-top:1px solid var(--glass-line)}
+/* the graph is dragged sideways, from anywhere in this section; a touch that goes up or down still scrolls the page */
+.deck-flow{flex:1 1 auto;display:flex;align-items:center;min-width:0;min-height:50px;cursor:grab;touch-action:pan-y;user-select:none;-webkit-user-select:none}
+.deck-flow.dragging,.deck-flow.dragging *{cursor:grabbing}
+.deck-flow>.header-stages{flex:1;min-width:0}
+.deck-side{flex:none}
+.deck-flow .header-stages{display:block;min-width:0}
+.deck-flow .header-stages.more-right{mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}
+.deck-flow .header-stages.more-left{mask-image:linear-gradient(90deg,transparent,#000 28px);-webkit-mask-image:linear-gradient(90deg,transparent,#000 28px)}
+.deck-flow .header-stages.more-left.more-right{mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 28px),transparent);-webkit-mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 28px),transparent)}
+.deck-flow .header-stages .stage-list{display:flex;flex-wrap:nowrap;align-items:center;gap:6px;overflow-x:auto;overflow-y:hidden;padding:3px 2px 4px;scrollbar-width:none}
+.deck-flow .header-stages .stage-list::-webkit-scrollbar{display:none}
+.deck-side{display:flex;align-items:center;gap:8px;flex:none;height:50px}
+.deck-side .start-at-stage{margin:0}
+/* The run option (where the next run starts) sits beside the start button; the card's badges stay hidden for scripts. */
+.deck-side .project-pipeline-card{display:contents}
+.deck-side #projectStatusRow,.deck-side .pipeline-steps,.deck-side #stepHelp{display:none}
+.deck-side .run-option select{min-height:42px;max-width:240px;padding:8px 36px 8px 14px;border-radius:999px;font-size:12.5px;font-weight:600}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.header-status-row{display:flex;align-items:center;gap:8px}
+/* status, percent, elapsed, artwork and the progress curve in one strip between the rail and the start button */
+/* the status strip sits in the middle of the top line, between the brand and the tools */
+.deck-session{grid-column:2;justify-self:center;display:grid;grid-template-columns:auto auto auto auto minmax(130px,200px);align-items:center;max-width:100%;min-width:0;height:44px;border:1px solid var(--glass-line);border-radius:14px;background:var(--glass)}
+body:not(.has-job) .deck-session{display:none}
+.deck-session .stat{display:grid;gap:1px;padding:0 12px;border-right:1px solid var(--glass-line);height:100%;align-content:center;justify-items:start}
+.deck-session .stat .eyebrow{font-size:8.5px;letter-spacing:1.4px}
+.deck-session .stat b{font:700 14px/1.1 var(--display);letter-spacing:-.4px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.deck-session .percent{font:750 16px/1 var(--display);letter-spacing:-.6px;font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap}
+.deck-session .percent span{font-size:10px;color:var(--muted);margin-left:1px}
+.deck-session #status{font-size:9px;padding:3px 8px}
+.deck-session .chart-box{padding:4px 12px 0;min-width:0}
+.deck-session .chart-box svg{display:block;width:100%;height:26px;overflow:visible;color:var(--accent);filter:drop-shadow(0 0 6px rgba(var(--accent-rgb),.4))}
+.deck-session .chart-labels{display:flex;justify-content:space-between;font-size:8.5px;color:var(--dim);padding:0 0 2px}
+.deck-session .chart-labels span:first-child{display:none}
+.deck-top .header-stages{flex:1;min-width:0}
+/* no session open: the pickers, GPU diagram and model list stay; what reports on a run goes */
+body:not(.has-job) :is(.deck-flow,.deck-side,.header-bottom),body:not(.has-job) #rebuildDock,body:not(.has-job) #rebuildPanel{display:none!important}
+#rebuildDock{display:none!important}
+.workspace-nav [data-tab=project]{order:0}
+.header-status-row{display:flex;align-items:center;gap:10px}
+.header-status-row>strong{font-size:10px;font-weight:800;letter-spacing:1.8px;text-transform:uppercase;color:var(--dim)}
+#status{border-color:var(--glass-line-2);color:var(--ink);background:var(--glass-2)}
+.header-status-detail .message{text-align:center;font-size:12.5px;font-weight:500;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:0}
+.header-status-detail .message:empty{display:none}
+.header-status-row #cancel{min-height:30px;padding:4px 12px;font-size:11.5px}.header-status-row #cancel:disabled{display:none}
+#studioHeader:has(.start-at-stage.running) #status{border-color:var(--accent-line);color:var(--accent);background:var(--accent-soft)}
+#studioHeader:has(.start-at-stage.running) #status::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);animation:blink 1.2s ease-in-out infinite}
+@keyframes blink{50%{opacity:.35}}
+.header-status-detail{display:grid;grid-template-columns:minmax(0,1fr);gap:5px;min-width:0;justify-items:center}
+.header-job-details{display:flex;gap:6px;min-width:0;max-width:100%;overflow-x:auto;scrollbar-width:none;justify-content:center}
+.header-job-details::-webkit-scrollbar{display:none}
+.header-job-details span{flex:none;max-width:min(40vw,380px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:1px solid var(--glass-line);border-radius:999px;padding:3px 10px;background:var(--glass);color:var(--muted);font-size:10.5px}
+.header-job-details span:empty{display:none}
+#actionProgress{font-size:11.5px;color:var(--accent);min-height:0;overflow-wrap:anywhere;text-align:center}#actionProgress:empty{display:none}
+.replacement-queue{display:flex;align-items:center;gap:9px;padding:6px 10px;border:1px solid var(--accent-line);border-radius:999px;background:var(--accent-soft);min-width:0;max-width:100%;overflow:hidden}
+.replacement-queue-title{font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;white-space:nowrap;color:var(--accent)}
+.replacement-queue-items{display:flex;gap:14px;overflow-x:auto;min-width:0;flex:1;scrollbar-width:thin;padding-bottom:3px}
+.replacement-queue-group{display:flex;align-items:center;gap:6px;flex:none}
+.replacement-queue-group+.replacement-queue-group{padding-left:14px;border-left:1px solid var(--accent-line)}
+.replacement-queue-pill{flex:none;padding:4px 10px;border:1px solid var(--glass-line-2);border-radius:999px;font-size:10.5px;white-space:nowrap;background:var(--glass-2);color:var(--ink-2)}
+.replacement-queue-pill.active{border-color:var(--accent-line);color:var(--accent)}
+.replacement-queue-pill.review{border-color:var(--line-3);color:var(--ink)}
+.replacement-queue-hint{font-size:10px;color:var(--muted);white-space:nowrap}
+
+/* pipeline stage rail: monochrome glass; the live step and the chosen restart point take the accent */
+.header-stages{display:flex;align-items:center;gap:14px;min-width:0}
+.header-stages:has(.stage-list:empty){display:none}
+.stage-versioned{display:flex;flex-direction:column;gap:4px;flex:none;align-self:center}
+.header-stages .stage-version{font-size:11px;max-width:210px;width:100%;padding:3px 7px;min-height:26px}
+.pipeline-history{margin:6px 0;font-size:12px}
+.pipeline-history label{display:flex;align-items:center;gap:6px}
+.pipeline-history select{min-width:0;max-width:100%;flex:1;font-size:12px}
+.header-stages .stage-list{flex:1;display:flex;flex-wrap:wrap;align-items:stretch;gap:6px;min-width:0;padding:3px 2px 4px}
+.deck-top .header-stages button.stage{align-self:center;flex:none}
+.header-stages .stage-list:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
+.header-stages .stage-list>.stage-arrow{align-self:center;flex:none;width:16px;height:2px;margin:0 -1px;font-size:0;color:transparent;background:linear-gradient(90deg,rgba(var(--fg-rgb),.1),rgba(var(--fg-rgb),.35));border-radius:2px;position:relative}
+.header-stages .stage-list>.stage-arrow::after{content:"";position:absolute;right:-1px;top:-3px;width:5px;height:5px;border-top:2px solid rgba(var(--fg-rgb),.4);border-right:2px solid rgba(var(--fg-rgb),.4);transform:rotate(45deg)}
+.header-stages button.stage{--glass:var(--fg-rgb);flex:none;display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-height:0;padding:7px 10px 8px;border-radius:14px;border:1px solid rgba(var(--glass),.32);background:linear-gradient(165deg,rgba(var(--glass),.16),rgba(var(--glass),.04)),var(--well);box-shadow:0 1px 0 rgba(255,255,255,.1) inset;text-align:left;font-size:10px;white-space:nowrap;cursor:pointer;transform:none}
+.header-stages button.stage:hover:not(.unavailable){border-color:rgba(var(--glass),.6);background:linear-gradient(165deg,rgba(var(--glass),.26),rgba(var(--glass),.08)),var(--well);transform:none}
+.header-stages .stage-name{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:750;letter-spacing:.2px;color:rgb(var(--glass))}
+.header-stages .stage-name::before{content:"";width:7px;height:7px;border-radius:50%;background:rgb(var(--glass));box-shadow:0 0 10px rgba(var(--glass),.9)}
+.header-stages .stage-parts{display:flex;align-items:center;gap:4px;color:inherit}
+.header-stages .stage-parts .stage-arrow{font-size:0;width:8px;height:1px;background:rgba(var(--glass),.35);flex:none}
+.header-stages .stage-part{display:flex;flex-direction:column;gap:0;max-width:170px;padding:3px 8px 4px;border:1px solid rgba(var(--glass),.24);border-radius:9px;background:rgba(var(--glass),.08);color:var(--muted)}
+.header-stages .stage-part-name{font-weight:650;font-size:10px;color:var(--ink-2)}
+.header-stages .stage-part .stage-model,.header-stages .stage-selected{font-size:9px;line-height:1.3;opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.header-stages .stage-selected{color:var(--accent);opacity:1}
+.header-stages .stage-part.done{border-color:rgba(var(--go-rgb),.5);color:var(--go)}.header-stages .stage-part.done .stage-part-name{color:var(--go)}
+.header-stages .stage-part.done .stage-part-name::before{content:"✓ ";font-size:9px}
+.header-stages .stage-part.active{border-color:rgb(var(--glass));background:rgba(var(--glass),.3);color:var(--ink);animation:stage-live 1.6s ease-in-out infinite}
+.header-stages .stage-part.active .stage-part-name{color:#fff}
+@keyframes stage-live{50%{box-shadow:0 0 0 2px rgba(var(--glass),.35),0 0 16px rgba(var(--glass),.5)}}
+.header-stages .stage-part.skipped{opacity:.45;border-style:dashed}
+.header-stages .stage-part.choosable{cursor:pointer}.header-stages .stage-part.choosable:hover{border-color:var(--accent-line);background:var(--accent-soft)}
+.header-stages .stage-part.selected{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);background:var(--accent-soft);color:var(--ink)}
+.header-stages button.stage.unavailable,.header-stages button.stage.unavailable:hover{cursor:default;opacity:.5}
+.header-stages .stage.selected{border-color:rgb(var(--glass));box-shadow:inset 0 0 0 1px rgb(var(--glass)),0 0 26px rgba(var(--glass),.35)}
+.header-stages .stage.active{border-color:rgba(var(--glass),.6);box-shadow:0 0 26px rgba(var(--glass),.3);animation:stage-live 1.6s ease-in-out infinite}
+.start-at-stage{flex:none;min-height:42px;padding:9px 20px;font-size:13px;margin-left:8px}
+.start-at-stage.resume{background:linear-gradient(165deg,var(--go-fill),var(--go-fill-2));border-color:rgba(var(--go-rgb),.65);color:var(--go-ink);box-shadow:0 1px 0 rgba(255,255,255,.18) inset,0 12px 30px -16px rgba(var(--go-rgb),.6)}
+.start-at-stage.regenerate{background:linear-gradient(165deg,rgba(176,22,42,.78),rgba(122,10,28,.62));border-color:rgba(255,120,135,.55);color:#fff3f4;box-shadow:0 1px 0 rgba(255,190,196,.45) inset,0 12px 30px -16px rgba(176,22,42,.9)}
+
+.start-at-stage.resume:hover,.start-at-stage.regenerate:hover{filter:brightness(1.06)}
+.start-at-stage.running,.start-at-stage.running:disabled{background:var(--glass-3);border-color:var(--glass-line-2);color:var(--ink);opacity:1;cursor:progress}
+.busy-spinner{width:13px;height:13px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:busy-spin .8s linear infinite;flex:none}
+@keyframes busy-spin{to{transform:rotate(360deg)}}
+
+/* video tools dock and rebuild panel */
+.header-video-tools{display:flex;padding:0}
+.header-video-tools button{min-height:30px;font-size:11.5px;border-color:var(--accent-line);color:var(--accent);background:var(--accent-soft)}
+.rebuild-panel.header-rebuild{display:grid;gap:8px;margin:0 16px 14px;padding:12px 14px;border:1px solid var(--accent-line);border-radius:var(--r-lg);background:var(--grad-soft)}
+.rebuild-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.rebuild-heading>div{min-width:0}.rebuild-heading>div:last-child{display:flex;gap:6px;flex:none}
+.rebuild-panel h3{font-size:13px}.rebuild-panel p{font-size:11.5px;color:var(--ink-2);margin:3px 0 0}
+.rebuild-actions{display:flex;flex-wrap:wrap;gap:8px}
+.rebuild-panel small{font-size:10.5px}
+
+
+/* changes since the last render */
+.rebuild-changes{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:6px}
+.rebuild-change{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;padding:6px 8px;border:1px solid var(--glass-line);border-radius:12px;background:var(--glass)}
+.rebuild-change img{width:48px;height:30px;object-fit:cover;border-radius:7px;border:1px solid var(--glass-line-2)}
+.rebuild-change-icon{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:var(--accent-soft);color:var(--accent);font-size:12px}
+.rebuild-change-text{display:grid;gap:1px;min-width:0}
+.rebuild-change-text b{font-size:12px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rebuild-change-text span{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rebuild-actions{align-items:center}.rebuild-actions small{margin-left:auto}
+
+/* the clips step is status only */
+.header-stages button.stage.status-only{cursor:default;opacity:1;border-style:dashed}
+.header-stages button.stage.status-only:disabled{opacity:1}
+.header-stages button.stage.status-only.done,.header-stages button.stage.status-only.active{border-style:solid}
+/* a failed run says so in red, so it is not mistaken for a finished one */
+body[data-job-status="failed"] #status{border-color:rgba(248,113,113,.7);color:#fecaca;background:rgba(220,38,38,.28)}
+body[data-job-status="failed"] #status::before{content:"";display:inline-block;width:6px;height:6px;margin-right:6px;border-radius:50%;background:#f87171;box-shadow:0 0 8px #f87171;vertical-align:middle;animation:none}
+.chart-box{cursor:zoom-in}
+/* Progress over time floats: a glass panel the user drags anywhere (its place is remembered), open beside the
+   work rather than over it, so there is no backdrop and nothing behind it is blurred. */
+.progress-modal{position:fixed;top:96px;right:24px;left:auto;margin:0;width:min(980px,96vw);max-width:none;max-height:min(88vh,760px);z-index:45;padding:12px 18px 16px;border:1px solid var(--glass-line);border-radius:var(--r-xl);background:var(--frost),linear-gradient(160deg,var(--glass-2),var(--glass) 55%),var(--s1);backdrop-filter:blur(var(--blur)) saturate(160%);-webkit-backdrop-filter:blur(var(--blur)) saturate(160%);box-shadow:var(--shadow-pop)}
+.progress-modal::backdrop{display:none;background:transparent;backdrop-filter:none}
+.progress-head{cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none;margin:-4px -6px 6px;padding:4px 6px;border-radius:10px}.progress-head:active{cursor:grabbing}.progress-head h3{margin:0}
+.progress-tools{gap:8px;cursor:default}
+.progress-modal[data-follow=on] #followProgress{background:var(--accent-soft);border-color:var(--accent-line);color:var(--ink)}
+.progress-modal.dragging{opacity:.96}.progress-detail{width:100%;height:auto;display:block}.progress-detail .grid{stroke:rgba(255,255,255,.08)}.progress-detail .axis{stroke:rgba(255,255,255,.35)}.progress-detail .tick{fill:var(--dim,#9aa);font-size:12px}.progress-detail .axis-label{fill:var(--ink,#eee);font-size:13px}.progress-detail .band-label{font-size:12px;font-weight:600}.progress-detail .line{fill:none;stroke:var(--accent,#7dd3fc);stroke-width:2.5;stroke-linejoin:round}
+.progress-logs{max-height:220px;overflow:auto;margin-top:10px;border:1px solid var(--glass-line);border-radius:10px;padding:6px;font-size:11.5px}.progress-log{display:grid;grid-template-columns:64px 1fr;gap:8px;padding:2px 6px;border-radius:6px}.progress-log time{color:var(--dim);font-variant-numeric:tabular-nums}.progress-log span{overflow-wrap:anywhere}.progress-log.warning span{color:#fcd34d}.progress-log.error span{color:#fca5a5}.progress-log.focus{background:rgba(96,165,250,.2);outline:1px solid rgba(96,165,250,.5)}.progress-detail .cursor{stroke:rgba(255,255,255,.55);stroke-dasharray:4 4}
+/* the fork after Review: the text track and the video track, one row each, joining at Final cut */
+.header-stages .stage-fork{display:flex;flex-direction:column;gap:6px;flex:none;align-self:center;padding:4px 0 4px 10px;border-left:2px solid rgba(var(--fg-rgb),.22);border-radius:10px}
+.header-stages .stage-track{display:flex;align-items:center;gap:6px}
+.header-stages .stage-track>.stage-arrow{align-self:center;flex:none;width:16px;height:2px;margin:0 -1px;font-size:0;color:transparent;background:linear-gradient(90deg,rgba(var(--fg-rgb),.1),rgba(var(--fg-rgb),.35));border-radius:2px;position:relative}
+.header-stages .stage-track>.stage-arrow::after{content:"";position:absolute;right:-1px;top:-3px;width:5px;height:5px;border-top:2px solid rgba(var(--fg-rgb),.4);border-right:2px solid rgba(var(--fg-rgb),.4);transform:rotate(45deg)}
+/* left of the pipeline graph: the GPU map over the model list, whose pills are its legend */
+.deck-gpu{flex:none;display:flex;flex-direction:column;gap:6px;width:314px;max-width:28vw;min-width:0}  /* 70 of label, 4 of gap, 10 of frame: its pills are as wide as those of .deck-run */
+.deck-gpu .header-job-details{flex-direction:column;align-items:stretch;justify-content:flex-start;gap:4px;max-width:none;overflow:visible}
+.deck-gpu .header-job-details span{max-width:none;font-size:10px;padding:2px 9px}
+/* right of it: session, profile and audio at the top, the run controls in the bottom corner */
+.deck-run{flex:none;display:flex;flex-direction:column;gap:5px;width:276px;max-width:26vw;min-width:0;margin-left:auto}
+.deck-run .song-picker{flex:none;width:100%;max-width:none}
+/* a label beside each control, as in the model list; the pickers and the restart choice take the audio pill's size and colours */
+.deck-field{display:grid;grid-template-columns:42px minmax(0,1fr);align-items:center;gap:4px;min-width:0}
+.deck-caption{font-size:10px;font-weight:600;color:var(--dim);white-space:nowrap}
+.deck-run .song-picker>summary{min-height:0;gap:6px;padding:2px 9px;border-color:var(--glass-line-2);background:var(--glass);color:var(--ink-2);font-size:10px;font-weight:400}
+.deck-run .song-picker>summary::after{width:6px;height:6px;border-right-width:1.5px;border-bottom-width:1.5px}
+.deck-run .header-job-details{justify-content:flex-start;overflow:visible}
+.deck-run #headerAudio{flex:1;max-width:none;min-width:0;font-size:10px;padding:2px 9px}
+.gpu-diagram{display:grid;gap:4px;min-width:0}
+.gpu-diagram+.gpu-diagram{margin-top:6px}
+.gpu-diagram-head{display:flex;justify-content:space-between;gap:8px;font-size:10px;color:var(--muted)}
+.gpu-diagram-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gpu-diagram-total{flex:none;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.gpu-diagram-bar{display:flex;gap:2px;height:14px;overflow:hidden}
+.gpu-part{flex:1 1 0;min-width:2px;border-radius:4px;transition:flex-grow .5s var(--ease)}
+[data-role=asr]{--model:var(--model-asr)}
+[data-role=timing]{--model:var(--model-timing)}
+[data-role=text]{--model:var(--model-text)}
+[data-role=image]{--model:var(--model-image)}
+[data-role=vision]{--model:var(--model-vision)}
+[data-role=video]{--model:var(--model-video)}
+[data-role=end]{--model:var(--model-end)}
+[data-role=extra]{--model:var(--model-extra)}
+.gpu-part:is([data-kind=ollama],[data-kind=image]){background:rgba(var(--fg-rgb),.55)}
+.gpu-part[data-kind=other]{background:repeating-linear-gradient(135deg,rgba(var(--fg-rgb),.35) 0 3px,rgba(var(--fg-rgb),.16) 3px 6px)}
+.gpu-part[data-kind=free]{background:rgba(var(--fg-rgb),.06);box-shadow:inset 0 0 0 1px rgba(var(--fg-rgb),.16)}
+.gpu-part[data-role]{background:var(--model)}
+/* The model pills sit together in one rectangular frame. */
+.header-models{display:flex;gap:inherit;flex:none;border:1px solid var(--glass-line-2);border-radius:8px;padding:4px;background:rgba(255,255,255,.03)}
+.deck-gpu .header-models{flex-direction:column;align-items:stretch;gap:4px}
+#headerAudio,#headerProfile{border-color:var(--glass-line-2);background:var(--glass);color:var(--ink-2)}
+.queue-slot{display:flex;justify-content:center;min-width:0;max-width:100%}
+.queue-slot:empty{display:none}
+/* the chosen restart point: green when starting there keeps the work done, red when it would redo saved work */
+.header-stages .stage.selected.keeps{border-color:var(--go);box-shadow:inset 0 0 0 1px var(--go),0 0 22px rgba(var(--go-rgb),.3)}
+.header-stages .stage.selected.redoes{border-color:#f87171;box-shadow:inset 0 0 0 1px #f87171,0 0 22px rgba(248,113,113,.35)}
+.header-stages .stage-part.selected.keeps{border-color:var(--go);box-shadow:0 0 0 1px var(--go);background:rgba(var(--go-rgb),.12)}
+.header-stages .stage-part.selected.redoes{border-color:#f87171;box-shadow:0 0 0 1px #f87171;background:rgba(248,113,113,.12)}
+/* each kind of queue has its own background colour; its text and pills keep the usual colours */
+.replacement-queue-group[data-queue=images]{--queue:251,191,36}
+.replacement-queue-group[data-queue=animation]{--queue:167,139,250}
+.replacement-queue-group[data-queue=checks]{--queue:45,212,191}
+.replacement-queue-group[data-queue=song]{--queue:244,114,182}
+.replacement-queue-group[data-queue]{background:rgba(var(--queue),.2);border:1px solid rgba(var(--queue),.4);border-radius:999px;padding:3px 6px 3px 10px}
+.replacement-queue-group[data-queue]+.replacement-queue-group{padding-left:10px;border-left:1px solid rgba(var(--queue),.4)}
+/* the pipeline graph centred in the room between the model pills and the Cancel button (left-aligned once it scrolls) */
+.deck-top .header-stages .stage-list{justify-content:safe center}
+/* collapsing the header hides its production area; the button turns to point down */
+#headerProduction{max-height:900px;transition:max-height .36s cubic-bezier(.2,.8,.2,1),opacity .28s ease,padding .36s cubic-bezier(.2,.8,.2,1),border-color .36s}
+body.header-collapsed #headerProduction,body.header-animating #headerProduction{overflow:hidden}
+body.header-collapsed #headerProduction{max-height:0;opacity:0;padding-top:0;padding-bottom:0;border-top-color:transparent;pointer-events:none}
+.header-toggle{display:inline-grid;place-items:center;width:34px;min-height:34px;padding:0}
+.header-toggle svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s}
+body.header-collapsed .header-toggle svg{transform:rotate(180deg)}
+/* the restart choice and the start button (Cancel while work runs) stacked in the column's bottom corner, clear of the audio pill */
+.deck-top .deck-side{flex-direction:column;align-items:stretch;justify-content:flex-end;gap:5px;height:auto;width:100%;margin-top:auto;padding-top:16px}
+.deck-top .deck-side .header-status-row{justify-content:stretch}
+.deck-top .deck-side .header-status-row>*{flex:1}
+.deck-top .deck-side #cancel,.deck-top .deck-side .run-option select,.deck-top .deck-side .start-at-stage{width:100%;max-width:none;min-height:32px;margin:0}
+.deck-top .deck-side .run-option select{min-height:0;height:auto;padding:2px 24px 2px 9px;border-color:var(--glass-line-2);background-color:var(--glass);color:var(--ink-2);font-size:10px;font-weight:400;background-position:right 9px center}
+.deck-top .deck-side .start-at-stage{padding:6px 14px;justify-content:center}
+/* one start button: red Cancel with the running spinner while work runs; no separate Cancel button */
+.deck-top .deck-side #cancel{display:none}
+#startAtStage.running{background:linear-gradient(180deg,#ef4444,#b91c1c);border-color:#f87171;color:#fff;cursor:pointer}
+#startAtStage.running:hover{background:linear-gradient(180deg,#f87171,#dc2626)}
+.deck-side{position:relative}
+.cancel-confirm{position:absolute;right:0;top:calc(100% + 6px);z-index:30;width:260px;padding:12px 14px;border:1px solid #f87171;border-radius:14px;background:var(--well,#1b1410);box-shadow:0 12px 32px rgba(0,0,0,.45);display:grid;gap:6px}
+.cancel-confirm strong{color:#fca5a5;font-size:13px}.cancel-confirm p{margin:0;font-size:11.5px;color:var(--muted);line-height:1.45}
+.cancel-confirm .row{display:flex;gap:8px;justify-content:flex-end}.cancel-confirm button{min-height:30px;padding:4px 14px;font-size:12px}
+/* the theme button is an icon; the header's collapse button sits at the far right */
+#themeToggle .theme-label{display:none}
+.topbar-tools #toggleHeader{order:99}
+.replacement-queue-pill .queue-remove{display:inline-grid;place-items:center;width:15px;height:15px;margin-left:6px;border-radius:50%;font-size:11px;line-height:1;background:rgba(var(--fg-rgb),.14);color:var(--ink-2);cursor:pointer}
+.replacement-queue-pill .queue-remove:hover,.replacement-queue-pill .queue-remove:focus-visible{background:#ef4444;color:#fff}
+.replacement-queue .queue-run{flex:none;min-height:28px;padding:3px 12px;font-size:11.5px}
+.replacement-queue-group[data-queue=review]{--queue:148,163,184}
+.replacement-queue-group[data-queue=render]{--queue:45,212,191}
+.replacement-queue-group[data-queue=checks]{--queue:96,165,250}
+.start-instead{background:none;border:0;padding:2px 6px;font-size:12px;color:var(--muted,#9aa3b2);text-decoration:underline;cursor:pointer}
+.start-instead:hover{color:#f87171}
+.artwork-ref{position:relative}
+.artwork-ref-repaint{position:absolute;top:4px;right:4px;width:20px;height:20px;min-width:0;min-height:0;max-height:20px;box-sizing:border-box;aspect-ratio:1/1;line-height:1;padding:0;border-radius:50%;display:grid;place-items:center;font-size:11px;line-height:1;background:rgba(15,15,22,.72);color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer;z-index:2}
+.artwork-ref-repaint:hover:not(:disabled){background:rgba(15,15,22,.92);border-color:#fff}
+.artwork-ref-mark{position:absolute;top:72px;right:4px;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;line-height:1;color:#fff;background:#c62828;border:1.5px solid rgba(255,255,255,.85);box-shadow:0 1px 5px rgba(0,0,0,.45);cursor:help;z-index:2}
+.reference-repaint-dialog{max-width:620px;width:92vw}
+.reference-repaint-dialog form{display:grid;gap:10px}
+.reference-repaint-dialog textarea{width:100%;font:13px/1.45 var(--font,system-ui)}
+.reference-repaint-dialog .row{display:flex;justify-content:flex-end;gap:8px}
+.reference-recipe{max-width:920px;max-height:90vh;overflow:auto}
+.reference-recipe label{display:grid;gap:6px}
+.reference-current-preview img{display:block;max-width:100%;max-height:220px;margin:auto;border-radius:8px;background:#fff;object-fit:contain}
+.reference-current-preview img[hidden]{display:none}
+.reference-input-heading{display:flex;justify-content:space-between;align-items:center}
+.reference-input-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:10px;margin:12px 0}
+.reference-input-card{border:1px solid var(--border,#444);border-radius:9px;padding:9px;min-width:0}
+.reference-input-card.selected{border-color:var(--accent,#70aaff);background:rgba(100,150,255,.09)}
+.reference-input-card label{cursor:pointer;grid-template-columns:auto 1fr;align-items:start;font-size:12px}
+.reference-input-card input[type=checkbox]{width:auto;margin-top:3px}
+.reference-input-card img{grid-column:1/-1;width:100%;height:105px;object-fit:contain;background:#fff;border-radius:4px}
+.reference-input-card small{grid-column:1/-1;min-height:70px;display:grid;place-items:center;opacity:.7}
+.reference-input-card select{width:100%;font-size:11px;margin-top:8px}
+.reference-upload{padding:10px;border:1px dashed var(--border,#555);border-radius:8px}
+.reference-error{color:#ff8b8b;margin:0}
+/* model list: "Transcription:" outside, the model's name in the pill (the state colours follow the name) */
+.header-job-details .header-models>span{display:flex;align-items:center;gap:4px;border:0;background:none;padding:0;border-radius:0;max-width:none;overflow:visible;color:var(--muted)}
+.header-job-details .header-models>span::before{display:none}
+.header-job-details .header-models>span[hidden]{display:none}
+.header-job-details .header-models .model-label{flex:none;min-width:70px;font-size:10px;font-weight:600;color:var(--dim)}
+.header-job-details .header-models .model-name{min-width:0;flex:1;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:1px solid var(--glass-line);border-radius:999px;padding:2px 9px;background:var(--glass);color:var(--muted);font-size:10px}
+/* a loaded model wears its colour from the GPU diagram; any other is light grey, dashed while it is off or not on this computer */
+.header-job-details .header-models>span:is([data-state=ready],[data-state=missing],[data-state=off])>.model-name{border-color:color-mix(in srgb,var(--model-idle) 24%,transparent);background:color-mix(in srgb,var(--model-idle) 6%,transparent);color:color-mix(in srgb,var(--model-idle) 50%,transparent)}
+.header-job-details .header-models>span:is([data-state=missing],[data-state=off])>.model-name{border-style:dashed}
+.header-job-details .header-models>span[data-state=loaded]>.model-name{border-color:var(--model);background:color-mix(in srgb,var(--model) 32%,transparent);color:var(--ink)}
+.header-job-details .header-models>span[data-state=loaded]>.model-name::before{content:"";display:inline-block;width:6px;height:6px;margin-right:6px;border-radius:50%;background:var(--model);box-shadow:0 0 8px var(--model);vertical-align:middle}
+/* one height for every pill of the deck, so the model list and the session column line up whatever each control draws */
+.deck-top .deck-run .song-picker>summary,.deck-top .deck-run #headerAudio,.deck-top .deck-side .run-option select,.deck-top .header-job-details .header-models .model-name{box-sizing:border-box;height:22px;min-height:22px;padding-top:0;padding-bottom:0;line-height:20px}
+/* the fork joins again before Final cut: each track runs a line to the fork's right edge, where a bracket like the
+   one it opened with gathers them into the one arrow to Final cut */
+.header-stages .stage-fork{border-right:2px solid rgba(var(--fg-rgb),.22);padding-right:0}
+.header-stages .stage-track::after{content:"";flex:1 1 auto;min-width:14px;height:2px;margin-left:-6px;background:rgba(var(--fg-rgb),.3);border-radius:2px 0 0 2px}
+

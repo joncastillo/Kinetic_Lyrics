@@ -1,0 +1,11 @@
+{
+  "name": "Glass assemble",
+  "family": "glass",
+  "trajectory": "radial",
+  "spread": 1.65,
+  "gravity": 0.85,
+  "spin": 1.25,
+  "twist": 0.0,
+  "stagger": 0.1,
+  "density": 1.0
+}

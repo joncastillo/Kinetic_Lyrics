@@ -1,0 +1,11 @@
+{
+  "name": "Ink drip",
+  "family": "ink",
+  "trajectory": "down",
+  "spread": 1.9,
+  "gravity": 1.1,
+  "spin": 0.536,
+  "twist": 0.0,
+  "stagger": 0.5,
+  "density": 1.3
+}

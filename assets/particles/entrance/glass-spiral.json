@@ -1,0 +1,11 @@
+{
+  "name": "Glass spiral",
+  "family": "glass",
+  "trajectory": "spiral",
+  "spread": 2.1,
+  "gravity": 0.85,
+  "spin": 2.1,
+  "twist": 3.8,
+  "stagger": 0.15,
+  "density": 1.1
+}

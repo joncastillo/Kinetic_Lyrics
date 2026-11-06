@@ -1,0 +1,96 @@
+"""Bounded, ordered CPU frame batches; one encoder keeps audio/video continuous."""
+from collections import deque
+from concurrent.futures import ProcessPoolExecutor
+import importlib
+import multiprocessing
+import os
+from types import SimpleNamespace
+
+_COMPOSITOR=None
+IN_FLIGHT=2
+
+
+def initialize(module,data,plan,duration,options):
+    global _COMPOSITOR
+    _COMPOSITOR=importlib.import_module(module).render_compositor(data,plan,duration,SimpleNamespace(**options))
+
+
+def render_batch(task):
+    first,count,start,fps=task
+    return first,count,b''.join(_COMPOSITOR.frame(start+i/fps).tobytes() for i in range(first,first+count))
+
+
+WORKER_MEMORY=.35*2**30
+REALTIME_WORKER_MEMORY=.6*2**30
+MAX_AUTO_WORKERS=16
+STAGE_WORKERS=4
+MEMORY_RESERVE=3*2**30
+
+
+def hardware():
+    """Physical cores and currently available RAM, falling back to logical CPUs when psutil is absent."""
+    logical=os.cpu_count() or 1
+    try:
+        import psutil
+        return psutil.cpu_count(logical=False) or logical,psutil.virtual_memory().available
+    except ImportError:
+        return logical,None
+
+
+def worker_count(args,count):
+    selected=int(getattr(args,'render_workers',0))
+    limit=os.cpu_count() or 1
+    if not 0<=selected<=limit:raise ValueError(f'Render workers must be between 0 (auto) and {limit}')
+    if selected:return selected
+    # Starting a pool costs a few seconds (each worker loads fonts and effects), so only a very short span renders
+    # alone; a rebuilt section of a few seconds is worth several workers, about one per second of video.
+    if count<args.fps*2:return 1
+    by_length=max(1,count//args.fps)
+    flow=getattr(args,'reading_flow','preview')
+    cores,available=hardware()
+    scale=max(1.,args.width*args.height/(1280*720))
+    if flow=='stage':
+        by_memory=int((available-MEMORY_RESERVE)//(REALTIME_WORKER_MEMORY*scale)) if available else STAGE_WORKERS
+        return max(1,min(STAGE_WORKERS,cores-1,by_memory,by_length))
+    budget=REALTIME_WORKER_MEMORY if flow in ('realtime','mixed','cinema') else WORKER_MEMORY
+    by_memory=int((available-MEMORY_RESERVE)//(budget*scale)) if available else cores
+    return max(1,min(cores-1,MAX_AUTO_WORKERS if flow!='mixed' else STAGE_WORKERS*2,by_memory,by_length))
+
+
+def frame_batches(module,data,plan,duration,args,compositor,start,count,workers):
+    batch=max(1,min(6,round(16*2**20/(args.width*args.height*3))))
+    tasks=iter((first,min(batch,count-first),start,args.fps) for first in range(0,count,batch))
+    if workers<=1:
+        for first,length,_,fps in tasks:
+            yield first,length,b''.join(compositor.frame(start+i/fps).tobytes() for i in range(first,first+length))
+        return
+    # Render workers inherit single-threaded maths libraries (spawned processes copy the environment). The parent's
+    # own settings come back afterwards, so later work in a long-lived process (Studio) keeps its threads.
+    names = ('OPENBLAS_NUM_THREADS', 'OMP_NUM_THREADS', 'MKL_NUM_THREADS', 'NUMEXPR_NUM_THREADS')
+    saved = {name: os.environ.get(name) for name in names}
+    os.environ.update({name: '1' for name in names})
+    try:
+        yield from _pooled_batches(module,data,plan,duration,args,start,workers,tasks)
+    finally:
+        for name, value in saved.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+
+
+def _pooled_batches(module,data,plan,duration,args,start,workers,tasks):
+    with ProcessPoolExecutor(max_workers=workers,mp_context=multiprocessing.get_context('spawn'),
+            initializer=initialize,initargs=(module,data,plan,duration,vars(args))) as pool:
+        pending=deque()
+        for _ in range(workers*IN_FLIGHT):
+            task=next(tasks,None)
+            if task is not None:pending.append(pool.submit(render_batch,task))
+        try:
+            while pending:
+                result=pending.popleft().result()
+                yield result
+                task=next(tasks,None)
+                if task is not None:pending.append(pool.submit(render_batch,task))
+        finally:
+            for future in pending:future.cancel()

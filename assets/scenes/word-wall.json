@@ -1,0 +1,7 @@
+{
+  "name": "Word wall",
+  "camera": "poster",
+  "particles": null,
+  "layout": "wall",
+  "description": "The sung word repeats in sliding marquee rows of heavy and outlined type that roll over word by word, the line in a pill."
+}

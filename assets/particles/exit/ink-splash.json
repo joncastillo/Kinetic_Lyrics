@@ -1,0 +1,11 @@
+{
+  "name": "Ink splash",
+  "family": "ink",
+  "trajectory": "radial",
+  "spread": 1.65,
+  "gravity": 1.1,
+  "spin": 0.4,
+  "twist": 0.0,
+  "stagger": 0.1,
+  "density": 1.0
+}

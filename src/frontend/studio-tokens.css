@@ -1,0 +1,134 @@
+/* Design tokens. Monochrome glass with one warm accent. Night (dark) is the default; Day (light) switches in
+   through [data-theme=light] or the system preference. Every other stylesheet reads these; colours live nowhere else. */
+:root{
+ color-scheme:dark;
+ --fg-rgb:255,255,255;--well-rgb:0,0,0;
+ --bg:#120d0a;
+ --glass:rgba(72,46,30,.34);--glass-2:rgba(88,58,38,.42);--glass-3:rgba(110,76,52,.5);
+ --glass-line:rgba(255,220,180,.2);--glass-line-2:rgba(255,220,180,.3);--glass-hi:rgba(255,235,210,.26);
+ --blur:0px;
+ --frost:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+ --s1:rgba(30,19,12,.74);--s2:rgba(40,26,18,.82);--s3:rgba(255,255,255,.07);--s4:rgba(255,255,255,.12);
+ --line:var(--glass-line);--line-2:var(--glass-line-2);--line-3:rgba(255,225,190,.42);
+ --ink:#fbf4ec;--ink-2:#e2d4c4;--muted:#b9a593;--dim:#8a776a;
+ --accent:#ffc48a;--accent-2:#79e6d8;--accent-rgb:255,196,138;--accent-2-rgb:121,230,216;
+ /* the accent surface is glass: a tinted pane with a bright rim, not a gradient fill */
+ --grad:linear-gradient(165deg,rgba(255,196,138,.4),rgba(255,196,138,.14));
+ --hero-title-outline:none;--hero-action:var(--grad);--hero-action-hover:linear-gradient(165deg,rgba(var(--accent-rgb),.55),rgba(var(--accent-rgb),.22));
+ --grad-soft:linear-gradient(135deg,rgba(255,196,138,.22),rgba(255,196,138,.08));
+ --accent-ink:#fff6ea;--accent-soft:rgba(255,196,138,.14);--accent-line:rgba(255,196,138,.6);--accent-rim:rgba(255,240,220,.55);
+ --violet:#b9a8ff;--violet-rgb:185,168,255;--violet-text:#ebe6ff;
+ --cyan:#7fd6ff;--cyan-rgb:127,214,255;
+ --amber:#ffc98a;--amber-rgb:255,201,138;
+ --rose:#ff8f96;--rose-rgb:255,143,150;--rose-text:#ffdfe1;--rose-ink:#3a0c10;
+ --mint:#8ee8c0;--mint-rgb:142,232,192;--mint-ink:#0a2a1c;
+ /* one colour per model, shared by the header's GPU map and model list (both themes put them on dark glass); the
+    extra is for a loaded model the list does not name */
+ --go:#7ccf9f;--go-rgb:124,207,159;--go-fill:#2a8259;--go-fill-2:#1f6a47;--go-ink:#f2fbf6;
+ --model-asr:#3987e5;--model-timing:#d95926;--model-text:#199e70;--model-image:#c98500;--model-vision:#d55181;--model-video:#9085e9;--model-end:#e66767;--model-extra:#b45fd0;--model-idle:#d1d5db;
+ --step-timing:127,214,255;--step-prompts:185,168,255;--step-images:255,201,138;--step-review:255,150,190;--step-render:142,232,192;
+ --media:#120d0a;--media-hi:#2a1e16;--media-2:#1b1310;--checker-a:#2b2018;--checker-b:#1c1410;
+ --well:rgba(18,12,8,.45);--well-2:rgba(18,12,8,.62);
+ --pop:rgba(36,24,16,.92);
+ --sub:rgba(255,214,170,.12);--sub-2:rgba(255,214,170,.2);
+ --scene:url(/studio-art/night-osaka-lanterns.webp);
+ --vignette:radial-gradient(120% 90% at 50% 0,transparent 40%,rgba(0,0,0,.35) 100%);
+ --mesh-1:rgba(255,150,80,.12);--mesh-2:rgba(255,190,120,.1);--mesh-3:rgba(120,90,255,.08);--mesh-4:rgba(255,120,60,.08);
+ --shadow:0 1px 0 var(--glass-hi) inset,0 24px 60px -30px rgba(10,5,2,.7);
+ --shadow-pop:0 1px 0 var(--glass-hi) inset,0 40px 100px -30px rgba(10,5,2,.8);
+ --warn:var(--amber);--error:var(--rose);--lime:var(--accent);--panel:var(--s1);
+ --r-xl:26px;--r-lg:18px;--r-md:13px;--r-sm:9px;
+ --font:Inter,"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;
+ --display:"Segoe UI Variable Display",Inter,"Segoe UI",system-ui,sans-serif;
+ --mono:"Cascadia Mono","Cascadia Code",Consolas,"SF Mono",monospace;
+ --studio-header-offset:170px;
+ --ease:cubic-bezier(.2,.7,.2,1);
+}
+:root[data-theme=light]{
+ color-scheme:dark;
+ --fg-rgb:255,255,255;--well-rgb:4,10,28;
+ --bg:#dfe8f4;
+ /* navy glass over the photograph: translucent, with a frosted grain, no blur of what lies behind */
+ --glass:rgba(18,38,82,.34);--glass-2:rgba(24,48,98,.42);--glass-3:rgba(40,70,130,.5);
+ --glass-line:rgba(190,215,255,.22);--glass-line-2:rgba(190,215,255,.32);--glass-hi:rgba(255,255,255,.3);
+ --s1:rgba(8,20,50,.74);--s2:rgba(12,28,64,.82);--s3:rgba(255,255,255,.08);--s4:rgba(255,255,255,.14);
+ --blur:0px;
+ --line:var(--glass-line);--line-2:var(--glass-line-2);--line-3:rgba(190,215,255,.45);
+ --ink:#f4f7ff;--ink-2:#d2dcf3;--muted:#a3b3d6;--dim:#7d8db3;
+ --accent:#9cc9ff;--accent-2:#7fe6d8;--accent-rgb:156,201,255;--accent-2-rgb:127,230,216;
+ --grad:linear-gradient(165deg,rgba(156,201,255,.42),rgba(156,201,255,.14));
+ --hero-title-outline:-1px 0 #0a1a3e,1px 0 #0a1a3e,0 -1px #0a1a3e,0 1px #0a1a3e,0 2px 12px rgba(10,26,62,.45);--hero-action:#1f5fbf;--hero-action-hover:#174c9c;
+ --grad-soft:linear-gradient(135deg,rgba(156,201,255,.22),rgba(156,201,255,.08));
+ --accent-ink:#f4f8ff;--accent-soft:rgba(156,201,255,.16);--accent-line:rgba(156,201,255,.6);--accent-rim:rgba(220,235,255,.55);
+ --violet:#c0b4ff;--violet-rgb:192,180,255;--violet-text:#ebe6ff;
+ --cyan:#8fdcff;--cyan-rgb:143,220,255;
+ --amber:#ffd08a;--amber-rgb:255,208,138;
+ --rose:#ff9fae;--rose-rgb:255,159,174;--rose-text:#ffe1e8;--rose-ink:#3a0f1c;
+ --mint:#8eedc6;--mint-rgb:142,237,198;--mint-ink:#062a1f;
+ --step-timing:143,220,255;--step-prompts:192,180,255;--step-images:255,208,138;--step-review:255,159,174;--step-render:142,237,198;
+ --media:#0a1226;--media-hi:#1a2648;--media-2:#111b38;--checker-a:#1c2a4c;--checker-b:#121d3a;
+ --well:rgba(4,10,28,.42);--well-2:rgba(4,10,28,.6);
+ --pop:rgba(10,24,56,.92);
+ --sub:rgba(160,196,255,.2);--sub-2:rgba(160,196,255,.3);
+ --scene:url(/studio-art/day-meadow.webp);
+ --vignette:radial-gradient(120% 90% at 50% 0,transparent 40%,rgba(4,10,28,.35) 100%);
+ --mesh-1:rgba(255,255,255,.1);--mesh-2:rgba(255,255,255,.12);--mesh-3:rgba(120,170,255,.1);--mesh-4:rgba(255,255,255,.08);
+ --shadow:0 1px 0 var(--glass-hi) inset,0 24px 60px -30px rgba(4,10,28,.7);
+ --shadow-pop:0 1px 0 var(--glass-hi) inset,0 40px 100px -30px rgba(4,10,28,.8);
+}
+@media (prefers-color-scheme:light){:root:not([data-theme]){
+ color-scheme:dark;
+ --fg-rgb:255,255,255;--well-rgb:4,10,28;
+ --bg:#dfe8f4;
+ /* navy glass over the photograph: translucent, with a frosted grain, no blur of what lies behind */
+ --glass:rgba(18,38,82,.34);--glass-2:rgba(24,48,98,.42);--glass-3:rgba(40,70,130,.5);
+ --glass-line:rgba(190,215,255,.22);--glass-line-2:rgba(190,215,255,.32);--glass-hi:rgba(255,255,255,.3);
+ --s1:rgba(8,20,50,.74);--s2:rgba(12,28,64,.82);--s3:rgba(255,255,255,.08);--s4:rgba(255,255,255,.14);
+ --blur:0px;
+ --line:var(--glass-line);--line-2:var(--glass-line-2);--line-3:rgba(190,215,255,.45);
+ --ink:#f4f7ff;--ink-2:#d2dcf3;--muted:#a3b3d6;--dim:#7d8db3;
+ --accent:#9cc9ff;--accent-2:#7fe6d8;--accent-rgb:156,201,255;--accent-2-rgb:127,230,216;
+ --grad:linear-gradient(165deg,rgba(156,201,255,.42),rgba(156,201,255,.14));
+ --hero-title-outline:-1px 0 #0a1a3e,1px 0 #0a1a3e,0 -1px #0a1a3e,0 1px #0a1a3e,0 2px 12px rgba(10,26,62,.45);--hero-action:#1f5fbf;--hero-action-hover:#174c9c;
+ --grad-soft:linear-gradient(135deg,rgba(156,201,255,.22),rgba(156,201,255,.08));
+ --accent-ink:#f4f8ff;--accent-soft:rgba(156,201,255,.16);--accent-line:rgba(156,201,255,.6);--accent-rim:rgba(220,235,255,.55);
+ --violet:#c0b4ff;--violet-rgb:192,180,255;--violet-text:#ebe6ff;
+ --cyan:#8fdcff;--cyan-rgb:143,220,255;
+ --amber:#ffd08a;--amber-rgb:255,208,138;
+ --rose:#ff9fae;--rose-rgb:255,159,174;--rose-text:#ffe1e8;--rose-ink:#3a0f1c;
+ --mint:#8eedc6;--mint-rgb:142,237,198;--mint-ink:#062a1f;
+ --step-timing:143,220,255;--step-prompts:192,180,255;--step-images:255,208,138;--step-review:255,159,174;--step-render:142,237,198;
+ --media:#0a1226;--media-hi:#1a2648;--media-2:#111b38;--checker-a:#1c2a4c;--checker-b:#121d3a;
+ --well:rgba(4,10,28,.42);--well-2:rgba(4,10,28,.6);
+ --pop:rgba(10,24,56,.92);
+ --sub:rgba(160,196,255,.2);--sub-2:rgba(160,196,255,.3);
+ --scene:url(/studio-art/day-meadow.webp);
+ --vignette:radial-gradient(120% 90% at 50% 0,transparent 40%,rgba(4,10,28,.35) 100%);
+ --mesh-1:rgba(255,255,255,.1);--mesh-2:rgba(255,255,255,.12);--mesh-3:rgba(120,170,255,.1);--mesh-4:rgba(255,255,255,.08);
+ --shadow:0 1px 0 var(--glass-hi) inset,0 24px 60px -30px rgba(4,10,28,.7);
+ --shadow-pop:0 1px 0 var(--glass-hi) inset,0 40px 100px -30px rgba(4,10,28,.8);
+}}
+
+/* ---------- page backdrop: the current artwork blurred and dimmed, a slow monochrome mesh with one warm pool
+   of light, then a vignette; the glass panels pick all of it up ---------- */
+.backdrop{position:fixed;inset:-8%;z-index:-3;pointer-events:none;background:center/cover no-repeat;filter:blur(46px) saturate(.6) brightness(.95);transform:scale(1.04);opacity:0;transition:opacity 1.2s var(--ease)}
+.backdrop.show{opacity:0}
+:root[data-theme=light] .backdrop{display:none}
+@media (prefers-color-scheme:light){:root:not([data-theme]) .backdrop{display:none}}
+body{background:var(--bg)}
+/* Day: the photograph fills the window; the mesh and veil above it keep the glass legible. */
+.scene{position:fixed;inset:0;z-index:-4;pointer-events:none;background:var(--scene,none) center/cover no-repeat}
+.scene-video{width:100%;height:100%;object-fit:cover;display:block}
+.scene-canvas{width:100%;height:100%;object-fit:cover;display:block}
+.scene-transition{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1;opacity:1;transition:opacity 1.8s ease;pointer-events:none}
+body::after{content:"";position:fixed;inset:-20%;z-index:-2;pointer-events:none;filter:blur(70px) saturate(120%);
+ background:radial-gradient(40% 36% at 16% 20%,var(--mesh-1),transparent 70%),radial-gradient(34% 32% at 84% 14%,var(--mesh-2),transparent 70%),
+  radial-gradient(30% 30% at 74% 84%,var(--mesh-3),transparent 70%),radial-gradient(28% 28% at 22% 86%,var(--mesh-4),transparent 70%);
+ animation:mesh-drift 40s ease-in-out infinite alternate}
+@keyframes mesh-drift{from{transform:translate3d(0,0,0) scale(1)}to{transform:translate3d(3%,-2%,0) scale(1.06)}}
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:var(--vignette)}
+@media(prefers-reduced-motion:reduce){body::after{animation:none}}
+/* switching light and dark: a slow cross-fade (view transition), or eased colours where there is none */
+html.theme-fading::view-transition-old(root),html.theme-fading::view-transition-new(root){animation-duration:.8s;animation-timing-function:ease-in-out}
+html.theme-easing,html.theme-easing *,html.theme-easing *::before,html.theme-easing *::after{transition:background-color .8s ease,color .8s ease,border-color .8s ease,box-shadow .8s ease,fill .8s ease,stroke .8s ease!important}
+html.tab-fading::view-transition-old(root),html.tab-fading::view-transition-new(root){animation-duration:.35s;animation-timing-function:ease}

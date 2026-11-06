@@ -1,0 +1,7 @@
+{
+  "name": "Word spiral",
+  "camera": "poster",
+  "particles": null,
+  "layout": "spiral",
+  "description": "The line repeats along a turning spiral that fills the frame, streaming inward; the sung word lights up and is stamped in its eye."
+}

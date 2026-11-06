@@ -1,0 +1,21 @@
+__pycache__/
+*.pyc
+.claude
+.codex
+.venv/
+.venv-video/
+.cache/
+.preview-cache/
+.pytest_cache/
+output/
+*.log
+profiles/
+.serena/
+.runtime/
+tmp/
+.image-generation.lock
+.image-edit-priority.json
+automation/kinetic-effects-lab/runs/
+
+# vision descriptions of reference pictures, cached beside them (direction.entities.photo_subject)
+assets/subject.*.json

@@ -1,0 +1,15 @@
+{
+  "name": "Crystal and coral",
+  "camera": "blocks",
+  "particles": [
+    "frost-crystal-lettering",
+    "luminous-coral-lettering",
+    "obsidian-lattice-lettering",
+    "catholic-cross-lettering",
+    "glass-prism",
+    "glass-mosaic",
+    "ice-block-thaw",
+    "stained-glass-leading"
+  ],
+  "description": "3D blocks with frost crystal, glowing coral, obsidian lattice, or gold Latin crosses."
+}

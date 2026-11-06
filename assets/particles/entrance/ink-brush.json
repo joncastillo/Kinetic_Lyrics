@@ -1,0 +1,11 @@
+{
+  "name": "Ink brush",
+  "family": "ink",
+  "trajectory": "left",
+  "spread": 2.4,
+  "gravity": 1.1,
+  "spin": 0.46799999999999997,
+  "twist": 0.0,
+  "stagger": 0.35,
+  "density": 0.8
+}

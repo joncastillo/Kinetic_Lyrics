@@ -1,0 +1,11 @@
+{
+  "name": "Bubbles whirlpool",
+  "family": "bubbles",
+  "trajectory": "spiral",
+  "spread": 2.1,
+  "gravity": -0.7,
+  "spin": 0.3360000000000001,
+  "twist": 3.8,
+  "stagger": 0.15,
+  "density": 1.1
+}

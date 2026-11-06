@@ -1,0 +1,98 @@
+/* Page grid, tabs, the settings drawer, panels and breakpoints. */
+main{display:block;width:100%;max-width:none;margin:0;padding:14px 18px 48px}
+main>*,.form-body>*,.split>*{min-width:0}
+.panel{position:relative;overflow:hidden}
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 22px;border-bottom:1px solid var(--glass-line)}
+.panel-head>div{min-width:0}
+.panel-head small{display:block;margin-top:3px;font-size:11.5px;line-height:1.55;color:var(--muted);max-width:720px}
+.panel-head .badge{flex:none}
+.panel-head-tools{display:flex;align-items:center;gap:8px;flex:none;flex-wrap:wrap;justify-content:flex-end}
+.compatibility-note{margin:0;padding:12px 14px;border:1px solid rgba(var(--amber-rgb),.5);border-radius:var(--r-lg);color:var(--amber);background:rgba(var(--amber-rgb),.1);font-size:12px}
+#studioCompatibility:empty{display:none}
+#studioCompatibility{display:grid;gap:8px}
+
+/* tabs: the workspace shows one group at a time; scripts still toggle the panels inside each group */
+.workspace{display:grid;gap:18px;align-content:start;min-width:0;max-width:1760px;margin:0 auto}
+.workspace:not([data-tab=home]) #homePanel{display:none!important}
+.workspace:not([data-tab=project]) #projectPanel{display:none!important}
+.workspace:not([data-tab=video]) #videoPanel{display:none!important}
+.workspace:not([data-tab=artwork]) #reviewBanner,.workspace:not([data-tab=artwork]) #artworkPanel{display:none!important}
+.workspace:not([data-tab=small]) #smallImagePanel{display:none!important}
+.workspace:not([data-tab=timeline]) #timelineTab,.workspace:not([data-tab=timeline]) #timelinePanel{display:none!important}
+.workspace:not([data-tab=log]) #logPanel{display:none!important}
+.workspace[data-tab=home] .status-grid,.workspace[data-tab=project] .status-grid,.workspace[data-tab=log] .status-grid,.workspace[data-tab=timeline] .status-grid{display:none}
+.workspace[data-tab=home]{max-width:1480px}
+.workspace[data-tab=project]{max-width:1480px}
+
+/* settings drawer */
+/* The page behind the open drawer blurs into bokeh so its text does not fight the drawer's. */
+.drawer-scrim{position:fixed;inset:0;z-index:40;background:rgba(var(--well-rgb),.4);backdrop-filter:blur(18px) saturate(115%);-webkit-backdrop-filter:blur(18px) saturate(115%);opacity:0;pointer-events:none;transition:opacity .3s}
+body.drawer-open .drawer-scrim{opacity:1;pointer-events:auto}
+/* The drawer shares the page's panel colour; an open section inside it is the lighter surface (see studio-inspector.css). */
+aside.inspector{position:fixed;top:12px;right:12px;bottom:12px;z-index:45;width:min(560px,calc(100vw - 24px));display:flex;flex-direction:column;overflow:hidden;transform:translateX(calc(100% + 24px));transition:transform .36s cubic-bezier(.2,.8,.2,1);will-change:transform}
+body.drawer-open aside.inspector{transform:none}
+body.drawer-open{overflow:hidden}
+
+@media(min-width:1900px){main{padding:22px 24px 56px}body>header#studioHeader{margin:14px 24px 0}.workspace{max-width:2000px}.gallery{grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:20px;padding:22px}}
+@media(min-width:2400px){.workspace{max-width:2300px}.gallery{grid-template-columns:repeat(auto-fill,minmax(360px,1fr))}}
+/* tighter windows: brand and tools share the first line, the status strip takes a full line under them */
+@media(max-width:1440px){
+ .topbar{grid-template-columns:minmax(0,1fr) auto;gap:10px}
+ .topbar-tools{grid-column:2}
+ .deck-session{grid-column:1/-1;grid-row:2;width:100%}
+}
+@media(max-width:1000px){
+ main{padding:14px 12px 32px}
+ body>header#studioHeader{margin:10px 12px 0;top:8px}
+ .tabbar{margin:10px 12px 0}
+ .gallery{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+ .effect-browser-body{grid-template-columns:300px minmax(0,1fr)}
+ aside.inspector{top:8px;right:8px;bottom:8px;width:calc(100vw - 16px)}
+}
+@media(max-width:700px){
+ body>header#studioHeader{margin:8px 8px 0;top:6px;border-radius:20px}
+ .topbar{padding:10px 12px}
+ .brand h1{font-size:15px}
+ .song-picker{width:min(220px,46vw)}
+ .local{display:none}
+ .deck-top{padding:8px 12px}
+ .header-bottom{padding:6px 12px}
+ .header-status-detail .message{white-space:normal;font-size:11.5px}
+ .header-status-row .percent{font-size:22px}
+ .header-stages{flex-direction:column;align-items:stretch}
+ .start-at-stage{width:100%}
+ .deck-side{height:auto;flex-wrap:wrap}
+ .deck-session{height:auto;grid-template-columns:repeat(2,auto) minmax(0,1fr);grid-auto-rows:46px}
+ .deck-session .chart-box{grid-column:1/-1}
+ .deck-side .start-at-stage{width:100%}
+ .rebuild-panel.header-rebuild{margin-left:12px;margin-right:12px}
+ .rebuild-heading{flex-wrap:wrap}
+ .section-body{padding:14px}
+ .split,.typography-controls{grid-template-columns:minmax(0,1fr)}
+ .panel-head{flex-wrap:wrap;padding:14px 16px}
+ .gallery{padding:12px;gap:12px}
+ .review-banner{flex-direction:column;align-items:stretch}
+ .log-toolbar{gap:8px}
+ .toast{left:16px;right:16px;transform:none;max-width:none}
+ .effect-browser{width:calc(100vw - 16px);height:calc(100dvh - 16px);border-radius:18px}
+ .effect-browser>.effect-browser-header{padding:13px 16px}.effect-browser-header h2{font-size:18px}
+ .effect-browser-tabs{padding:7px 12px}.effect-browser-tabs button{min-width:0;flex:1;padding:6px 10px;font-size:12px}
+ .effect-browser-body{display:flex;flex-direction:column}
+ .effect-preview-pane{order:-1;flex:none;padding:12px 16px;border-bottom:1px solid var(--glass-line);overflow:visible}
+ .effect-preview-heading h3{font-size:17px;margin:3px 0 8px}
+ .effect-preview-heading p,.effect-preview-pane .help{display:none}
+ .effect-preview-stage{max-height:160px}
+ .effect-preview-status{margin:5px 0 8px;min-height:28px;font-size:10px}
+ .effect-browser-lists{flex:1;min-height:0;border-right:0}
+ .effect-list-tools{padding:10px 12px}
+ .timeline-edit{grid-template-columns:1fr}.timeline-lines{max-height:150px}
+ .story-fields{grid-template-columns:1fr}.story-beat{grid-template-columns:60px 60px 1fr 32px}.story-beat [data-beat="camera"]{grid-column:1/-2}.story-beat-head{display:none}
+ .video-history-controls{padding:12px 14px}.video-history-controls .row{flex-wrap:wrap}
+ .home-grid{grid-template-columns:1fr}
+}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important;animation-duration:.01ms!important;animation-iteration-count:1!important}.busy-spinner{animation-duration:2.4s!important;animation-iteration-count:infinite!important}aside.inspector{transition:transform .36s cubic-bezier(.2,.8,.2,1)!important}.drawer-scrim{transition:opacity .3s!important}}
+@media(prefers-reduced-transparency:reduce){.glass,.panel,.modal,.song-menu,.toast,.effect-browser,.timeline-dialog,.framing-dialog,body>header#studioHeader,.inspector-footer{backdrop-filter:none;background:var(--bg)}}
+
+/* mid widths: the session card and start button drop under the rail as one row */
+@media(min-width:701px) and (max-width:1500px){.deck-session{grid-template-columns:auto auto auto auto minmax(120px,200px)}}
+@media(max-width:700px){.deck-top{flex-wrap:wrap}.deck-gpu,.deck-run{width:100%;max-width:none;margin-left:0}}

@@ -1,0 +1,15 @@
+{
+  "name": "Lace and paper",
+  "camera": "blocks",
+  "particles": [
+    "pearl-lace-lettering",
+    "folded-paper-lettering",
+    "mucha-silk-lettering",
+    "thread-stitch-lettering",
+    "ink-bloom-lettering",
+    "petals-breeze-lettering",
+    "petals-grow-lettering",
+    "architectural-sketch"
+  ],
+  "description": "3D blocks with pearl lace, folded paper, or flowing Art Nouveau silk."
+}

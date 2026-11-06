@@ -1,0 +1,11 @@
+{
+  "name": "Ink spray",
+  "family": "ink",
+  "trajectory": "fan",
+  "spread": 2.7,
+  "gravity": 1.1,
+  "spin": 0.6040000000000001,
+  "twist": 0.0,
+  "stagger": 0.22,
+  "density": 0.65
+}

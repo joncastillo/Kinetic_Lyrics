@@ -1,0 +1,11 @@
+{
+  "name": "Dust drift",
+  "family": "dust",
+  "trajectory": "left",
+  "spread": 2.4,
+  "gravity": -0.4,
+  "spin": 0.1755,
+  "twist": 0.0,
+  "stagger": 0.35,
+  "density": 0.8
+}

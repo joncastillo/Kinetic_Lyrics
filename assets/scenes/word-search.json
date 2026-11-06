@@ -1,0 +1,7 @@
+{
+  "name": "Word search",
+  "camera": "poster",
+  "particles": null,
+  "layout": "search",
+  "description": "The line hidden in a grid of letters like a puzzle; a marker sweeps along each word as it is sung."
+}

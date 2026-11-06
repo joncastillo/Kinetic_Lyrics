@@ -1,0 +1,10 @@
+{
+  "name": "Architectural sketch",
+  "family": "material",
+  "trajectory": "grow",
+  "hold": "particles",
+  "density": 1.0,
+  "spread": 1.0,
+  "gravity": 0.0,
+  "spin": 0.0
+}

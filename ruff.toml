@@ -1,0 +1,14 @@
+# Lint and format settings (ruff: python -m pip install -r requirements-dev.txt).
+#   python -m ruff check src tests      correctness checks; must pass (tests/test_lint.py runs it)
+#   python -m ruff format <file>        format new and changed files; older files keep their style until edited
+line-length = 120
+target-version = "py312"
+src = ["src", "tests"]
+
+[lint]
+# Correctness only: undefined names, unused imports and variables, syntax errors. The code base mixes two styles
+# (dense one-liners and PEP 8); style rules would flag thousands of lines that work.
+select = ["F", "E9"]
+
+[format]
+quote-style = "preserve"

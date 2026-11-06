@@ -1,0 +1,11 @@
+{
+  "name": "Page peel",
+  "family": "kinetic",
+  "trajectory": "radial",
+  "spread": 1.0,
+  "gravity": 0,
+  "spin": 0,
+  "twist": 0,
+  "stagger": 0.0,
+  "density": 1
+}

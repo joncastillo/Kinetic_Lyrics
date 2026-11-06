@@ -1,0 +1,11 @@
+{
+  "name": "Pixels wave",
+  "family": "pixels",
+  "trajectory": "fan",
+  "spread": 2.7,
+  "gravity": 0.15,
+  "spin": 0.07550000000000001,
+  "twist": 0.0,
+  "stagger": 0.22,
+  "density": 0.65
+}

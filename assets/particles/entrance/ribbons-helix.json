@@ -1,0 +1,11 @@
+{
+  "name": "Ribbons helix",
+  "family": "ribbons",
+  "trajectory": "spiral",
+  "spread": 2.1,
+  "gravity": 0.2,
+  "spin": 2.352,
+  "twist": 3.8,
+  "stagger": 0.15,
+  "density": 1.1
+}

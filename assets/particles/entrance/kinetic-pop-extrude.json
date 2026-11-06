@@ -1,0 +1,11 @@
+{
+  "name": "Pop extrude",
+  "family": "kinetic",
+  "trajectory": "radial",
+  "spread": 1.0,
+  "gravity": 0,
+  "spin": 0,
+  "twist": 0,
+  "stagger": 0.25,
+  "density": 1
+}

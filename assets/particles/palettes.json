@@ -1,0 +1,173 @@
+{
+ "architectural-sketch": [
+  "#44474D",
+  "#DED7C9",
+  "#F3EDDD",
+  "#838381"
+ ],
+ "autumn-maple-lettering": [
+  "#A84D2D",
+  "#A3804E",
+  "#C5A173",
+  "#201C0E"
+ ],
+ "bamboo-lettering": [
+  "#112713",
+  "#4E762E",
+  "#88AB4E",
+  "#030B05"
+ ],
+ "branding-iron-scorch": [
+  "#191411",
+  "#24201E",
+  "#0C0B0C",
+  "#474444"
+ ],
+ "catholic-cross-lettering": [
+  "#FAF4E5",
+  "#070300",
+  "#96713A"
+ ],
+ "clockwork-lettering": [
+  "#82633D",
+  "#503C25",
+  "#060504",
+  "#B9A781"
+ ],
+ "ember-forge": "ink",
+ "folded-paper-lettering": [
+  "#E2D1B0",
+  "#9F9797",
+  "#CBB99E",
+  "#645851"
+ ],
+ "frost-crystal-lettering": [
+  "#7DC8E8",
+  "#E1F8FF",
+  "#BAE8F8",
+  "#EBFDFF"
+ ],
+ "glass-assemble": "ink",
+ "glass-mosaic": "ink",
+ "glass-prism": "ink",
+ "glass-spiral": "ink",
+ "glass-sweep": "ink",
+ "gold-filigree-lettering": [
+  "#997E4F",
+  "#070504",
+  "#503D24",
+  "#DFC485"
+ ],
+ "ice-block-thaw": [
+  "#A2C4D3",
+  "#E1F6FB",
+  "#0B253E",
+  "#78929E"
+ ],
+ "ink-bloom-lettering": [
+  "#538D77",
+  "#5A8671",
+  "#667A66",
+  "#57A087"
+ ],
+ "jeweled-brocade-lettering": [
+  "#030203",
+  "#836D57",
+  "#452D21",
+  "#D4C08D"
+ ],
+ "lava-flow-fill": [
+  "#392A26",
+  "#110D0B",
+  "#1A120F",
+  "#7B5530"
+ ],
+ "letters-spin-above": "ink",
+ "letters-spin-below": "ink",
+ "letters-spin-diagonal": "ink",
+ "letters-spin-left": "ink",
+ "letters-spin-right": "ink",
+ "letters-spin-scatter": "ink",
+ "letters-spin-spiral": "ink",
+ "liquid-chrome-assembly": "ink",
+ "luminous-coral-lettering": [
+  "#6A837A",
+  "#030303",
+  "#384845",
+  "#A6CDC0"
+ ],
+ "moss-overgrowth": [
+  "#0F1B09",
+  "#203917",
+  "#547A32"
+ ],
+ "mucha-silk-lettering": [
+  "#DE4066",
+  "#26BFBE",
+  "#416FE6",
+  "#EC992B",
+  "#A15CD3",
+  "#37B66A"
+ ],
+ "neon-tube-ignite": [
+  "#0D0D12",
+  "#FFF2FF",
+  "#67234A",
+  "#EA75D5"
+ ],
+ "obsidian-lattice-lettering": [
+  "#322D46",
+  "#1D2231",
+  "#0F1019",
+  "#55516B"
+ ],
+ "old-oak-lettering": [
+  "#726A30",
+  "#6F5537",
+  "#9B8A5E",
+  "#2C2B12"
+ ],
+ "pearl-lace-lettering": [
+  "#040404",
+  "#D9D6C9",
+  "#878279",
+  "#373331"
+ ],
+ "petals-breeze-lettering": [
+  "#000000",
+  "#D3988F",
+  "#7F3733",
+  "#906C52"
+ ],
+ "petals-grow-lettering": [
+  "#64511F",
+  "#656D32",
+  "#A08B67",
+  "#060C05"
+ ],
+ "petals-spiral-lettering": [
+  "#000000",
+  "#D3988F",
+  "#7F3733",
+  "#906C52"
+ ],
+ "petals-wind-lettering": [
+  "#000000",
+  "#D3988F",
+  "#7F3733",
+  "#906C52"
+ ],
+ "prismatic-helix": "ink",
+ "stained-glass-leading": [
+  "#100C0A",
+  "#FAFEBC",
+  "#B7AFA1",
+  "#402F2A"
+ ],
+ "thread-stitch-lettering": [
+  "#2D283F",
+  "#DED692",
+  "#010101",
+  "#60462C"
+ ]
+}

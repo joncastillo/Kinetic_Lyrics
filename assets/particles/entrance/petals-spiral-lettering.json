@@ -1,0 +1,11 @@
+{
+  "name": "Petals and leaves spiraling into letters",
+  "family": "petals",
+  "hold": "particles",
+  "trajectory": "spiral",
+  "spread": 2.8,
+  "spin": 1.2,
+  "twist": 3.8,
+  "stagger": 0.35,
+  "density": 1.2
+}

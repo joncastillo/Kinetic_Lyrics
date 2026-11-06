@@ -1,0 +1,7 @@
+{
+  "name": "Type drum",
+  "camera": "poster",
+  "particles": null,
+  "layout": "drum",
+  "description": "The line wraps a turning drum in rows; letters squeeze as they turn away, and the drum brings each sung word to the front."
+}

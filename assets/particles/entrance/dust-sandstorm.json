@@ -1,0 +1,11 @@
+{
+  "name": "Dust sandstorm",
+  "family": "dust",
+  "trajectory": "up",
+  "spread": 1.9,
+  "gravity": -0.4,
+  "spin": 0.201,
+  "twist": 0.0,
+  "stagger": 0.5,
+  "density": 1.3
+}

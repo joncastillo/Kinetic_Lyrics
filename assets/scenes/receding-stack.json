@@ -1,0 +1,7 @@
+{
+  "name": "Receding stack",
+  "camera": "poster",
+  "particles": null,
+  "layout": "recede",
+  "description": "The sung word stands on a plate in front while earlier words step back into depth; each new word dollies the stack back."
+}

@@ -1,0 +1,11 @@
+{
+  "name": "Ribbons braid",
+  "family": "ribbons",
+  "trajectory": "fan",
+  "spread": 2.7,
+  "gravity": 0.2,
+  "spin": 2.114,
+  "twist": 0.0,
+  "stagger": 0.22,
+  "density": 0.65
+}

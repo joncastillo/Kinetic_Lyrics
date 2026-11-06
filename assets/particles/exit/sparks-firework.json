@@ -1,0 +1,11 @@
+{
+  "name": "Sparks firework",
+  "family": "sparks",
+  "trajectory": "down",
+  "spread": 1.9,
+  "gravity": 0.6,
+  "spin": 0.938,
+  "twist": 0.0,
+  "stagger": 0.5,
+  "density": 1.3
+}

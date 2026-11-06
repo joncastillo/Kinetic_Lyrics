@@ -1,0 +1,11 @@
+{
+  "name": "Snow fall",
+  "family": "snow",
+  "trajectory": "down",
+  "spread": 1.9,
+  "gravity": 0.55,
+  "spin": 2.0100000000000002,
+  "twist": 0.0,
+  "stagger": 0.5,
+  "density": 1.3
+}

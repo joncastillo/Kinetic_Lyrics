@@ -1,0 +1,7 @@
+{
+  "name": "Halftone bloom",
+  "camera": "poster",
+  "particles": null,
+  "layout": "halftone",
+  "description": "The line set big in halftone dots; each sung word swells solid in colour with a ripple through the screen, then relaxes back to dots."
+}

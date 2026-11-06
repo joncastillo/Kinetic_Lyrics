@@ -1,0 +1,7 @@
+{
+  "name": "Block drop",
+  "camera": "poster",
+  "particles": null,
+  "layout": "drop",
+  "description": "Each sung word falls as a heavy block onto a growing pile with a squash; the pile topples away at the end."
+}

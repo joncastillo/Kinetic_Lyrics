@@ -1,0 +1,39 @@
+# CUDA PyTorch (torch, torchaudio, torchvision) is installed first by setup.ps1.
+
+# Core rendering
+Pillow>=10.0
+numpy>=1.26,<3
+scipy>=1.12,<2
+moderngl>=5.12,<6
+psutil>=5.9
+filelock>=3.15
+# Imported directly (scene lyrics, glyph meshes, material effects); listed so they never depend on
+# arriving with another package.
+opencv-python>=4.9
+shapely>=2.0
+scikit-image>=0.22
+scenedetect>=0.6.5  # cuts between shots (scene lyrics are placed afresh at each)
+
+# Pipeline orchestration and resumable checkpoints
+langgraph>=1.0,<2
+langgraph-checkpoint-sqlite>=3.0,<4
+msgpack>=1.0,<2  # Safely relocate saved session checkpoints without constructing serialized objects.
+
+# Audio: alignment, stem separation, melody and rhythm
+stable-ts>=2.19,<3
+demucs>=4.0
+librosa>=0.10
+soundfile>=0.12
+yt-dlp>=2025.1
+requests>=2.31
+beautifulsoup4>=4.12
+
+# Illustrations: image generation, cutouts and lettering checks
+diffusers>=0.42,<0.43
+transformers>=5.0,<6
+accelerate>=1.10
+bitsandbytes>=0.49
+gguf>=0.10  # GGUF transformers (Qwen Image 2.1 Uncensored, Q4_K_M)
+sentencepiece>=0.2
+rembg[cpu]>=2.0.67
+rapidocr-onnxruntime>=1.4

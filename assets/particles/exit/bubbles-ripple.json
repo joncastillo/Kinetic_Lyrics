@@ -1,0 +1,11 @@
+{
+  "name": "Bubbles ripple",
+  "family": "bubbles",
+  "trajectory": "fan",
+  "spread": 2.7,
+  "gravity": -0.7,
+  "spin": 0.30200000000000005,
+  "twist": 0.0,
+  "stagger": 0.22,
+  "density": 0.65
+}

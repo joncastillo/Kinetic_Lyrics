@@ -1,0 +1,11 @@
+{
+  "name": "Ribbons curtain",
+  "family": "ribbons",
+  "trajectory": "up",
+  "spread": 1.9,
+  "gravity": 0.2,
+  "spin": 1.876,
+  "twist": 0.0,
+  "stagger": 0.5,
+  "density": 1.3
+}

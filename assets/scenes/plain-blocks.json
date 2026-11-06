@@ -1,0 +1,6 @@
+{
+  "name": "3D blocks",
+  "camera": "blocks",
+  "particles": [],
+  "description": "Clean justified word blocks in 3D space; the camera glides between them."
+}

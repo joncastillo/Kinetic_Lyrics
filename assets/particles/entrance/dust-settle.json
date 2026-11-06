@@ -1,0 +1,11 @@
+{
+  "name": "Dust settle",
+  "family": "dust",
+  "trajectory": "fan",
+  "spread": 2.7,
+  "gravity": -0.4,
+  "spin": 0.22649999999999998,
+  "twist": 0.0,
+  "stagger": 0.22,
+  "density": 0.65
+}
